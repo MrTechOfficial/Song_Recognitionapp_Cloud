@@ -28,15 +28,13 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      - name: Patch Xcode for Unsigned Device Build
+      - name: Patch iOS Target & Inject xcconfig Overrides
         run: |
           # Set deployment target to iOS 13.0
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
           
-          # Inject dummy Development Team ID into Xcode project settings
-          sed -i '' 's/buildSettings = {/buildSettings = {\n\t\t\t\tDEVELOPMENT_TEAM = 1234567890;/g' ios/Runner.xcodeproj/project.pbxproj
-          
-          # Inject code signing bypass into Flutter Release config
+          # Inject dummy Team ID and disable signing directly via Release.xcconfig
+          echo "DEVELOPMENT_TEAM=ABC1234567" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
