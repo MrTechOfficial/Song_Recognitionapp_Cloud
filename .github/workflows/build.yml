@@ -28,10 +28,9 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
 
-      - name: Patch Xcode Target & Disable Signing
+      - name: Patch iOS Deployment Target
         run: |
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' ios/Runner.xcodeproj/project.pbxproj || true
 
       - name: Install CocoaPods
         run: |
@@ -39,7 +38,11 @@ jobs:
           pod install --repo-update
 
       - name: Build Unsigned iOS App
-        run: flutter build ios --release --no-codesign CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+        env:
+          CODE_SIGNING_ALLOWED: "NO"
+          CODE_SIGNING_REQUIRED: "NO"
+          CODE_SIGN_IDENTITY: ""
+        run: flutter build ios --release --no-codesign
 
       - name: Package App into IPA File
         run: |
