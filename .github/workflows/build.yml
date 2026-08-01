@@ -59,3 +59,5 @@ jobs:
         with:
           name: song_recognition_app
           path: song_recognition.ipa
+dependency_overrides:
+  record_platform_interface: 1.2.0
