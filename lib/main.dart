@@ -62,7 +62,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 
   // 🔗 UPDATE YOUR BACKEND URL HERE (IP Address, Dev Tunnel, or Cloud Domain)
   final String _backendUrl =
-      'https://mn39bz6s-8000.use.devtunnels.ms/recognize';
+      'https://song-recognitionapp-cloud.onrender.com/recognize';
 
   // 🎵 Audio Cue URLs
   final String _dingUrl =
