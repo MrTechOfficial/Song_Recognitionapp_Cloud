@@ -109,16 +109,18 @@ async def recognize_audio(file: UploadFile = File(...)):
             
             artists = music_data.get('artists', [])
             artist = artists[0]['name'] if artists else 'Unknown Artist'
-
-            # Extract Spotify URI scheme to trigger native app
+            
+# Extract Spotify Track ID to open directly in native Spotify app
             spotify_url = ""
             external_metadata = music_data.get('external_metadata', {})
+
             if 'spotify' in external_metadata and 'track' in external_metadata['spotify']:
                 track_id = external_metadata['spotify']['track'].get('id')
                 if track_id:
-                    spotify_url = f"spotify:track:{track_id}:play"
+                    # ⚡ Standard Spotify URL - launches native app straight to the song player!
+                    spotify_url = f"https://open.spotify.com/track/{track_id}"
 
-            # Fallback search URI for native Spotify app
+            # Fallback search URL only if ACRCloud didn't return a direct Spotify track ID
             if not spotify_url:
                 search_query = f"{title} {artist}".replace(" ", "%20")
                 spotify_url = f"spotify:search:{search_query}"
