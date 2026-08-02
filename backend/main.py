@@ -116,7 +116,7 @@ async def recognize_audio(file: UploadFile = File(...)):
             if 'spotify' in external_metadata and 'track' in external_metadata['spotify']:
                 track_id = external_metadata['spotify']['track'].get('id')
                 if track_id:
-                    spotify_url = f"spotify:track:{track_id}"
+                    spotify_url = f"spotify:track:{track_id}:play"
 
             # Fallback search URI for native Spotify app
             if not spotify_url:
