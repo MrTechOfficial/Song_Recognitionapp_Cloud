@@ -400,11 +400,15 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 
 // 🎧 Hardware AirPods media control handler
 // 🎧 Hardware AirPods media control handler
+// 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
 
   AirPodsAudioHandler({required this.onMediaButtonTriggered}) {
-    // 🎵 CRITICAL: Tells iOS that your app is the active "Now Playing" player
+    _updateState();
+  }
+
+  void _updateState() {
     mediaItem.add(
       const MediaItem(
         id: '1',
@@ -423,25 +427,28 @@ class AirPodsAudioHandler extends BaseAudioHandler {
           MediaAction.playPause,
         },
         processingState: AudioProcessingState.ready,
-        playing: true, // Tells iOS this app is actively managing media
+        playing: true, // 👈 Tells iOS to route next stem click here
       ),
     );
   }
 
   @override
   Future<void> play() async {
+    _updateState();
     onMediaButtonTriggered();
     return super.play();
   }
 
   @override
   Future<void> pause() async {
+    _updateState();
     onMediaButtonTriggered();
     return super.pause();
   }
 
   @override
   Future<void> click([MediaButton button = MediaButton.media]) async {
+    _updateState();
     onMediaButtonTriggered();
     return super.click(button);
   }
