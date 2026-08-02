@@ -403,12 +403,20 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 // 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
+  final AudioPlayer _silentPlayer = AudioPlayer();
 
   AirPodsAudioHandler({required this.onMediaButtonTriggered}) {
-    _updateState();
+    _initSilentLoop();
   }
 
-  void _updateState() {
+  // 🤫 Loop silent audio so iOS keeps focus on our app
+  Future<void> _initSilentLoop() async {
+    await _silentPlayer.setReleaseMode(ReleaseMode.loop);
+    await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.0);
+    _updateState(isPlaying: true);
+  }
+
+  void _updateState({required bool isPlaying}) {
     mediaItem.add(
       const MediaItem(
         id: '1',
@@ -427,29 +435,41 @@ class AirPodsAudioHandler extends BaseAudioHandler {
           MediaAction.playPause,
         },
         processingState: AudioProcessingState.ready,
-        playing: true, // 👈 Tells iOS to route next stem click here
+        playing: isPlaying,
       ),
     );
   }
 
   @override
   Future<void> play() async {
-    _updateState();
-    onMediaButtonTriggered();
+    _handleSqueeze();
     return super.play();
   }
 
   @override
   Future<void> pause() async {
-    _updateState();
-    onMediaButtonTriggered();
+    _handleSqueeze();
     return super.pause();
   }
 
   @override
   Future<void> click([MediaButton button = MediaButton.media]) async {
-    _updateState();
-    onMediaButtonTriggered();
+    _handleSqueeze();
     return super.click(button);
+  }
+
+  void _handleSqueeze() async {
+    // 1. Briefly pause silence while mic records
+    await _silentPlayer.pause();
+    _updateState(isPlaying: false);
+
+    // 2. Trigger song identification
+    onMediaButtonTriggered();
+
+    // 3. Resume silent loop after identification completes
+    Future.delayed(const Duration(seconds: 10), () async {
+      await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.0);
+      _updateState(isPlaying: true);
+    });
   }
 }
