@@ -399,10 +399,21 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 }
 
 // 🎧 Hardware AirPods media control handler
+// 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
 
   AirPodsAudioHandler({required this.onMediaButtonTriggered}) {
+    // 🎵 CRITICAL: Tells iOS that your app is the active "Now Playing" player
+    mediaItem.add(
+      const MediaItem(
+        id: '1',
+        album: 'Hands-Free Finder',
+        title: 'Song Finder Active',
+        artist: 'Squeeze stem to identify songs',
+      ),
+    );
+
     playbackState.add(
       PlaybackState(
         controls: [MediaControl.play, MediaControl.pause],
@@ -412,7 +423,7 @@ class AirPodsAudioHandler extends BaseAudioHandler {
           MediaAction.playPause,
         },
         processingState: AudioProcessingState.ready,
-        playing: true,
+        playing: true, // Tells iOS this app is actively managing media
       ),
     );
   }
