@@ -412,7 +412,7 @@ class AirPodsAudioHandler extends BaseAudioHandler {
           MediaAction.playPause,
         },
         processingState: AudioProcessingState.ready,
-        playing: false,
+        playing: true,
       ),
     );
   }
