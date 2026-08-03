@@ -130,7 +130,9 @@ def transcribe_audio_with_groq(audio_file_path: str) -> str:
     except Exception as e:
         print(f"[GROQ ERROR]: {e}")
         return ""
-
+@app.get("/")
+def read_root():
+    return {"status": "ACRCloud + Groq Whisper + Spotify + Genius Active"}
 @app.post("/recognize")
 async def recognize_audio(file: UploadFile = File(...)):
     file_ext = os.path.splitext(file.filename)[1] or ".wav"

@@ -411,7 +411,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 }
 
 // 🎧 Hardware AirPods media control handler
-// 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
   final AudioPlayer _silentPlayer = AudioPlayer();
@@ -420,24 +419,22 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     _initSilentLoop();
   }
 
-  Future<void> _initSilentLoop() async {
+Future<void> _initSilentLoop() async {
     try {
       final session = await AudioSession.instance;
-      
-      // ⚡ CRITICAL FIX: Set options to 'none' (Removing mixWithOthers).
-      // This forces iOS to strip "Now Playing" control from Spotify and grant it exclusively to your app!
+
+      // 1. Configure iOS native audio session exclusively for background playback
       await session.configure(const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
         avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
       ));
-      
       await session.setActive(true);
     } catch (e) {
       debugPrint('AudioSession configuration error: $e');
     }
 
-    // Loop silence continuously at a barely audible 1% volume
+    // 2. Play silent loop continuously
     await _silentPlayer.setReleaseMode(ReleaseMode.loop);
     await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
     _updateState(isPlaying: true);
@@ -486,7 +483,6 @@ class AirPodsAudioHandler extends BaseAudioHandler {
   }
 
   void _handleSqueeze() async {
-    // When you squeeze the stem, trigger the recording pipeline
     onMediaButtonTriggered();
   }
 }
