@@ -10,10 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 
 # =====================================================================
-# 🔑 API KEYS & CONFIGURATION
+# 🔑 CONFIGURATION
 # =====================================================================
 
-# 1. ACRCloud Credentials
 ACR_CONFIG = {
     'host': os.getenv('ACR_HOST', 'identify-us-west-2.acrcloud.com'),
     'access_key': os.getenv('ACR_ACCESS_KEY', 'a9d1192c3bd32cfac5189730d8609eed'),
@@ -21,18 +20,14 @@ ACR_CONFIG = {
     'timeout': 10
 }
 
-# 2. Groq Credentials (100% Free Whisper Lyric Transcription)
-GROQ_API_KEY = os.getenv('GROQ_API_KEY', 'YOUR_GROQ_API_KEY_HERE')
-groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY != 'YOUR_GROQ_API_KEY_HERE' else None
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-# 3. Spotify Credentials (for Popularity Ranking)
-SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID', 'YOUR_SPOTIFY_CLIENT_ID_HERE')
-SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET', 'YOUR_SPOTIFY_CLIENT_SECRET_HERE')
+SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID', '')
+SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET', '')
+GENIUS_ACCESS_TOKEN = os.getenv('GENIUS_ACCESS_TOKEN', '')
 
-# =====================================================================
-# 🚀 FASTAPI SETUP & CORS
-# =====================================================================
-app = FastAPI(title="Groq + ACRCloud Song Recognition Engine")
+app = FastAPI(title="Song Recognition Engine")
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,156 +37,99 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-COVER_KEYWORDS = [
-    'cover', 'tribute', 'karaoke', 'in the style of', 
-    'originally performed by', 'acoustic cover', 'version', 'remix'
-]
-
-# =====================================================================
-# 🔐 HELPER FUNCTIONS
-# =====================================================================
+COVER_KEYWORDS = ['cover', 'tribute', 'karaoke', 'in the style of', 'version', 'remix']
 
 def generate_acr_signature(host, access_key, access_secret):
-    """Generates security HMAC signature required by ACRCloud API."""
-    http_method = "POST"
-    http_uri = "/v1/identify"
-    data_type = "audio"
-    signature_version = "1"
+    http_method, http_uri, data_type, signature_version = "POST", "/v1/identify", "audio", "1"
     timestamp = str(int(time.time()))
-
     string_to_sign = f"{http_method}\n{http_uri}\n{access_key}\n{data_type}\n{signature_version}\n{timestamp}"
-    
-    sign = hmac.new(
-        access_secret.encode('utf-8'),
-        string_to_sign.encode('utf-8'),
-        digestmod=hashlib.sha1
-    ).digest()
-
+    sign = hmac.new(access_secret.encode('utf-8'), string_to_sign.encode('utf-8'), digestmod=hashlib.sha1).digest()
     return {
-        'access_key': access_key,
-        'data_type': data_type,
+        'access_key': access_key, 'data_type': data_type,
         'signature': base64.b64encode(sign).decode('utf-8'),
-        'signature_version': signature_version,
-        'timestamp': timestamp,
+        'signature_version': signature_version, 'timestamp': timestamp,
     }
 
-
 def is_cover_version(title: str, artist: str) -> bool:
-    """Detects whether a track is a cover, karaoke, or tribute version."""
     text = f"{title} {artist}".lower()
     return any(keyword in text for keyword in COVER_KEYWORDS)
 
-
 def get_spotify_access_token():
-    """Obtains a client credentials access token from Spotify Web API."""
-    if SPOTIFY_CLIENT_ID == 'YOUR_SPOTIFY_CLIENT_ID_HERE':
+    if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
         return None
-        
     url = "https://accounts.spotify.com/api/token"
     auth_header = base64.b64encode(f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}".encode()).decode()
-    headers = {"Authorization": f"Basic {auth_header}"}
-    data = {"grant_type": "client_credentials"}
-
     try:
-        response = requests.post(url, headers=headers, data=data, timeout=5)
-        if response.status_code == 200:
-            return response.json().get('access_token')
+        res = requests.post(url, headers={"Authorization": f"Basic {auth_header}"}, data={"grant_type": "client_credentials"}, timeout=5)
+        if res.status_code == 200:
+            return res.json().get('access_token')
     except Exception as e:
         print(f"[SPOTIFY AUTH ERROR]: {e}")
     return None
 
-
-def search_spotify_by_lyrics(query: str):
-    """
-    Queries Spotify Web API using text lyrics transcribed by Groq,
-    filters out cover tracks, and picks the #1 most popular hit track.
-    """
-    token = get_spotify_access_token()
-    if not token:
-        clean_query = query.replace(" ", "%20")
-        return {
-            "title": query.capitalize(),
-            "artist": "Original Artist",
-            "spotify_url": f"spotify:search:{clean_query}"
-        }
-
-    search_url = f"https://api.spotify.com/v1/search?q={requests.utils.quote(query)}&type=track&limit=10"
-    headers = {"Authorization": f"Bearer {token}"}
-
+def resolve_lyrics_to_song_with_genius(lyrics: str):
+    """Uses Genius API to translate transcribed lyrics into the true Title & Artist."""
+    if not GENIUS_ACCESS_TOKEN:
+        return None
+    
+    url = f"https://api.genius.com/search?q={requests.utils.quote(lyrics)}"
+    headers = {"Authorization": f"Bearer {GENIUS_ACCESS_TOKEN}"}
     try:
-        response = requests.get(search_url, headers=headers, timeout=5)
-        if response.status_code == 200:
-            tracks = response.json().get('tracks', {}).get('items', [])
-            
-            valid_tracks = []
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            hits = res.json().get('response', {}).get('hits', [])
+            if hits:
+                top = hits[0]['result']
+                title = top.get('title')
+                artist = top.get('primary_artist', {}).get('name')
+                print(f"[GENIUS LYRIC MATCH]: '{title}' by {artist}")
+                return {"title": title, "artist": artist}
+    except Exception as e:
+        print(f"[GENIUS API ERROR]: {e}")
+    return None
+
+def get_official_spotify_track(title: str, artist: str):
+    """Searches Spotify specifically for the exact Title & Artist to avoid covers."""
+    token = get_spotify_access_token()
+    query = f"track:{title} artist:{artist}"
+    
+    if not token:
+        return {"title": title, "artist": artist, "spotify_url": f"spotify:search:{requests.utils.quote(title + ' ' + artist)}"}
+
+    search_url = f"https://api.spotify.com/v1/search?q={requests.utils.quote(query)}&type=track&limit=5"
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        res = requests.get(search_url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            tracks = res.json().get('tracks', {}).get('items', [])
             for track in tracks:
-                title = track.get('name', '')
-                artist = track['artists'][0]['name'] if track.get('artists') else ''
-                
-                # Filter out cover songs
-                if is_cover_version(title, artist):
-                    continue
-                    
-                valid_tracks.append(track)
-
-            if not valid_tracks:
-                valid_tracks = tracks
-
-            if valid_tracks:
-                # ⭐ Sort remaining tracks by Spotify Popularity Score (highest first)
-                valid_tracks.sort(key=lambda x: x.get('popularity', 0), reverse=True)
-                top_hit = valid_tracks[0]
-
-                track_id = top_hit.get('id')
-                title = top_hit.get('name')
-                artist = top_hit['artists'][0]['name']
-                
-                print(f"[SPOTIFY POPULARITY WINNER]: '{title}' by {artist} (Score: {top_hit.get('popularity')})")
-
-                return {
-                    "title": title,
-                    "artist": artist,
-                    "spotify_url": f"spotify:track:{track_id}" if track_id else f"spotify:search:{title}%20{artist}"
-                }
+                t_name = track.get('name', '')
+                a_name = track['artists'][0]['name'] if track.get('artists') else ''
+                if not is_cover_version(t_name, a_name):
+                    return {
+                        "title": t_name,
+                        "artist": a_name,
+                        "spotify_url": f"spotify:track:{track.get('id')}"
+                    }
     except Exception as e:
         print(f"[SPOTIFY SEARCH ERROR]: {e}")
 
-    return {
-        "title": query,
-        "artist": "Search Results",
-        "spotify_url": f"spotify:search:{query.replace(' ', '%20')}"
-    }
-
+    return {"title": title, "artist": artist, "spotify_url": f"spotify:search:{requests.utils.quote(title + ' ' + artist)}"}
 
 def transcribe_audio_with_groq(audio_file_path: str) -> str:
-    """Uses Groq's high-speed Whisper LPU API to transcribe singing into lyrics."""
     if not groq_client:
-        print("[GROQ LOG]: Groq client not configured.")
         return ""
-
     try:
-        print("[GROQ LOG]: Transcribing vocal audio clip using Groq Whisper...")
         with open(audio_file_path, "rb") as audio_file:
             transcript = groq_client.audio.transcriptions.create(
                 model="whisper-large-v3-turbo",
                 file=audio_file,
-                prompt="Transcribe lyrics from singing audio clip."
+                prompt="Transcribe lyrics sung in audio clip."
             )
-        lyrics = transcript.text.strip()
-        print(f"[GROQ TRANSCRIPT]: '{lyrics}'")
-        return lyrics
+        return transcript.text.strip()
     except Exception as e:
         print(f"[GROQ ERROR]: {e}")
         return ""
-
-# =====================================================================
-# 🌐 API ENDPOINTS
-# =====================================================================
-
-@app.get("/")
-def read_root():
-    return {"status": "ACRCloud + Groq Whisper + Spotify Active"}
-
 
 @app.post("/recognize")
 async def recognize_audio(file: UploadFile = File(...)):
@@ -199,20 +137,17 @@ async def recognize_audio(file: UploadFile = File(...)):
     temp_filename = f"temp_recording{file_ext}"
 
     try:
-        # Save temporary recording
         with open(temp_filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         # -------------------------------------------------------------
-        # STAGE 1: TRY ACRCLOUD (Audio Fingerprinting & Pitch Match)
+        # STAGE 1: ACRCLOUD (Exact Fingerprint Match)
         # -------------------------------------------------------------
         sign_data = generate_acr_signature(ACR_CONFIG['host'], ACR_CONFIG['access_key'], ACR_CONFIG['access_secret'])
         url = f"https://{ACR_CONFIG['host']}/v1/identify"
 
-        acr_result = None
         with open(temp_filename, "rb") as audio_file:
-            files = {'sample': audio_file}
-            response = requests.post(url, data=sign_data, files=files, timeout=ACR_CONFIG['timeout'])
+            response = requests.post(url, data=sign_data, files={'sample': audio_file}, timeout=ACR_CONFIG['timeout'])
             acr_result = response.json()
 
         status_code = acr_result.get('status', {}).get('code', -1)
@@ -221,60 +156,46 @@ async def recognize_audio(file: UploadFile = File(...)):
 
         if status_code == 0 and len(items) > 0:
             top_match = items[0]
-            title = top_match.get('title', 'Unknown Title')
+            title = top_match.get('title', '')
             artists = top_match.get('artists', [])
-            artist = artists[0]['name'] if artists else 'Unknown Artist'
+            artist = artists[0]['name'] if artists else ''
 
             if not is_cover_version(title, artist):
-                print(f"✅ STAGE 1 (ACRCloud Direct Match): '{title}' by {artist}")
-                
-                external_metadata = top_match.get('external_metadata', {})
-                spotify_data = external_metadata.get('spotify')
-                track_id = None
-                if isinstance(spotify_data, dict):
-                    track_id = spotify_data.get('track', {}).get('id') or spotify_data.get('id')
-
-                spotify_url = f"spotify:track:{track_id}" if track_id else f"spotify:search:{title}%20{artist}"
-
+                spotify_data = top_match.get('external_metadata', {}).get('spotify')
+                track_id = spotify_data.get('track', {}).get('id') if isinstance(spotify_data, dict) else None
                 return {
                     "success": True,
                     "title": title,
                     "artist": artist,
-                    "spotify_url": spotify_url
+                    "spotify_url": f"spotify:track:{track_id}" if track_id else f"spotify:search:{title}%20{artist}"
                 }
-            else:
-                print(f"⚠️ STAGE 1 SKIPPED COVER MATCH: '{title}' by {artist}. Handing off to Groq Whisper...")
 
         # -------------------------------------------------------------
-        # STAGE 2: FALLBACK TO GROQ WHISPER (Lyric Extraction)
+        # STAGE 2: GROQ WHISPER + GENIUS LYRIC RESOLVER
         # -------------------------------------------------------------
         lyrics = transcribe_audio_with_groq(temp_filename)
 
         if lyrics and len(lyrics) > 3:
-            # -------------------------------------------------------------
-            # STAGE 3: SPOTIFY POPULARITY RANKING
-            # -------------------------------------------------------------
-            spotify_result = search_spotify_by_lyrics(lyrics)
-            print(f"✅ STAGE 2/3 (Groq + Spotify Hit): '{spotify_result['title']}' by {spotify_result['artist']}")
+            # 1. Resolve lyrics to exact title/artist via Genius
+            genius_match = resolve_lyrics_to_song_with_genius(lyrics)
+            
+            if genius_match:
+                song_info = get_official_spotify_track(genius_match['title'], genius_match['artist'])
+            else:
+                # Fallback directly to lyrics query
+                song_info = get_official_spotify_track(lyrics, "")
 
             return {
                 "success": True,
-                "title": spotify_result['title'],
-                "artist": spotify_result['artist'],
-                "spotify_url": spotify_result['spotify_url']
+                "title": song_info['title'],
+                "artist": song_info['artist'],
+                "spotify_url": song_info['spotify_url']
             }
 
-        return {
-            "success": False,
-            "message": "Could not recognize song or transcribe lyrics clearly. Try singing louder!"
-        }
+        return {"success": False, "message": "Could not recognize lyrics. Try singing clearer!"}
 
     except Exception as e:
-        print(f"Server Error: {e}")
-        return {
-            "success": False,
-            "message": f"Server error: {e}"
-        }
+        return {"success": False, "message": f"Server error: {e}"}
 
     finally:
         if os.path.exists(temp_filename):

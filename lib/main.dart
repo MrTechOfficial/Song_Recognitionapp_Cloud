@@ -411,6 +411,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 }
 
 // 🎧 Hardware AirPods media control handler
+// 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
   final AudioPlayer _silentPlayer = AudioPlayer();
@@ -419,23 +420,25 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     _initSilentLoop();
   }
 
-  // 🤫 Loop silent audio infinitely so iOS keeps focus on our app
   Future<void> _initSilentLoop() async {
     try {
       final session = await AudioSession.instance;
+      
+      // ⚡ CRITICAL FIX: Set options to 'none' (Removing mixWithOthers).
+      // This forces iOS to strip "Now Playing" control from Spotify and grant it exclusively to your app!
       await session.configure(const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions:
-            AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
       ));
+      
       await session.setActive(true);
     } catch (e) {
       debugPrint('AudioSession configuration error: $e');
     }
 
+    // Loop silence continuously at a barely audible 1% volume
     await _silentPlayer.setReleaseMode(ReleaseMode.loop);
-    // 💡 0.01 volume keeps audio engine alive without audible noise
     await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
     _updateState(isPlaying: true);
   }
@@ -483,17 +486,7 @@ class AirPodsAudioHandler extends BaseAudioHandler {
   }
 
   void _handleSqueeze() async {
-    // 1. Pause silent loop briefly
-    await _silentPlayer.pause();
-    _updateState(isPlaying: false);
-
-    // 2. Trigger song identification
+    // When you squeeze the stem, trigger the recording pipeline
     onMediaButtonTriggered();
-
-    // 3. Resume silent loop
-    Future.delayed(const Duration(seconds: 10), () async {
-      await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
-      _updateState(isPlaying: true);
-    });
   }
 }
