@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:audio_service/audio_service.dart';
-import 'package:audio_session/audio_session.dart'; // 👈 Added for audio session background handling
-import 'package:audioplayers/audioplayers.dart';
+import 'package:audio_session/audio_session.dart';
+import 'package:audioplayers/audioplayers.dart' hide AVAudioSessionCategory; // 👈 Hidden collision
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,9 +43,9 @@ class AudioRecorderScreen extends StatefulWidget {
 }
 
 class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
-  late final AudioRecorder _audioRecorder;
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer; // 🔊 Player for error sound
+  late final AudioRecorder _audioRecorder;
   AirPodsAudioHandler? _airPodsHandler;
 
   bool _isRecording = false;
@@ -61,7 +61,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
   String? _artist;
   String? _spotifyUrl;
 
-  // 🔗 UPDATE YOUR BACKEND URL HERE (IP Address, Dev Tunnel, or Cloud Domain)
+  // 🔗 UPDATE YOUR BACKEND URL HERE
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
@@ -69,14 +69,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
   final String _dingUrl =
       'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
   final String _errorSoundUrl =
-      'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3'; // ❌ Error sound effect
+      'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
 
   @override
   void initState() {
     super.initState();
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
-    _errorPlayer = AudioPlayer(); // Initialize error player
+    _errorPlayer = AudioPlayer();
 
     if (!kIsWeb) {
       _initAirPodsListener();
@@ -127,7 +127,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
     }
   }
 
-  // ❌ Triggers the error sound effect when database search fails
   Future<void> _playErrorCue() async {
     try {
       await _errorPlayer.play(UrlSource(_errorSoundUrl));
@@ -268,7 +267,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
             _openSpotifyNative(_spotifyUrl!);
           }
         } else {
-          // ❌ Database search returned no match
           _playErrorCue();
           setState(() {
             _statusText =
@@ -276,14 +274,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
           });
         }
       } else {
-        // ❌ Server HTTP Error
         _playErrorCue();
         setState(() {
           _statusText = 'Server Error: ${response.statusCode}';
         });
       }
     } catch (e) {
-      // ❌ Connection Error
       _playErrorCue();
       setState(() {
         _isLoading = false;
@@ -414,7 +410,8 @@ class AirPodsAudioHandler extends BaseAudioHandler {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.mixWithOthers,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
       ));
       await session.setActive(true);
