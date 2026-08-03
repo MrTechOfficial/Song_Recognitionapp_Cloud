@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart'; // 👈 Added for audio session background handling
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -399,8 +400,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 }
 
 // 🎧 Hardware AirPods media control handler
-// 🎧 Hardware AirPods media control handler
-// 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
   final AudioPlayer _silentPlayer = AudioPlayer();
@@ -409,8 +408,20 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     _initSilentLoop();
   }
 
-  // 🤫 Loop silent audio so iOS keeps focus on our app
+  // 🤫 Loop silent audio so iOS keeps focus on our app even when Spotify plays
   Future<void> _initSilentLoop() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.mixWithOthers,
+        avAudioSessionMode: AVAudioSessionMode.defaultMode,
+      ));
+      await session.setActive(true);
+    } catch (e) {
+      debugPrint('AudioSession configuration error: $e');
+    }
+
     await _silentPlayer.setReleaseMode(ReleaseMode.loop);
     await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.0);
     _updateState(isPlaying: true);
