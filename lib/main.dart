@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:audioplayers/audioplayers.dart' hide AVAudioSessionCategory; // 👈 Hidden collision
+import 'package:audioplayers/audioplayers.dart' hide AVAudioSessionCategory;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -44,7 +44,7 @@ class AudioRecorderScreen extends StatefulWidget {
 
 class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
   late final AudioPlayer _dingPlayer;
-  late final AudioPlayer _errorPlayer; // 🔊 Player for error sound
+  late final AudioPlayer _errorPlayer;
   late final AudioRecorder _audioRecorder;
   AirPodsAudioHandler? _airPodsHandler;
 
@@ -61,7 +61,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
   String? _artist;
   String? _spotifyUrl;
 
-  // 🔗 UPDATE YOUR BACKEND URL HERE
+  // 🔗 BACKEND URL
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
@@ -288,12 +288,27 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
     }
   }
 
+  // 🚀 FORCES SPOTIFY AUTOPLAY
   Future<void> _openSpotifyNative(String url) async {
-    final uri = Uri.parse(url);
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    String finalUrl = url;
+
+    if (url.startsWith('spotify:track:')) {
+      final trackId = url.replaceFirst('spotify:track:', '');
+      finalUrl = 'https://open.spotify.com/track/$trackId?play=true';
+    } else if (url.contains('open.spotify.com/track/')) {
+      if (!url.contains('play=true')) {
+        finalUrl = url.contains('?') ? '$url&play=true' : '$url?play=true';
+      }
+    }
+
+    final uri = Uri.parse(finalUrl);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+    }
   }
 
   @override
@@ -404,7 +419,7 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     _initSilentLoop();
   }
 
-  // 🤫 Loop silent audio so iOS keeps focus on our app even when Spotify plays
+  // 🤫 Loop silent audio infinitely so iOS keeps focus on our app
   Future<void> _initSilentLoop() async {
     try {
       final session = await AudioSession.instance;
@@ -420,7 +435,8 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     }
 
     await _silentPlayer.setReleaseMode(ReleaseMode.loop);
-    await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.0);
+    // 💡 0.01 volume keeps audio engine alive without audible noise
+    await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
     _updateState(isPlaying: true);
   }
 
@@ -467,16 +483,16 @@ class AirPodsAudioHandler extends BaseAudioHandler {
   }
 
   void _handleSqueeze() async {
-    // 1. Briefly pause silence while mic records
+    // 1. Pause silent loop briefly
     await _silentPlayer.pause();
     _updateState(isPlaying: false);
 
     // 2. Trigger song identification
     onMediaButtonTriggered();
 
-    // 3. Resume silent loop after identification completes
+    // 3. Resume silent loop
     Future.delayed(const Duration(seconds: 10), () async {
-      await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.0);
+      await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
       _updateState(isPlaying: true);
     });
   }
