@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import shutil
+import re
 import requests
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -89,32 +90,62 @@ def resolve_lyrics_to_song_with_genius(lyrics: str):
     return None
 
 def get_official_spotify_track(title: str, artist: str):
-    """Searches Spotify specifically for the exact Title & Artist to avoid covers."""
+    """Searches Spotify, strips conflicting punctuation, and enforces a minimum popularity score."""
     token = get_spotify_access_token()
-    query = f"track:{title} artist:{artist}"
     
-    if not token:
-        return {"title": title, "artist": artist, "spotify_url": f"spotify:search:{requests.utils.quote(title + ' ' + artist)}"}
+    # 🎯 MINIMUM POPULARITY THRESHOLD (Set to 60)
+    MIN_POPULARITY = 60
 
-    search_url = f"https://api.spotify.com/v1/search?q={requests.utils.quote(query)}&type=track&limit=5"
+    # Clean title & artist of apostrophes/special characters that break Spotify search
+    clean_title = re.sub(r"[^\w\s]", "", title)
+    clean_artist = re.sub(r"[^\w\s]", "", artist)
+    query = f"{clean_title} {clean_artist}"
+
+    if not token:
+        return {"title": title, "artist": artist, "spotify_url": f"spotify:search:{requests.utils.quote(query)}"}
+
+    search_url = f"https://api.spotify.com/v1/search?q={requests.utils.quote(query)}&type=track&limit=10"
     headers = {"Authorization": f"Bearer {token}"}
+    
     try:
         res = requests.get(search_url, headers=headers, timeout=5)
         if res.status_code == 200:
             tracks = res.json().get('tracks', {}).get('items', [])
-            for track in tracks:
-                t_name = track.get('name', '')
-                a_name = track['artists'][0]['name'] if track.get('artists') else ''
-                if not is_cover_version(t_name, a_name):
-                    return {
-                        "title": t_name,
-                        "artist": a_name,
-                        "spotify_url": f"spotify:track:{track.get('id')}"
-                    }
+            
+            # 1. Filter out known covers AND tracks below the 60 popularity score
+            valid_tracks = [
+                t for t in tracks 
+                if not is_cover_version(t.get('name', ''), t['artists'][0]['name'] if t.get('artists') else '')
+                and t.get('popularity', 0) >= MIN_POPULARITY
+            ]
+            
+            # 2. Fallback: If no track scores above 60, keep non-cover tracks as a safety net
+            if not valid_tracks:
+                valid_tracks = [
+                    t for t in tracks 
+                    if not is_cover_version(t.get('name', ''), t['artists'][0]['name'] if t.get('artists') else '')
+                ] or tracks
+
+            if valid_tracks:
+                # 3. Sort remaining tracks by highest popularity score
+                valid_tracks.sort(key=lambda x: x.get('popularity', 0), reverse=True)
+                top_hit = valid_tracks[0]
+
+                t_name = top_hit.get('name')
+                a_name = top_hit['artists'][0]['name']
+                track_id = top_hit.get('id')
+
+                print(f"[SPOTIFY WINNER]: '{t_name}' by {a_name} (Popularity Score: {top_hit.get('popularity')})")
+
+                return {
+                    "title": t_name,
+                    "artist": a_name,
+                    "spotify_url": f"spotify:track:{track_id}" if track_id else f"spotify:search:{requests.utils.quote(query)}"
+                }
     except Exception as e:
         print(f"[SPOTIFY SEARCH ERROR]: {e}")
 
-    return {"title": title, "artist": artist, "spotify_url": f"spotify:search:{requests.utils.quote(title + ' ' + artist)}"}
+    return {"title": title, "artist": artist, "spotify_url": f"spotify:search:{requests.utils.quote(query)}"}
 
 def transcribe_audio_with_groq(audio_file_path: str) -> str:
     if not groq_client:
@@ -130,9 +161,11 @@ def transcribe_audio_with_groq(audio_file_path: str) -> str:
     except Exception as e:
         print(f"[GROQ ERROR]: {e}")
         return ""
+
 @app.get("/")
 def read_root():
     return {"status": "ACRCloud + Groq Whisper + Spotify + Genius Active"}
+
 @app.post("/recognize")
 async def recognize_audio(file: UploadFile = File(...)):
     file_ext = os.path.splitext(file.filename)[1] or ".wav"
@@ -178,13 +211,11 @@ async def recognize_audio(file: UploadFile = File(...)):
         lyrics = transcribe_audio_with_groq(temp_filename)
 
         if lyrics and len(lyrics) > 3:
-            # 1. Resolve lyrics to exact title/artist via Genius
             genius_match = resolve_lyrics_to_song_with_genius(lyrics)
             
             if genius_match:
                 song_info = get_official_spotify_track(genius_match['title'], genius_match['artist'])
             else:
-                # Fallback directly to lyrics query
                 song_info = get_official_spotify_track(lyrics, "")
 
             return {

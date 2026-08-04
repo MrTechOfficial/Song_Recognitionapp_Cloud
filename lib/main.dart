@@ -411,6 +411,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 }
 
 // 🎧 Hardware AirPods media control handler
+// 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
   final AudioPlayer _silentPlayer = AudioPlayer();
@@ -419,22 +420,35 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     _initSilentLoop();
   }
 
-Future<void> _initSilentLoop() async {
+  Future<void> _initSilentLoop() async {
     try {
       final session = await AudioSession.instance;
 
-      // 1. Configure iOS native audio session exclusively for background playback
+      // 1. Claim exclusive audio session (steals "Now Playing" priority from Spotify)
       await session.configure(const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
         avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
       ));
       await session.setActive(true);
+
+      // 2. Automatically reclaim control when Spotify pauses or an audio interruption ends
+      session.interruptionEventStream.listen((event) async {
+        if (event.begin) {
+          // Interrupted by Spotify or phone call
+          await _silentPlayer.pause();
+        } else {
+          // Interruption ended -> Reclaim focus and restart silent loop
+          await session.setActive(true);
+          await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
+          _updateState(isPlaying: true);
+        }
+      });
     } catch (e) {
       debugPrint('AudioSession configuration error: $e');
     }
 
-    // 2. Play silent loop continuously
+    // 3. Start endless silent loop at 1% volume
     await _silentPlayer.setReleaseMode(ReleaseMode.loop);
     await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
     _updateState(isPlaying: true);
