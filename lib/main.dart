@@ -411,7 +411,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 }
 
 // 🎧 Hardware AirPods media control handler
-// 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
   final AudioPlayer _silentPlayer = AudioPlayer();
@@ -424,26 +423,28 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     try {
       final session = await AudioSession.instance;
 
-      await session.configure(const AudioSessionConfiguration(
+      // ⚡ EXPLICIT BLUETOOTH ROUTING
+      await session.configure(AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.allowBluetooth |
+            AVAudioSessionCategoryOptions.allowBluetoothA2dp,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
       ));
       await session.setActive(true);
 
-      // ⚡ Listen for iOS Audio Interruptions (e.g., when Spotify starts/pauses)
+      // ⚡ RECOVERY LISTENER WITH DELAY & BUFFER RESET
       session.interruptionEventStream.listen((event) async {
         if (event.begin) {
-          // Spotify started playing -> pause silent loop
           await _silentPlayer.pause();
           _updateState(isPlaying: false);
         } else {
-          // Spotify PAUSED -> Wait 500ms for iOS hardware audio session to clear
+          // Pause ended -> Wait 500ms for hardware audio channel to clear
           await Future.delayed(const Duration(milliseconds: 500));
           try {
             await session.setActive(true);
-            await _silentPlayer.seek(Duration.zero); // Reset player buffer position
-            await _silentPlayer.resume(); // Resume looping
+            await _silentPlayer.seek(Duration.zero);
+            await _silentPlayer.resume();
             _updateState(isPlaying: true);
           } catch (e) {
             debugPrint('Failed to reclaim audio focus: $e');
@@ -460,9 +461,10 @@ class AirPodsAudioHandler extends BaseAudioHandler {
   }
 
   void _updateState({required bool isPlaying}) {
+    // ⚡ FORCED IOS REFRESH: Millisecond timestamp forces iOS to update NowPlaying info
     mediaItem.add(
-      const MediaItem(
-        id: '1',
+      MediaItem(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         album: 'Hands-Free Finder',
         title: 'Song Finder Active',
         artist: 'Squeeze stem to identify songs',
