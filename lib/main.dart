@@ -424,7 +424,6 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     try {
       final session = await AudioSession.instance;
 
-      // 1. Claim exclusive audio session (steals "Now Playing" priority from Spotify)
       await session.configure(const AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
         avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
@@ -432,23 +431,29 @@ class AirPodsAudioHandler extends BaseAudioHandler {
       ));
       await session.setActive(true);
 
-      // 2. Automatically reclaim control when Spotify pauses or an audio interruption ends
+      // ⚡ Listen for iOS Audio Interruptions (e.g., when Spotify starts/pauses)
       session.interruptionEventStream.listen((event) async {
         if (event.begin) {
-          // Interrupted by Spotify or phone call
+          // Spotify started playing -> pause silent loop
           await _silentPlayer.pause();
+          _updateState(isPlaying: false);
         } else {
-          // Interruption ended -> Reclaim focus and restart silent loop
-          await session.setActive(true);
-          await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
-          _updateState(isPlaying: true);
+          // Spotify PAUSED -> Wait 500ms for iOS hardware audio session to clear
+          await Future.delayed(const Duration(milliseconds: 500));
+          try {
+            await session.setActive(true);
+            await _silentPlayer.seek(Duration.zero); // Reset player buffer position
+            await _silentPlayer.resume(); // Resume looping
+            _updateState(isPlaying: true);
+          } catch (e) {
+            debugPrint('Failed to reclaim audio focus: $e');
+          }
         }
       });
     } catch (e) {
       debugPrint('AudioSession configuration error: $e');
     }
 
-    // 3. Start endless silent loop at 1% volume
     await _silentPlayer.setReleaseMode(ReleaseMode.loop);
     await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
     _updateState(isPlaying: true);

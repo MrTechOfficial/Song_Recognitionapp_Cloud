@@ -196,13 +196,13 @@ async def recognize_audio(file: UploadFile = File(...)):
             artist = artists[0]['name'] if artists else ''
 
             if not is_cover_version(title, artist):
-                spotify_data = top_match.get('external_metadata', {}).get('spotify')
-                track_id = spotify_data.get('track', {}).get('id') if isinstance(spotify_data, dict) else None
+                # ⚡ FIX: Fetch the direct Spotify Track ID even if ACRCloud doesn't provide one!
+                song_info = get_official_spotify_track(title, artist)
                 return {
                     "success": True,
-                    "title": title,
-                    "artist": artist,
-                    "spotify_url": f"spotify:track:{track_id}" if track_id else f"spotify:search:{title}%20{artist}"
+                    "title": song_info['title'],
+                    "artist": song_info['artist'],
+                    "spotify_url": song_info['spotify_url']
                 }
 
         # -------------------------------------------------------------
