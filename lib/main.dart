@@ -11,7 +11,6 @@ import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main() async {
-  // ⚡ Required for native hardware initialization
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
@@ -33,6 +32,22 @@ class MyApp extends StatelessWidget {
   }
 }
 
+enum EnvironmentMode {
+  quiet(label: 'A quiet room', duration: 6, icon: Icons.king_bed),
+  loud(label: 'A loud room with background noise', duration: 8, icon: Icons.volume_up),
+  skiing(label: 'You are skiing', duration: 12, icon: Icons.downhill_skiing);
+
+  final String label;
+  final int duration;
+  final IconData icon;
+
+  const EnvironmentMode({
+    required this.label,
+    required this.duration,
+    required this.icon,
+  });
+}
+
 class AudioRecorderScreen extends StatefulWidget {
   const AudioRecorderScreen({super.key});
 
@@ -49,21 +64,19 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   bool _isRecording = false;
   bool _isLoading = false;
 
+  EnvironmentMode _selectedMode = EnvironmentMode.skiing;
   int _secondsRemaining = 12;
   Timer? _autoStopTimer;
   Timer? _countdownTimer;
 
-  String _statusText =
-      'Tap the mic or ask Siri to find a song!';
+  String _statusText = 'Select your environment and tap the mic or ask Siri!';
   String? _songTitle;
   String? _artist;
   String? _spotifyUrl;
 
-  // 🔗 BACKEND URL
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
-  // 🎵 Audio Cue URLs
   final String _dingUrl =
       'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
   final String _errorSoundUrl =
@@ -77,38 +90,18 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
 
-    // ⚡ Listen for URL Scheme launches (e.g. handsfreefinder://start)
+    // ⚡ Listen for URL Scheme launches (e.g. handsfreefinder://start via Siri)
     _listenForDeepLinks();
-
-    // ⚡ Auto-start recording on initial cold launch
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isRecording && !_isLoading) {
-        _startRecording();
-      }
-    });
-  }
-
-  // 🚀 Automatically triggers song recording when re-opened/resumed by Siri or Shortcut
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      if (!_isRecording && !_isLoading) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (!_isRecording && !_isLoading) {
-            _startRecording();
-          }
-        });
-      }
-    }
   }
 
   void _listenForDeepLinks() {
     SystemChannels.platform.setMethodCallHandler((MethodCall call) async {
+      // Triggered specifically when Siri or Shortcuts open the app
       if (call.method == 'InitialLifecycleState' ||
           call.method == 'AppLifecycleState.resumed') {
         Future.delayed(const Duration(milliseconds: 300), () {
           if (!_isRecording && !_isLoading) {
-            _startRecording();
+            _startRecording(playDing: true); // Play ding cue on Siri launch
           }
         });
       }
@@ -118,7 +111,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
   @override
   void dispose() {
-    // 🧹 Unsubscribe from lifecycle events to prevent memory leaks
     WidgetsBinding.instance.removeObserver(this);
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
@@ -147,14 +139,25 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  Future<void> _startRecording() async {
+  // AirPods stem trigger call
+  void triggerAirPodsSqueeze() {
+    if (!_isRecording && !_isLoading) {
+      _startRecording(playDing: false); // No ding on stem squeeze
+    } else if (_isRecording) {
+      _stopAndSendRecording();
+    }
+  }
+
+  Future<void> _startRecording({bool playDing = true}) async {
     if (_isRecording || _isLoading) return;
 
     try {
       if (kIsWeb || await Permission.microphone.request().isGranted) {
-        // 🔔 1. Play the "ding" sound cue so you know it's time to sing
-        await _playDingCue();
-        await Future.delayed(const Duration(milliseconds: 400));
+        // 🔔 Play ding cue ONLY if explicitly enabled (Siri / Manual UI tap)
+        if (playDing) {
+          await _playDingCue();
+          await Future.delayed(const Duration(milliseconds: 400));
+        }
 
         String filePath = '';
 
@@ -172,10 +175,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
           path: filePath,
         );
 
+        final int duration = _selectedMode.duration;
+
         setState(() {
           _isRecording = true;
-          _secondsRemaining = 12;
-          _statusText = 'Listening... (12s remaining)';
+          _secondsRemaining = duration;
+          _statusText = 'Listening... (${_secondsRemaining}s remaining)';
           _songTitle = null;
           _artist = null;
           _spotifyUrl = null;
@@ -195,7 +200,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         });
 
         _autoStopTimer?.cancel();
-        _autoStopTimer = Timer(const Duration(seconds: 12), () {
+        _autoStopTimer = Timer(Duration(seconds: duration), () {
           _stopAndSendRecording();
         });
       } else {
@@ -306,7 +311,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  // 🚀 LAUNCH SPOTIFY CLEANLY
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
 
@@ -338,13 +342,110 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // 🎯 TITLE
+              const Text(
+                'Where Are You?',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 🔘 ENVIRONMENT MODE SELECTOR BUTTONS
+              Column(
+                children: EnvironmentMode.values.map((mode) {
+                  final isSelected = _selectedMode == mode;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6.0),
+                    child: InkWell(
+                      onTap: _isRecording || _isLoading
+                          ? null
+                          : () {
+                              setState(() {
+                                _selectedMode = mode;
+                              });
+                            },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.deepPurple.shade50
+                              : Colors.grey.shade100,
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.deepPurple
+                                : Colors.grey.shade300,
+                            width: isSelected ? 2 : 1,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              mode.icon,
+                              color: isSelected
+                                  ? Colors.deepPurple
+                                  : Colors.grey.shade600,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                mode.label,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isSelected
+                                      ? Colors.deepPurple
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.deepPurple
+                                    : Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${mode.duration}s',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 32),
+
+              // STATUS TEXT
               Text(
                 _statusText,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w500),
+                    fontSize: 16, fontWeight: FontWeight.w500),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 30),
+
+              // MIC BUTTON
               if (_isLoading)
                 const CircularProgressIndicator()
               else
@@ -353,7 +454,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                     if (_isRecording) {
                       _stopAndSendRecording();
                     } else {
-                      _startRecording();
+                      _startRecording(playDing: true);
                     }
                   },
                   child: CircleAvatar(
@@ -367,7 +468,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                     ),
                   ),
                 ),
-              const SizedBox(height: 40),
+
+              const SizedBox(height: 30),
+
+              // SONG RESULT CARD
               if (_songTitle != null && _artist != null) ...[
                 Card(
                   elevation: 6,
