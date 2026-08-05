@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 
 void main() async {
   // ⚡ Required for native hardware & audio service initialization
@@ -42,7 +43,7 @@ class AudioRecorderScreen extends StatefulWidget {
   State<AudioRecorderScreen> createState() => _AudioRecorderScreenState();
 }
 
-class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
+class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsBindingObserver {
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
   late final AudioRecorder _audioRecorder;
@@ -70,10 +71,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
       'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
   final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
-
-  @override
+@override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
@@ -81,6 +82,25 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
     if (!kIsWeb) {
       _initAirPodsListener();
     }
+
+    // ⚡ Listen for URL Scheme launches (e.g. handsfreefinder://start)
+    _listenForDeepLinks();
+  }
+
+  // 🚀 Automatically triggers song recording when opened via Siri or Shortcut
+  void _listenForDeepLinks() {
+    SystemChannels.platform.setMethodCallHandler((MethodCall call) async {
+      if (call.method == 'InitialLifecycleState' ||
+          call.method == 'AppLifecycleState.resumed') {
+        // Wait 300ms for UI to render, then start listening
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (!_isRecording && !_isLoading) {
+            _startRecording();
+          }
+        });
+      }
+      return null;
+    });
   }
 
   Future<void> _initAirPodsListener() async {
@@ -109,8 +129,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 
   @override
   void dispose() {
-    _autoStopTimer?.cancel();
-    _countdownTimer?.cancel();
+    // 🧹 Unsubscribe from lifecycle events to prevent memory leaks
+    WidgetsBinding.instance.removeObserver(this);
+    
     _audioRecorder.dispose();
     _dingPlayer.dispose();
     _errorPlayer.dispose();
