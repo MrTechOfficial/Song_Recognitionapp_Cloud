@@ -407,8 +407,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
   }
 }
 
-// 🎧 Hardware AirPods media control handler
-// 🎧 Hardware AirPods media control handler
+// 🎧 Hardware AirPods media control handler (Always-Alive Keep-Alive Mode)
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
   final AudioPlayer _silentPlayer = AudioPlayer();
@@ -421,49 +420,40 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     try {
       final session = await AudioSession.instance;
 
+      // ⚡ KEEP-ALIVE CONFIGURATION:
+      // Using 'mixWithOthers' prevents iOS from suspending our app while Spotify plays.
       await session.configure(AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
         avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.mixWithOthers |
             AVAudioSessionCategoryOptions.allowBluetooth |
             AVAudioSessionCategoryOptions.allowBluetoothA2dp,
         avAudioSessionMode: AVAudioSessionMode.defaultMode,
       ));
       await session.setActive(true);
 
-      // ⚡ AUTOMATIC BACKGROUND RECOVERY
-      // When Spotify pauses, this listener wakes up in the background and takes back AirPods control!
+      // ⚡ Listen for interruptions without pausing our background loop
       session.interruptionEventStream.listen((event) async {
-        if (event.begin) {
-          // Spotify took over playback -> pause silent player
-          await _silentPlayer.pause();
-          _updateState(isPlaying: false);
-        } else {
-          // Spotify PAUSED -> Wait 500ms for hardware audio channel to clear, then reclaim control!
-          await Future.delayed(const Duration(milliseconds: 500));
-          await reclaimAudioFocus();
+        if (!event.begin) {
+          // Whenever an interruption ends (e.g. phone call or Siri closes), ensure session stays active
+          try {
+            await session.setActive(true);
+            if (_silentPlayer.state != PlayerState.playing) {
+              await _silentPlayer.resume();
+            }
+          } catch (e) {
+            debugPrint('Failed to re-activate audio session: $e');
+          }
         }
       });
     } catch (e) {
       debugPrint('AudioSession configuration error: $e');
     }
 
+    // Start infinite silent loop
     await _silentPlayer.setReleaseMode(ReleaseMode.loop);
     await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
     _updateState(isPlaying: true);
-  }
-
-  // ⚡ Reclaim focus in background so the next AirPods squeeze triggers recognition
-  Future<void> reclaimAudioFocus() async {
-    try {
-      final session = await AudioSession.instance;
-      await session.setActive(true);
-      await _silentPlayer.seek(Duration.zero);
-      await _silentPlayer.resume();
-      _updateState(isPlaying: true);
-      debugPrint('Successfully reclaimed AirPods control in background!');
-    } catch (e) {
-      debugPrint('Error reclaiming audio focus: $e');
-    }
   }
 
   void _updateState({required bool isPlaying}) {
