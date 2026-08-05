@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:audio_service/audio_service.dart';
-import 'package:audio_session/audio_session.dart';
-import 'package:audioplayers/audioplayers.dart' hide AVAudioSessionCategory;
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,10 +9,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/services.dart';
 
 void main() async {
-  // ⚡ Required for native hardware & audio service initialization
+  // ⚡ Required for native hardware initialization
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
@@ -43,11 +40,11 @@ class AudioRecorderScreen extends StatefulWidget {
   State<AudioRecorderScreen> createState() => _AudioRecorderScreenState();
 }
 
-class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsBindingObserver {
+class _AudioRecorderScreenState extends State<AudioRecorderScreen>
+    with WidgetsBindingObserver {
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
   late final AudioRecorder _audioRecorder;
-  AirPodsAudioHandler? _airPodsHandler;
 
   bool _isRecording = false;
   bool _isLoading = false;
@@ -57,7 +54,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   Timer? _countdownTimer;
 
   String _statusText =
-      'Tap the mic or squeeze your AirPods stem to start listening!';
+      'Tap the mic or ask Siri to find a song!';
   String? _songTitle;
   String? _artist;
   String? _spotifyUrl;
@@ -71,7 +68,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
   final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
-@override
+
+  @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -79,20 +77,35 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
 
-    if (!kIsWeb) {
-      _initAirPodsListener();
-    }
-
     // ⚡ Listen for URL Scheme launches (e.g. handsfreefinder://start)
     _listenForDeepLinks();
+
+    // ⚡ Auto-start recording on initial cold launch
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isRecording && !_isLoading) {
+        _startRecording();
+      }
+    });
   }
 
-  // 🚀 Automatically triggers song recording when opened via Siri or Shortcut
+  // 🚀 Automatically triggers song recording when re-opened/resumed by Siri or Shortcut
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_isRecording && !_isLoading) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (!_isRecording && !_isLoading) {
+            _startRecording();
+          }
+        });
+      }
+    }
+  }
+
   void _listenForDeepLinks() {
     SystemChannels.platform.setMethodCallHandler((MethodCall call) async {
       if (call.method == 'InitialLifecycleState' ||
           call.method == 'AppLifecycleState.resumed') {
-        // Wait 300ms for UI to render, then start listening
         Future.delayed(const Duration(milliseconds: 300), () {
           if (!_isRecording && !_isLoading) {
             _startRecording();
@@ -103,35 +116,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     });
   }
 
-  Future<void> _initAirPodsListener() async {
-    try {
-      _airPodsHandler = await AudioService.init(
-        builder: () => AirPodsAudioHandler(
-          onMediaButtonTriggered: () {
-            if (!_isRecording && !_isLoading) {
-              _startRecording();
-            } else if (_isRecording) {
-              _stopAndSendRecording();
-            }
-          },
-        ),
-        config: const AudioServiceConfig(
-          androidNotificationChannelId:
-              'com.example.song_recognition.channel.audio',
-          androidNotificationChannelName: 'AirPods Song Finder',
-          androidNotificationOngoing: true,
-        ),
-      );
-    } catch (e) {
-      debugPrint('AirPods listener setup notice: $e');
-    }
-  }
-
   @override
   void dispose() {
     // 🧹 Unsubscribe from lifecycle events to prevent memory leaks
     WidgetsBinding.instance.removeObserver(this);
-    
+    _autoStopTimer?.cancel();
+    _countdownTimer?.cancel();
     _audioRecorder.dispose();
     _dingPlayer.dispose();
     _errorPlayer.dispose();
@@ -158,8 +148,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
 
   Future<void> _startRecording() async {
+    if (_isRecording || _isLoading) return;
+
     try {
       if (kIsWeb || await Permission.microphone.request().isGranted) {
+        // 🔔 1. Play the "ding" sound cue so you know it's time to sing
+        await _playDingCue();
+        await Future.delayed(const Duration(milliseconds: 400));
+
         String filePath = '';
 
         if (!kIsWeb) {
@@ -185,7 +181,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           _spotifyUrl = null;
         });
 
+        _countdownTimer?.cancel();
         _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!mounted) return;
           setState(() {
             if (_secondsRemaining > 1) {
               _secondsRemaining--;
@@ -196,6 +194,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           });
         });
 
+        _autoStopTimer?.cancel();
         _autoStopTimer = Timer(const Duration(seconds: 12), () {
           _stopAndSendRecording();
         });
@@ -216,8 +215,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   Future<void> _stopAndSendRecording() async {
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
-
-    _playDingCue();
 
     try {
       setState(() {
@@ -309,8 +306,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     }
   }
 
-  // 🚀 FORCES SPOTIFY AUTOPLAY
-// 🚀 LAUNCH SPOTIFY WITHOUT KILLING OUR BACKGROUND LISTENER
+  // 🚀 LAUNCH SPOTIFY CLEANLY
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
 
@@ -425,101 +421,5 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         ),
       ),
     );
-  }
-}
-
-// 🎧 Hardware AirPods media control handler (Always-Alive Keep-Alive Mode)
-class AirPodsAudioHandler extends BaseAudioHandler {
-  final VoidCallback onMediaButtonTriggered;
-  final AudioPlayer _silentPlayer = AudioPlayer();
-
-  AirPodsAudioHandler({required this.onMediaButtonTriggered}) {
-    _initSilentLoop();
-  }
-
-  Future<void> _initSilentLoop() async {
-    try {
-      final session = await AudioSession.instance;
-
-      // ⚡ KEEP-ALIVE CONFIGURATION:
-      // Using 'mixWithOthers' prevents iOS from suspending our app while Spotify plays.
-      await session.configure(AudioSessionConfiguration(
-        avAudioSessionCategory: AVAudioSessionCategory.playback,
-        avAudioSessionCategoryOptions:
-            AVAudioSessionCategoryOptions.mixWithOthers |
-            AVAudioSessionCategoryOptions.allowBluetooth |
-            AVAudioSessionCategoryOptions.allowBluetoothA2dp,
-        avAudioSessionMode: AVAudioSessionMode.defaultMode,
-      ));
-      await session.setActive(true);
-
-      // ⚡ Listen for interruptions without pausing our background loop
-      session.interruptionEventStream.listen((event) async {
-        if (!event.begin) {
-          // Whenever an interruption ends (e.g. phone call or Siri closes), ensure session stays active
-          try {
-            await session.setActive(true);
-            if (_silentPlayer.state != PlayerState.playing) {
-              await _silentPlayer.resume();
-            }
-          } catch (e) {
-            debugPrint('Failed to re-activate audio session: $e');
-          }
-        }
-      });
-    } catch (e) {
-      debugPrint('AudioSession configuration error: $e');
-    }
-
-    // Start infinite silent loop
-    await _silentPlayer.setReleaseMode(ReleaseMode.loop);
-    await _silentPlayer.play(AssetSource('silence.mp3'), volume: 0.01);
-    _updateState(isPlaying: true);
-  }
-
-  void _updateState({required bool isPlaying}) {
-    mediaItem.add(
-      MediaItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        album: 'Hands-Free Finder',
-        title: 'Song Finder Active',
-        artist: 'Squeeze stem to identify songs',
-      ),
-    );
-
-    playbackState.add(
-      PlaybackState(
-        controls: [MediaControl.play, MediaControl.pause],
-        systemActions: const {
-          MediaAction.play,
-          MediaAction.pause,
-          MediaAction.playPause,
-        },
-        processingState: AudioProcessingState.ready,
-        playing: isPlaying,
-      ),
-    );
-  }
-
-  @override
-  Future<void> play() async {
-    _handleSqueeze();
-    return super.play();
-  }
-
-  @override
-  Future<void> pause() async {
-    _handleSqueeze();
-    return super.pause();
-  }
-
-  @override
-  Future<void> click([MediaButton button = MediaButton.media]) async {
-    _handleSqueeze();
-    return super.click(button);
-  }
-
-  void _handleSqueeze() async {
-    onMediaButtonTriggered();
   }
 }
