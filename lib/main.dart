@@ -289,16 +289,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
   }
 
   // 🚀 FORCES SPOTIFY AUTOPLAY
+// 🚀 LAUNCH SPOTIFY WITHOUT KILLING OUR BACKGROUND LISTENER
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
 
     if (url.startsWith('spotify:track:')) {
       final trackId = url.replaceFirst('spotify:track:', '');
-      finalUrl = 'https://open.spotify.com/track/$trackId?play=true';
-    } else if (url.contains('open.spotify.com/track/')) {
-      if (!url.contains('play=true')) {
-        finalUrl = url.contains('?') ? '$url&play=true' : '$url?play=true';
-      }
+      finalUrl = 'spotify:track:$trackId';
     }
 
     final uri = Uri.parse(finalUrl);
@@ -411,6 +408,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> {
 }
 
 // 🎧 Hardware AirPods media control handler
+// 🎧 Hardware AirPods media control handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
   final AudioPlayer _silentPlayer = AudioPlayer();
@@ -423,7 +421,6 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     try {
       final session = await AudioSession.instance;
 
-      // ⚡ EXPLICIT BLUETOOTH ROUTING
       await session.configure(AudioSessionConfiguration(
         avAudioSessionCategory: AVAudioSessionCategory.playback,
         avAudioSessionCategoryOptions:
@@ -433,22 +430,17 @@ class AirPodsAudioHandler extends BaseAudioHandler {
       ));
       await session.setActive(true);
 
-      // ⚡ RECOVERY LISTENER WITH DELAY & BUFFER RESET
+      // ⚡ AUTOMATIC BACKGROUND RECOVERY
+      // When Spotify pauses, this listener wakes up in the background and takes back AirPods control!
       session.interruptionEventStream.listen((event) async {
         if (event.begin) {
+          // Spotify took over playback -> pause silent player
           await _silentPlayer.pause();
           _updateState(isPlaying: false);
         } else {
-          // Pause ended -> Wait 500ms for hardware audio channel to clear
+          // Spotify PAUSED -> Wait 500ms for hardware audio channel to clear, then reclaim control!
           await Future.delayed(const Duration(milliseconds: 500));
-          try {
-            await session.setActive(true);
-            await _silentPlayer.seek(Duration.zero);
-            await _silentPlayer.resume();
-            _updateState(isPlaying: true);
-          } catch (e) {
-            debugPrint('Failed to reclaim audio focus: $e');
-          }
+          await reclaimAudioFocus();
         }
       });
     } catch (e) {
@@ -460,8 +452,21 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     _updateState(isPlaying: true);
   }
 
+  // ⚡ Reclaim focus in background so the next AirPods squeeze triggers recognition
+  Future<void> reclaimAudioFocus() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.setActive(true);
+      await _silentPlayer.seek(Duration.zero);
+      await _silentPlayer.resume();
+      _updateState(isPlaying: true);
+      debugPrint('Successfully reclaimed AirPods control in background!');
+    } catch (e) {
+      debugPrint('Error reclaiming audio focus: $e');
+    }
+  }
+
   void _updateState({required bool isPlaying}) {
-    // ⚡ FORCED IOS REFRESH: Millisecond timestamp forces iOS to update NowPlaying info
     mediaItem.add(
       MediaItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
