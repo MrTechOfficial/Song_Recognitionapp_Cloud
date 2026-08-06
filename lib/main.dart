@@ -4,13 +4,13 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
 enum EnvironmentMode {
   quiet(label: 'A quiet room', duration: 6, icon: Icons.king_bed),
   loud(label: 'A loud room with background noise', duration: 8, icon: Icons.volume_up),
-  skiing(label: 'Skiing', duration: 12, icon: Icons.downhill_skiing);
+  skiing(label: 'You are skiing', duration: 12, icon: Icons.downhill_skiing);
 
   final String label;
   final int duration;
@@ -61,7 +61,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     with WidgetsBindingObserver {
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
-  late final AudioPlayer _silencePlayer; // 🤫 Silent loop player for AirPods RCC control
+  late final AudioPlayer _silencePlayer;
   late final AudioRecorder _audioRecorder;
   AirPodsAudioHandler? _airPodsHandler;
 
@@ -73,7 +73,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   Timer? _autoStopTimer;
   Timer? _countdownTimer;
 
-  String _statusText = 'Select your environment and tap the mic or ask Siri!';
+  String _statusText = 'Select your environment and tap the mic or squeeze AirPods stem!';
   String? _songTitle;
   String? _artist;
   String? _spotifyUrl;
@@ -85,41 +85,35 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
   final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
-  // Hosted silent MP3 to maintain active iOS audio session
-  final String _silenceUrl =
-      'https://raw.githubusercontent.com/anars/blank-audio/master/10-seconds-of-silence.mp3';
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
     _silencePlayer = AudioPlayer();
 
-    // 1. Load saved environment mode duration from persistent memory
+    // 1. Load saved mode duration from memory
     _loadSavedMode();
 
-    // 2. Start silent background audio to claim iOS Remote Command Center immediately
+    // 2. Play local silence.mp3 loop immediately on launch
     _initSilencePlayer();
 
-    // 3. Initialize AirPods Stem Squeeze Listener
+    // 3. Register AirPods hardware listener
     if (!kIsWeb) {
       _initAirPodsListener();
     }
-
-    // 4. Listen for Siri launches / Deep Links
-    _listenForDeepLinks();
   }
 
-  // 🤫 Keep iOS Audio Session active on app start
+  // 🤫 Play local silence.mp3 on infinite loop to keep iOS media controls active
   Future<void> _initSilencePlayer() async {
     try {
       await _silencePlayer.setReleaseMode(ReleaseMode.loop);
-      await _silencePlayer.play(UrlSource(_silenceUrl));
+      // 'silence.mp3' will resolve to 'assets/silence.mp3' via audioplayers
+      await _silencePlayer.play(AssetSource('silence.mp3'));
     } catch (e) {
-      debugPrint('Error starting silence background audio: $e');
+      debugPrint('Error starting local silence background audio: $e');
     }
   }
 
@@ -165,32 +159,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  void _listenForDeepLinks() {
-    SystemChannels.platform.setMethodCallHandler((MethodCall call) async {
-      if (call.method == 'InitialLifecycleState' ||
-          call.method == 'AppLifecycleState.resumed') {
-        _checkSiriLaunchAndStart();
-      }
-      return null;
-    });
-
-    // Also check on initial app cold start from Siri
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkSiriLaunchAndStart();
-    });
-  }
-
-  void _checkSiriLaunchAndStart() {
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (!_isRecording && !_isLoading && mounted) {
-        _startRecording(playDing: true);
-      }
-    });
-  }
-
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
     _audioRecorder.dispose();
@@ -221,7 +191,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
   void triggerAirPodsSqueeze() {
     if (!_isRecording && !_isLoading) {
-      _startRecording(playDing: false); // Silent trigger via AirPods
+      _startRecording(playDing: false);
     } else if (_isRecording) {
       _stopAndSendRecording();
     }
@@ -232,7 +202,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
     try {
       if (kIsWeb || await Permission.microphone.request().isGranted) {
-        // Pause silence player while recording so microphone audio stays clean
+        // Pause silence playback during recording so audio input is clean
         await _silencePlayer.pause();
 
         if (playDing) {
@@ -311,7 +281,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
       final path = await _audioRecorder.stop();
 
-      // Resume silent audio loop so iOS maintains AirPods stem control
+      // Resume silent audio loop to retain AirPods stem squeeze control
       _silencePlayer.resume();
 
       if (path != null && path.isNotEmpty) {
@@ -324,7 +294,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         _playErrorCue();
       }
     } catch (e) {
-      // Ensure silence player resumes even on error
       _silencePlayer.resume();
       setState(() {
         _isLoading = false;
@@ -438,7 +407,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
               ),
               const SizedBox(height: 16),
 
-              // ENVIRONMENT SELECTOR BUTTONS
               Column(
                 children: EnvironmentMode.values.map((mode) {
                   final isSelected = _selectedMode == mode;
@@ -608,7 +576,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 }
 
-// AirPods Hardware Media Control Handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
 
@@ -622,7 +589,7 @@ class AirPodsAudioHandler extends BaseAudioHandler {
           MediaAction.playPause,
         },
         processingState: AudioProcessingState.ready,
-        playing: true, // Set to true so iOS active player stays attached
+        playing: true,
       ),
     );
   }
