@@ -61,6 +61,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     with WidgetsBindingObserver {
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
+  late final AudioPlayer _silencePlayer; // 🤫 Silent loop player for AirPods RCC control
   late final AudioRecorder _audioRecorder;
   AirPodsAudioHandler? _airPodsHandler;
 
@@ -84,6 +85,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
   final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
+  // Hosted silent MP3 to maintain active iOS audio session
+  final String _silenceUrl =
+      'https://raw.githubusercontent.com/anars/blank-audio/master/10-seconds-of-silence.mp3';
 
   @override
   void initState() {
@@ -92,20 +96,33 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
+    _silencePlayer = AudioPlayer();
 
-    // 💾 1. Load saved environment mode from persistent memory
+    // 1. Load saved environment mode duration from persistent memory
     _loadSavedMode();
 
-    // 🎧 2. Initialize AirPods Stem Squeeze Listener
+    // 2. Start silent background audio to claim iOS Remote Command Center immediately
+    _initSilencePlayer();
+
+    // 3. Initialize AirPods Stem Squeeze Listener
     if (!kIsWeb) {
       _initAirPodsListener();
     }
 
-    // ⚡ 3. Listen for Siri launches
+    // 4. Listen for Siri launches / Deep Links
     _listenForDeepLinks();
   }
 
-  // 💾 Memory persistent storage methods
+  // 🤫 Keep iOS Audio Session active on app start
+  Future<void> _initSilencePlayer() async {
+    try {
+      await _silencePlayer.setReleaseMode(ReleaseMode.loop);
+      await _silencePlayer.play(UrlSource(_silenceUrl));
+    } catch (e) {
+      debugPrint('Error starting silence background audio: $e');
+    }
+  }
+
   Future<void> _loadSavedMode() async {
     final prefs = await SharedPreferences.getInstance();
     final savedIndex = prefs.getInt('selected_environment_mode');
@@ -128,7 +145,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     await prefs.setInt('selected_environment_mode', mode.index);
   }
 
-  // 🎧 AirPods hardware trigger setup
   Future<void> _initAirPodsListener() async {
     try {
       _airPodsHandler = await AudioService.init(
@@ -153,13 +169,22 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     SystemChannels.platform.setMethodCallHandler((MethodCall call) async {
       if (call.method == 'InitialLifecycleState' ||
           call.method == 'AppLifecycleState.resumed') {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (!_isRecording && !_isLoading) {
-            _startRecording(playDing: true); // Play ding cue on Siri launch
-          }
-        });
+        _checkSiriLaunchAndStart();
       }
       return null;
+    });
+
+    // Also check on initial app cold start from Siri
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSiriLaunchAndStart();
+    });
+  }
+
+  void _checkSiriLaunchAndStart() {
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (!_isRecording && !_isLoading && mounted) {
+        _startRecording(playDing: true);
+      }
     });
   }
 
@@ -171,6 +196,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     _audioRecorder.dispose();
     _dingPlayer.dispose();
     _errorPlayer.dispose();
+    _silencePlayer.dispose();
     super.dispose();
   }
 
@@ -193,10 +219,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  // AirPods stem trigger call
   void triggerAirPodsSqueeze() {
     if (!_isRecording && !_isLoading) {
-      _startRecording(playDing: false); // No ding sound on stem squeeze
+      _startRecording(playDing: false); // Silent trigger via AirPods
     } else if (_isRecording) {
       _stopAndSendRecording();
     }
@@ -207,6 +232,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
     try {
       if (kIsWeb || await Permission.microphone.request().isGranted) {
+        // Pause silence player while recording so microphone audio stays clean
+        await _silencePlayer.pause();
+
         if (playDing) {
           await _playDingCue();
           await Future.delayed(const Duration(milliseconds: 400));
@@ -283,6 +311,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
       final path = await _audioRecorder.stop();
 
+      // Resume silent audio loop so iOS maintains AirPods stem control
+      _silencePlayer.resume();
+
       if (path != null && path.isNotEmpty) {
         await _sendAudioToBackend(path);
       } else {
@@ -293,6 +324,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         _playErrorCue();
       }
     } catch (e) {
+      // Ensure silence player resumes even on error
+      _silencePlayer.resume();
       setState(() {
         _isLoading = false;
         _statusText = 'Error stopping recording: $e';
@@ -415,7 +448,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                       onTap: _isRecording || _isLoading
                           ? null
                           : () {
-                              _saveMode(mode); // Save selected mode instantly
+                              _saveMode(mode);
                             },
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
@@ -575,7 +608,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 }
 
-// 🎧 AirPods Hardware Media Control Handler
+// AirPods Hardware Media Control Handler
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
 
@@ -589,7 +622,7 @@ class AirPodsAudioHandler extends BaseAudioHandler {
           MediaAction.playPause,
         },
         processingState: AudioProcessingState.ready,
-        playing: false,
+        playing: true, // Set to true so iOS active player stays attached
       ),
     );
   }
