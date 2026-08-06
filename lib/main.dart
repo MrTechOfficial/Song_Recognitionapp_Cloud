@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:audio_service/audio_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main() async {
@@ -35,7 +37,7 @@ class MyApp extends StatelessWidget {
 enum EnvironmentMode {
   quiet(label: 'A quiet room', duration: 6, icon: Icons.king_bed),
   loud(label: 'A loud room with background noise', duration: 8, icon: Icons.volume_up),
-  skiing(label: 'You are skiing', duration: 12, icon: Icons.downhill_skiing);
+  skiing(label: 'Skiing', duration: 12, icon: Icons.downhill_skiing);
 
   final String label;
   final int duration;
@@ -60,6 +62,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
   late final AudioRecorder _audioRecorder;
+  AirPodsAudioHandler? _airPodsHandler;
 
   bool _isRecording = false;
   bool _isLoading = false;
@@ -90,13 +93,64 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
 
-    // ⚡ Listen for URL Scheme launches (e.g. handsfreefinder://start via Siri)
+    // 💾 1. Load saved environment mode from persistent memory
+    _loadSavedMode();
+
+    // 🎧 2. Initialize AirPods Stem Squeeze Listener
+    if (!kIsWeb) {
+      _initAirPodsListener();
+    }
+
+    // ⚡ 3. Listen for Siri launches
     _listenForDeepLinks();
+  }
+
+  // 💾 Memory persistent storage methods
+  Future<void> _loadSavedMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedIndex = prefs.getInt('selected_environment_mode');
+    if (savedIndex != null &&
+        savedIndex >= 0 &&
+        savedIndex < EnvironmentMode.values.length) {
+      setState(() {
+        _selectedMode = EnvironmentMode.values[savedIndex];
+        _secondsRemaining = _selectedMode.duration;
+      });
+    }
+  }
+
+  Future<void> _saveMode(EnvironmentMode mode) async {
+    setState(() {
+      _selectedMode = mode;
+      _secondsRemaining = mode.duration;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('selected_environment_mode', mode.index);
+  }
+
+  // 🎧 AirPods hardware trigger setup
+  Future<void> _initAirPodsListener() async {
+    try {
+      _airPodsHandler = await AudioService.init(
+        builder: () => AirPodsAudioHandler(
+          onMediaButtonTriggered: () {
+            triggerAirPodsSqueeze();
+          },
+        ),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId:
+              'com.example.song_recognition.channel.audio',
+          androidNotificationChannelName: 'AirPods Song Finder',
+          androidNotificationOngoing: false,
+        ),
+      );
+    } catch (e) {
+      debugPrint('AirPods listener setup notice: $e');
+    }
   }
 
   void _listenForDeepLinks() {
     SystemChannels.platform.setMethodCallHandler((MethodCall call) async {
-      // Triggered specifically when Siri or Shortcuts open the app
       if (call.method == 'InitialLifecycleState' ||
           call.method == 'AppLifecycleState.resumed') {
         Future.delayed(const Duration(milliseconds: 300), () {
@@ -142,7 +196,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   // AirPods stem trigger call
   void triggerAirPodsSqueeze() {
     if (!_isRecording && !_isLoading) {
-      _startRecording(playDing: false); // No ding on stem squeeze
+      _startRecording(playDing: false); // No ding sound on stem squeeze
     } else if (_isRecording) {
       _stopAndSendRecording();
     }
@@ -153,7 +207,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
     try {
       if (kIsWeb || await Permission.microphone.request().isGranted) {
-        // 🔔 Play ding cue ONLY if explicitly enabled (Siri / Manual UI tap)
         if (playDing) {
           await _playDingCue();
           await Future.delayed(const Duration(milliseconds: 400));
@@ -342,7 +395,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 🎯 TITLE
               const Text(
                 'Where Are You?',
                 style: TextStyle(
@@ -353,7 +405,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
               ),
               const SizedBox(height: 16),
 
-              // 🔘 ENVIRONMENT MODE SELECTOR BUTTONS
+              // ENVIRONMENT SELECTOR BUTTONS
               Column(
                 children: EnvironmentMode.values.map((mode) {
                   final isSelected = _selectedMode == mode;
@@ -363,9 +415,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                       onTap: _isRecording || _isLoading
                           ? null
                           : () {
-                              setState(() {
-                                _selectedMode = mode;
-                              });
+                              _saveMode(mode); // Save selected mode instantly
                             },
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
@@ -436,7 +486,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
               const SizedBox(height: 32),
 
-              // STATUS TEXT
               Text(
                 _statusText,
                 textAlign: TextAlign.center,
@@ -445,7 +494,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
               ),
               const SizedBox(height: 30),
 
-              // MIC BUTTON
               if (_isLoading)
                 const CircularProgressIndicator()
               else
@@ -471,7 +519,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
               const SizedBox(height: 30),
 
-              // SONG RESULT CARD
               if (_songTitle != null && _artist != null) ...[
                 Card(
                   elevation: 6,
@@ -525,5 +572,43 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         ),
       ),
     );
+  }
+}
+
+// 🎧 AirPods Hardware Media Control Handler
+class AirPodsAudioHandler extends BaseAudioHandler {
+  final VoidCallback onMediaButtonTriggered;
+
+  AirPodsAudioHandler({required this.onMediaButtonTriggered}) {
+    playbackState.add(
+      PlaybackState(
+        controls: [MediaControl.play, MediaControl.pause],
+        systemActions: const {
+          MediaAction.play,
+          MediaAction.pause,
+          MediaAction.playPause,
+        },
+        processingState: AudioProcessingState.ready,
+        playing: false,
+      ),
+    );
+  }
+
+  @override
+  Future<void> play() async {
+    onMediaButtonTriggered();
+    return super.play();
+  }
+
+  @override
+  Future<void> pause() async {
+    onMediaButtonTriggered();
+    return super.pause();
+  }
+
+  @override
+  Future<void> click([MediaButton button = MediaButton.media]) async {
+    onMediaButtonTriggered();
+    return super.click(button);
   }
 }
