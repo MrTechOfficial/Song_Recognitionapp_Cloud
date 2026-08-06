@@ -4,13 +4,13 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
 enum EnvironmentMode {
   quiet(label: 'A quiet room', duration: 6, icon: Icons.king_bed),
   loud(label: 'A loud room with background noise', duration: 8, icon: Icons.volume_up),
-  skiing(label: 'You are skiing', duration: 12, icon: Icons.downhill_skiing);
+  skiing(label: 'Skiing', duration: 12, icon: Icons.downhill_skiing); // ⛷️ Updated label
 
   final String label;
   final int duration;
@@ -73,7 +73,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   Timer? _autoStopTimer;
   Timer? _countdownTimer;
 
-  String _statusText = 'Select your environment and tap the mic or squeeze AirPods stem!';
+  String _statusText =
+      'Select your environment and tap the mic or squeeze AirPods stem!';
   String? _songTitle;
   String? _artist;
   String? _spotifyUrl;
@@ -89,12 +90,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
     _silencePlayer = AudioPlayer();
 
-    // 1. Load saved mode duration from memory
+    // 1. Load saved environment mode
     _loadSavedMode();
 
     // 2. Play local silence.mp3 loop immediately on launch
@@ -104,16 +106,32 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     if (!kIsWeb) {
       _initAirPodsListener();
     }
+
+    // 4. Check if app was launched via Siri / Deep Link route
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSiriLaunch();
+    });
   }
 
   // 🤫 Play local silence.mp3 on infinite loop to keep iOS media controls active
   Future<void> _initSilencePlayer() async {
     try {
       await _silencePlayer.setReleaseMode(ReleaseMode.loop);
-      // 'silence.mp3' will resolve to 'assets/silence.mp3' via audioplayers
       await _silencePlayer.play(AssetSource('silence.mp3'));
     } catch (e) {
       debugPrint('Error starting local silence background audio: $e');
+    }
+  }
+
+  void _checkSiriLaunch() {
+    final route = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
+    // Siri shortcuts or custom URL launches pass a deep link path (not standard '/')
+    if (route.isNotEmpty && route != '/') {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!_isRecording && !_isLoading && mounted) {
+          _startRecording(playDing: true);
+        }
+      });
     }
   }
 
@@ -161,6 +179,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
     _audioRecorder.dispose();
@@ -202,12 +221,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
     try {
       if (kIsWeb || await Permission.microphone.request().isGranted) {
-        // Pause silence playback during recording so audio input is clean
         await _silencePlayer.pause();
 
         if (playDing) {
           await _playDingCue();
-          await Future.delayed(const Duration(milliseconds: 400));
+          // ⏱️ 500 ms delay so chime finishes playing before mic starts recording
+          await Future.delayed(const Duration(milliseconds: 500));
         }
 
         String filePath = '';
@@ -281,7 +300,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
       final path = await _audioRecorder.stop();
 
-      // Resume silent audio loop to retain AirPods stem squeeze control
       _silencePlayer.resume();
 
       if (path != null && path.isNotEmpty) {
@@ -611,4 +629,4 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     onMediaButtonTriggered();
     return super.click(button);
   }
-}
+}s
