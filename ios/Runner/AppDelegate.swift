@@ -9,7 +9,7 @@ import AppIntents
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
-    return super.application(application, launchOptions: launchOptions)
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }
 
@@ -27,7 +27,6 @@ struct FindSongIntent: AppIntent {
 @available(iOS 16.0, *)
 struct AppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        //  Notice: NO square brackets [ ] around AppShortcut(...)
         AppShortcut(
             intent: FindSongIntent(),
             phrases: [
