@@ -79,11 +79,24 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   Timer? _autoStopTimer;
   Timer? _countdownTimer;
 
+  // App Settings / Preferences
+  String _preferredMusicApp = 'spotify'; // 'spotify' or 'apple_music'
+  String _selectedLanguage = 'en'; // Language code (e.g., 'en', 'es', 'fr')
+
+  final Map<String, String> _languages = {
+    'en': '🇺🇸 English',
+    'es': '🇪🇸 Español',
+    'fr': '🇫🇷 Français',
+    'de': '🇩🇪 Deutsch',
+    'ja': '🇯🇵 日本語',
+  };
+
   String _statusText =
       'Select your environment and tap the mic or squeeze AirPods stem!';
   String? _songTitle;
   String? _artist;
   String? _spotifyUrl;
+  String? _appleMusicUrl;
 
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
@@ -103,6 +116,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     _silencePlayer = AudioPlayer();
 
     _loadSavedMode();
+    _loadPreferences();
     _initSilencePlayer();
 
     if (!kIsWeb) {
@@ -111,7 +125,111 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  // Native Siri Deep Link Event Listener
+  // Load User Preferences (Language & Default Music Player)
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedApp = prefs.getString('preferred_music_app');
+    final savedLang = prefs.getString('preferred_language');
+
+    setState(() {
+      _preferredMusicApp = savedApp ?? 'spotify';
+      _selectedLanguage = savedLang ?? 'en';
+    });
+
+    // If first launch, prompt preferences modal
+    if (savedApp == null || savedLang == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showPreferencesDialog();
+      });
+    }
+  }
+
+  Future<void> _savePreferences(String musicApp, String lang) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('preferred_music_app', musicApp);
+    await prefs.setString('preferred_language', lang);
+    setState(() {
+      _preferredMusicApp = musicApp;
+      _selectedLanguage = lang;
+    });
+  }
+
+  void _showPreferencesDialog() {
+    String tempApp = _preferredMusicApp;
+    String tempLang = _selectedLanguage;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('App Preferences'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Preferred Music App',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  RadioListTile<String>(
+                    title: const Text('Spotify'),
+                    value: 'spotify',
+                    groupValue: tempApp,
+                    onChanged: (val) {
+                      setModalState(() => tempApp = val!);
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Apple Music'),
+                    value: 'apple_music',
+                    groupValue: tempApp,
+                    onChanged: (val) {
+                      setModalState(() => tempApp = val!);
+                    },
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text('Preferred Language',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  DropdownButton<String>(
+                    isExpanded: true,
+                    value: tempLang,
+                    items: _languages.entries.map((entry) {
+                      return DropdownMenuItem<String>(
+                        value: entry.key,
+                        child: Text(entry.value),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setModalState(() => tempLang = val);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _savePreferences(tempApp, tempLang);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _initSiriListener() {
     _siriChannel.setMethodCallHandler((call) async {
       if (call.method == 'onSiriTrigger') {
@@ -168,7 +286,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   Future<void> _saveToHistory(String songEntry) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> history = prefs.getStringList('song_history') ?? [];
-    history.insert(0, songEntry); // Add newest search at the top
+    history.insert(0, songEntry);
     await prefs.setStringList('song_history', history);
   }
 
@@ -268,6 +386,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
           _songTitle = null;
           _artist = null;
           _spotifyUrl = null;
+          _appleMusicUrl = null;
         });
 
         _countdownTimer?.cancel();
@@ -339,6 +458,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     final uri = Uri.parse(_backendUrl);
     var request = http.MultipartRequest('POST', uri);
 
+    // Pass chosen language to backend
+    request.fields['language'] = _selectedLanguage;
+
     try {
       if (kIsWeb) {
         final response = await http.get(Uri.parse(path));
@@ -373,13 +495,18 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
             _songTitle = title;
             _artist = artist;
             _spotifyUrl = data['spotify_url'];
-            _statusText = 'Match Found! Launching Spotify...';
+            _appleMusicUrl = data['apple_music_url'];
+            _statusText = 'Match Found!';
           });
 
-          // Save song to history storage
           await _saveToHistory('$title - $artist');
 
-          if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
+          // Open in preferred music app automatically
+          if (_preferredMusicApp == 'apple_music' &&
+              _appleMusicUrl != null &&
+              _appleMusicUrl!.isNotEmpty) {
+            _openMusicUrl(_appleMusicUrl!);
+          } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
             _openSpotifyNative(_spotifyUrl!);
           }
         } else {
@@ -406,19 +533,17 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
-
     if (url.startsWith('spotify:track:')) {
       final trackId = url.replaceFirst('spotify:track:', '');
       finalUrl = 'spotify:track:$trackId';
     }
+    _openMusicUrl(finalUrl);
+  }
 
-    final uri = Uri.parse(finalUrl);
-
+  Future<void> _openMusicUrl(String url) async {
+    final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
-      await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -429,6 +554,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         title: const Text('Hands-Free Song Identifier'),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'App Preferences',
+            onPressed: _showPreferencesDialog,
+          ),
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'Search History',
@@ -604,7 +734,22 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 20),
-                        if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty)
+                        if (_preferredMusicApp == 'apple_music' &&
+                            _appleMusicUrl != null &&
+                            _appleMusicUrl!.isNotEmpty)
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFA243C),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                            ),
+                            onPressed: () => _openMusicUrl(_appleMusicUrl!),
+                            icon: const Icon(Icons.play_arrow),
+                            label: const Text('Open in Apple Music'),
+                          )
+                        else if (_spotifyUrl != null &&
+                            _spotifyUrl!.isNotEmpty)
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1DB954),

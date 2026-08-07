@@ -6,7 +6,7 @@ import hmac
 import shutil
 import re
 import requests
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 
@@ -89,14 +89,35 @@ def resolve_lyrics_to_song_with_genius(lyrics: str):
         print(f"[GENIUS API ERROR]: {e}")
     return None
 
+def get_apple_music_url(title: str, artist: str) -> str:
+    """Queries the iTunes Search API to fetch the direct Apple Music link."""
+    clean_title = re.sub(r"[^\w\s]", "", title)
+    clean_artist = re.sub(r"[^\w\s]", "", artist)
+    query = f"{clean_title} {clean_artist}".strip()
+    
+    if not query:
+        return ""
+
+    url = f"https://itunes.apple.com/search?term={requests.utils.quote(query)}&entity=song&limit=1"
+    try:
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            results = res.json().get('results', [])
+            if results:
+                apple_url = results[0].get('trackViewUrl')
+                print(f"[APPLE MUSIC WINNER]: {apple_url}")
+                return apple_url or ""
+    except Exception as e:
+        print(f"[APPLE MUSIC SEARCH ERROR]: {e}")
+        
+    return f"https://music.apple.com/us/search?term={requests.utils.quote(query)}"
+
 def get_official_spotify_track(title: str, artist: str):
     """Searches Spotify, strips conflicting punctuation, and enforces a minimum popularity score."""
     token = get_spotify_access_token()
     
-    # 🎯 MINIMUM POPULARITY THRESHOLD (Set to 60)
     MIN_POPULARITY = 60
 
-    # Clean title & artist of apostrophes/special characters that break Spotify search
     clean_title = re.sub(r"[^\w\s]", "", title)
     clean_artist = re.sub(r"[^\w\s]", "", artist)
     query = f"{clean_title} {clean_artist}"
@@ -112,14 +133,12 @@ def get_official_spotify_track(title: str, artist: str):
         if res.status_code == 200:
             tracks = res.json().get('tracks', {}).get('items', [])
             
-            # 1. Filter out known covers AND tracks below the 60 popularity score
             valid_tracks = [
                 t for t in tracks 
                 if not is_cover_version(t.get('name', ''), t['artists'][0]['name'] if t.get('artists') else '')
                 and t.get('popularity', 0) >= MIN_POPULARITY
             ]
             
-            # 2. Fallback: If no track scores above 60, keep non-cover tracks as a safety net
             if not valid_tracks:
                 valid_tracks = [
                     t for t in tracks 
@@ -127,7 +146,6 @@ def get_official_spotify_track(title: str, artist: str):
                 ] or tracks
 
             if valid_tracks:
-                # 3. Sort remaining tracks by highest popularity score
                 valid_tracks.sort(key=lambda x: x.get('popularity', 0), reverse=True)
                 top_hit = valid_tracks[0]
 
@@ -147,16 +165,20 @@ def get_official_spotify_track(title: str, artist: str):
 
     return {"title": title, "artist": artist, "spotify_url": f"spotify:search:{requests.utils.quote(query)}"}
 
-def transcribe_audio_with_groq(audio_file_path: str) -> str:
+def transcribe_audio_with_groq(audio_file_path: str, language: str = "en") -> str:
     if not groq_client:
         return ""
     try:
         with open(audio_file_path, "rb") as audio_file:
-            transcript = groq_client.audio.transcriptions.create(
-                model="whisper-large-v3-turbo",
-                file=audio_file,
-                prompt="Transcribe lyrics sung in audio clip."
-            )
+            kwargs = {
+                "model": "whisper-large-v3-turbo",
+                "file": audio_file,
+                "prompt": "Transcribe lyrics sung in audio clip."
+            }
+            if language:
+                kwargs["language"] = language
+
+            transcript = groq_client.audio.transcriptions.create(**kwargs)
         return transcript.text.strip()
     except Exception as e:
         print(f"[GROQ ERROR]: {e}")
@@ -164,10 +186,13 @@ def transcribe_audio_with_groq(audio_file_path: str) -> str:
 
 @app.get("/")
 def read_root():
-    return {"status": "ACRCloud + Groq Whisper + Spotify + Genius Active"}
+    return {"status": "ACRCloud + Groq Whisper + Spotify + Apple Music + Genius Active"}
 
 @app.post("/recognize")
-async def recognize_audio(file: UploadFile = File(...)):
+async def recognize_audio(
+    file: UploadFile = File(...),
+    language: str = Form("en")
+):
     file_ext = os.path.splitext(file.filename)[1] or ".wav"
     temp_filename = f"temp_recording{file_ext}"
 
@@ -196,19 +221,21 @@ async def recognize_audio(file: UploadFile = File(...)):
             artist = artists[0]['name'] if artists else ''
 
             if not is_cover_version(title, artist):
-                # ⚡ FIX: Fetch the direct Spotify Track ID even if ACRCloud doesn't provide one!
                 song_info = get_official_spotify_track(title, artist)
+                apple_music_url = get_apple_music_url(song_info['title'], song_info['artist'])
+                
                 return {
                     "success": True,
                     "title": song_info['title'],
                     "artist": song_info['artist'],
-                    "spotify_url": song_info['spotify_url']
+                    "spotify_url": song_info['spotify_url'],
+                    "apple_music_url": apple_music_url
                 }
 
         # -------------------------------------------------------------
         # STAGE 2: GROQ WHISPER + GENIUS LYRIC RESOLVER
         # -------------------------------------------------------------
-        lyrics = transcribe_audio_with_groq(temp_filename)
+        lyrics = transcribe_audio_with_groq(temp_filename, language=language)
 
         if lyrics and len(lyrics) > 3:
             genius_match = resolve_lyrics_to_song_with_genius(lyrics)
@@ -218,11 +245,14 @@ async def recognize_audio(file: UploadFile = File(...)):
             else:
                 song_info = get_official_spotify_track(lyrics, "")
 
+            apple_music_url = get_apple_music_url(song_info['title'], song_info['artist'])
+
             return {
                 "success": True,
                 "title": song_info['title'],
                 "artist": song_info['artist'],
-                "spotify_url": song_info['spotify_url']
+                "spotify_url": song_info['spotify_url'],
+                "apple_music_url": apple_music_url
             }
 
         return {"success": False, "message": "Could not recognize lyrics. Try singing clearer!"}
