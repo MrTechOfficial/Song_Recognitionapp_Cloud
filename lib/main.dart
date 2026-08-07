@@ -639,4 +639,4 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     onMediaButtonTriggered();
     return super.click(button);
   }
-}s
+}
