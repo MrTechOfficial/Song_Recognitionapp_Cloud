@@ -415,7 +415,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('⛷️ Hands-Free Song Finder'),
+        title: const Text('Hands-Free Song Identifier'),
         centerTitle: true,
       ),
       body: Center(
