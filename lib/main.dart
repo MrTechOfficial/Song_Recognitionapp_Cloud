@@ -504,9 +504,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
+  // 1-second high-pitched chime ding sound
   final String _dingUrl =
-      'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3';  
-      final String _errorSoundUrl =
+      'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3';
+  final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
 
   // Helper method for localized text
@@ -635,18 +636,23 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 
   void _initSiriListener() {
-  _siriChannel.setMethodCallHandler((call) async {
-    if (call.method == 'onSiriTrigger') {
-      _triggerAutoRecordingFromSiri();
-    }
-  });
-
+    _siriChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onSiriTrigger' || call.method == 'triggerSiriRecord') {
+        _triggerAutoRecordingFromSiri();
+      }
+    });
 
     _siriChannel.invokeMethod<String>('getInitialUrl').then((url) {
       if (url != null && url.isNotEmpty) {
         _triggerAutoRecordingFromSiri();
       }
-    });
+    }).catchError((e) => debugPrint('Siri initial URL check error: $e'));
+
+    _siriChannel.invokeMethod<bool>('checkSiriTrigger').then((triggered) {
+      if (triggered == true) {
+        _triggerAutoRecordingFromSiri();
+      }
+    }).catchError((e) => debugPrint('Siri trigger check error: $e'));
   }
 
   void _triggerAutoRecordingFromSiri() {
@@ -727,10 +733,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     super.dispose();
   }
 
-  // 1. Helper to play a single clean ding without sound stacking
+  // Helper to play a single clean ding without sound stacking
   Future<void> _playSingleDing() async {
     try {
-      await _dingPlayer.stop(); // Stop any previous playing sound
+      await _dingPlayer.stop();
       await _dingPlayer.play(UrlSource(_dingUrl));
     } catch (e) {
       debugPrint('Error playing ding: $e');
@@ -754,7 +760,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  // 3. Complete Start Recording Method
+  // Start Recording Method
   Future<void> _startRecording({bool playDing = true}) async {
     if (_isRecording || _isLoading) return;
 
@@ -904,18 +910,17 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 
   Future<void> _openMusicUrl(String url) async {
-  // Stop background silence player so iOS transfers full audio focus to Spotify / Apple Music
-  try {
-    await _silencePlayer.stop();
-  } catch (e) {
-    debugPrint('Error stopping silence player: $e');
-  }
+    try {
+      await _silencePlayer.stop();
+    } catch (e) {
+      debugPrint('Error stopping silence player: $e');
+    }
 
-  final uri = Uri.parse(url);
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
-}
 
   String _getDisplayStatusText() {
     if (_customStatusText != null) {

@@ -1,37 +1,46 @@
 import UIKit
 import Flutter
-import AppIntents
 
-@main
+@UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
-  static var siriChannel: FlutterMethodChannel?
-  static var siriTriggeredOnLaunch = false
+  private var siriChannel: FlutterMethodChannel?
+  private var launchedFromSiri = false
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GeneratedPluginRegistrant.register(with: self)
+    let controller : FlutterViewController = window?.rootViewController as! FlutterViewController
+    siriChannel = FlutterMethodChannel(name: "com.handsfreefinder/siri",
+                                              binaryMessenger: controller.binaryMessenger)
 
-    if let controller = window?.rootViewController as? FlutterViewController {
-      let channel = FlutterMethodChannel(
-        name: "com.example.songrecognition/siri",
-        binaryMessenger: controller.binaryMessenger
-      )
-      AppDelegate.siriChannel = channel
-
-      channel.setMethodCallHandler { (call, result) in
-        if call.method == "checkSiriTrigger" {
-          result(AppDelegate.siriTriggeredOnLaunch)
-          AppDelegate.siriTriggeredOnLaunch = false
-        } else {
-          result(FlutterMethodNotImplemented)
-        }
+    siriChannel?.setMethodCallHandler({
+      (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+      if call.method == "checkSiriTrigger" {
+        result(self.launchedFromSiri)
+        self.launchedFromSiri = false // Reset after reading
+      } else {
+        result(FlutterMethodNotImplemented)
       }
-    }
+    })
 
+    GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
+
+  // Handle URL launches from Siri Shortcuts
+  override func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey : Any] = [:]
+  ) -> Bool {
+    if url.scheme == "handsfreefinder" || url.absoluteString.contains("siri") {
+      launchedFromSiri = true
+      siriChannel?.invokeMethod("onSiriTrigger", arguments: nil)
+    }
+    return super.application(app, open: url, options: options)
+  }
+}
 
   static func triggerSiriRecord() {
     siriTriggeredOnLaunch = true
