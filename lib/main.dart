@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
 enum EnvironmentMode {
   quiet(label: 'A quiet room', duration: 6, icon: Icons.king_bed),
   loud(label: 'A loud room with background noise', duration: 8, icon: Icons.volume_up),
-  skiing(label: 'Skiing', duration: 12, icon: Icons.downhill_skiing); // ⛷️ Updated label
+  skiing(label: 'Skiing', duration: 12, icon: Icons.downhill_skiing);
 
   final String label;
   final int duration;
@@ -107,10 +107,18 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       _initAirPodsListener();
     }
 
-    // 4. Check if app was launched via Siri / Deep Link route
+    // 4. Check if launched via Siri / Deep Link route
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkSiriLaunch();
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Triggers when Siri resumes the app from the background
+    if (state == AppLifecycleState.resumed) {
+      _checkSiriLaunch();
+    }
   }
 
   // 🤫 Play local silence.mp3 on infinite loop to keep iOS media controls active
@@ -125,9 +133,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
   void _checkSiriLaunch() {
     final route = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
+    debugPrint('Current launch route: $route');
+
     // Siri shortcuts or custom URL launches pass a deep link path (not standard '/')
     if (route.isNotEmpty && route != '/') {
-      Future.delayed(const Duration(milliseconds: 300), () {
+      Future.delayed(const Duration(milliseconds: 400), () {
         if (!_isRecording && !_isLoading && mounted) {
           _startRecording(playDing: true);
         }
@@ -629,4 +639,4 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     onMediaButtonTriggered();
     return super.click(button);
   }
-}
+}s
