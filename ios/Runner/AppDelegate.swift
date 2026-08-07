@@ -33,7 +33,7 @@ struct AppShortcuts: AppShortcutsProvider {
             phrases: [
                 "Find song in \(.applicationName)",
                 "Find song with \(.applicationName)",
-                "Find song"
+                "Open \(.applicationName) to find song"
             ],
             shortTitle: "Find Song",
             systemImageName: "music.note"
