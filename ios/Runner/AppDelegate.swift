@@ -1,7 +1,8 @@
 import UIKit
 import Flutter
+import AppIntents
 
-@UIApplicationMain
+@main
 @objc class AppDelegate: FlutterAppDelegate {
   private var siriChannel: FlutterMethodChannel?
   private var launchedFromSiri = false
@@ -12,13 +13,13 @@ import Flutter
   ) -> Bool {
     let controller : FlutterViewController = window?.rootViewController as! FlutterViewController
     siriChannel = FlutterMethodChannel(name: "com.handsfreefinder/siri",
-                                              binaryMessenger: controller.binaryMessenger)
+                                       binaryMessenger: controller.binaryMessenger)
 
     siriChannel?.setMethodCallHandler({
       (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
       if call.method == "checkSiriTrigger" {
         result(self.launchedFromSiri)
-        self.launchedFromSiri = false // Reset after reading
+        self.launchedFromSiri = false
       } else {
         result(FlutterMethodNotImplemented)
       }
@@ -28,7 +29,6 @@ import Flutter
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  // Handle URL launches from Siri Shortcuts
   override func application(
     _ app: UIApplication,
     open url: URL,
@@ -42,37 +42,31 @@ import Flutter
   }
 }
 
-  static func triggerSiriRecord() {
-    siriTriggeredOnLaunch = true
-    siriChannel?.invokeMethod("triggerSiriRecord", arguments: nil)
-  }
-}
-
+// MARK: - Siri App Shortcuts
 @available(iOS 16.0, *)
-struct FindSongIntent: AppIntent {
-    static var title: LocalizedStringResource = "Find Song"
-    static var openAppWhenRun: Bool = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        AppDelegate.triggerSiriRecord()
-        return .result()
+struct AppShortcuts: AppShortcutsProvider {
+    static var appShortcuts: [AppShortcut] {
+        return [
+            AppShortcut(
+                intent: IdentifySongIntent(),
+                phrases: [
+                    "Identify song in \(\$.applicationName)",
+                    "Record song with \(\$.applicationName)"
+                ],
+                shortTitle: "Identify Song",
+                systemImageName: "waveform"
+            )
+        ]
     }
 }
 
 @available(iOS 16.0, *)
-struct AppShortcuts: AppShortcutsProvider {
-    @AppShortcutsBuilder
-    static var appShortcuts: [AppShortcut] {
-        AppShortcut(
-            intent: FindSongIntent(),
-            phrases: [
-                "Find song in \(.applicationName)",
-                "Find song with \(.applicationName)",
-                "Open \(.applicationName) to find song"
-            ],
-            shortTitle: "Find Song",
-            systemImageName: "music.note"
-        )
+struct IdentifySongIntent: AppIntent {
+    static var title: LocalizedStringResource = "Identify Song"
+    static var openAppWhenRun: Bool = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        return .result()
     }
 }
