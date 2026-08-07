@@ -505,8 +505,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
   final String _dingUrl =
-      'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
-  final String _errorSoundUrl =
+      'https://assets.mixkit.co/active_storage/sfx/2871/2871-preview.mp3';  
+      final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
 
   // Helper method for localized text
@@ -727,13 +727,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     super.dispose();
   }
 
-  Future<void> _playDingCue() async {
+  // 1. Helper to play a single clean ding without sound stacking
+  Future<void> _playSingleDing() async {
     try {
+      await _dingPlayer.stop(); // Stop any previous playing sound
       await _dingPlayer.play(UrlSource(_dingUrl));
-      await SystemSound.play(SystemSoundType.click);
-      await HapticFeedback.mediumImpact();
     } catch (e) {
-      debugPrint('Error playing chime: $e');
+      debugPrint('Error playing ding: $e');
     }
   }
 
@@ -754,75 +754,39 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
+  // 3. Complete Start Recording Method
   Future<void> _startRecording({bool playDing = true}) async {
     if (_isRecording || _isLoading) return;
 
     try {
-      if (kIsWeb || await Permission.microphone.request().isGranted) {
+      if (!kIsWeb && !await Permission.microphone.request().isGranted) {
         await _silencePlayer.pause();
-
-        if (playDing) {
-          await _playDingCue();
-          await Future.delayed(const Duration(milliseconds: 500));
-        }
-
-        String filePath = '';
-
-        if (!kIsWeb) {
-          final directory = await getTemporaryDirectory();
-          filePath = '${directory.path}/recording.wav';
-        }
-
-        await _audioRecorder.start(
-          const RecordConfig(
-            encoder: AudioEncoder.wav,
-            sampleRate: 16000,
-            numChannels: 1,
-          ),
-          path: filePath,
-        );
-
-        final int duration = _selectedMode.duration;
-
-        setState(() {
-          _isRecording = true;
-          _secondsRemaining = duration;
-          _statusTextKey = 'listening';
-          _customStatusText = null;
-          _songTitle = null;
-          _artist = null;
-          _spotifyUrl = null;
-          _appleMusicUrl = null;
-        });
-
-        _countdownTimer?.cancel();
-        _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          if (!mounted) return;
-          setState(() {
-            if (_secondsRemaining > 1) {
-              _secondsRemaining--;
-            } else {
-              _countdownTimer?.cancel();
-            }
-          });
-        });
-
-        _autoStopTimer?.cancel();
-        _autoStopTimer = Timer(Duration(seconds: duration), () {
-          _stopAndSendRecording();
-        });
-      } else {
-        setState(() {
-          _statusTextKey = 'mic_denied';
-          _customStatusText = null;
-        });
-        _playErrorCue();
       }
-    } catch (e) {
+
+      if (playDing) {
+        await _playSingleDing();
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
       setState(() {
-        _customStatusText = 'Error: $e';
+        _isRecording = true;
       });
-      _playErrorCue();
+
+      String filePath = '';
+      if (!kIsWeb) {
+        final directory = await getTemporaryDirectory();
+        filePath = '${directory.path}/recording.wav';
+      }
+
+      await _audioRecorder.start(
+        const RecordConfig(encoder: AudioEncoder.wav),
+        path: filePath,
+      );
+    } catch (e) {
+      debugPrint('Error starting recording: $e');
+      setState(() {
+        _isRecording = false;
+      });
     }
   }
 
@@ -940,11 +904,18 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 
   Future<void> _openMusicUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  // Stop background silence player so iOS transfers full audio focus to Spotify / Apple Music
+  try {
+    await _silencePlayer.stop();
+  } catch (e) {
+    debugPrint('Error stopping silence player: $e');
   }
+
+  final uri = Uri.parse(url);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
 
   String _getDisplayStatusText() {
     if (_customStatusText != null) {
