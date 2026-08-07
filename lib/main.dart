@@ -17,6 +17,402 @@ void main() async {
   runApp(const MyApp());
 }
 
+// --------------------------------------------------------------------
+// 🌍 TRANSLATION DICTIONARY (UI LOCALIZATION)
+// --------------------------------------------------------------------
+final Map<String, Map<String, String>> localizedStrings = {
+  'en': {
+    'app_title': 'Hands-Free Song Identifier',
+    'where_are_you': 'Where Are You?',
+    'quiet_room': 'A quiet room',
+    'loud_room': 'A loud room with background noise',
+    'skiing': 'Skiing',
+    'initial_status': 'Select your environment and tap the mic or squeeze AirPods stem!',
+    'listening': 'Listening...',
+    'searching': 'Searching database...',
+    'match_found': 'Match Found!',
+    'mic_denied': 'Microphone permission denied.',
+    'settings_title': 'App Preferences',
+    'pref_music_app': 'Preferred Music App',
+    'pref_lang': 'Preferred Language',
+    'open_spotify': 'Open in Spotify App',
+    'open_apple': 'Open in Apple Music',
+    'history_title': 'Search History',
+    'clear_history': 'Clear History',
+    'clear_history_confirm': 'Are you sure you want to delete all saved song searches?',
+    'no_history': 'No songs searched yet!',
+    'cancel': 'Cancel',
+    'save': 'Save',
+    'clear': 'Clear',
+    'tip': '💡 Tip: Say "Hey Siri, find song with Reczt" to open the app and instantly start finding the song stuck in your head!',
+    'by': 'by',
+  },
+  'es': {
+    'app_title': 'Identificador de Canciones',
+    'where_are_you': '¿Dónde estás?',
+    'quiet_room': 'Una habitación silenciosa',
+    'loud_room': 'Una habitación ruidosa con ruido de fondo',
+    'skiing': 'Esquiando',
+    'initial_status': '¡Selecciona tu entorno y toca el micrófono o presiona tus AirPods!',
+    'listening': 'Escuchando...',
+    'searching': 'Buscando en la base de datos...',
+    'match_found': '¡Coincidencia encontrada!',
+    'mic_denied': 'Permiso de micrófono denegado.',
+    'settings_title': 'Preferencias de la aplicación',
+    'pref_music_app': 'Aplicación de música preferida',
+    'pref_lang': 'Idioma preferido',
+    'open_spotify': 'Abrir en Spotify',
+    'open_apple': 'Abrir en Apple Music',
+    'history_title': 'Historial de búsqueda',
+    'clear_history': 'Borrar historial',
+    'clear_history_confirm': '¿Estás seguro de que deseas eliminar todas las búsquedas guardadas?',
+    'no_history': '¡Aún no has buscado canciones!',
+    'cancel': 'Cancelar',
+    'save': 'Guardar',
+    'clear': 'Borrar',
+    'tip': '💡 Consejo: Di "Oye Siri, buscar canción con Reczt" para abrir la aplicación e identificar la canción.',
+    'by': 'de',
+  },
+  'fr': {
+    'app_title': 'Identificateur de Chansons',
+    'where_are_you': 'Où êtes-vous ?',
+    'quiet_room': 'Une pièce calme',
+    'loud_room': 'Une pièce bruyante avec du bruit de fond',
+    'skiing': 'En train de skier',
+    'initial_status': 'Sélectionnez votre environnement et appuyez sur le micro !',
+    'listening': 'Écoute en cours...',
+    'searching': 'Recherche dans la base de données...',
+    'match_found': 'Correspondance trouvée !',
+    'mic_denied': 'Autorisation du microphone refusée.',
+    'settings_title': 'Préférences de l\'application',
+    'pref_music_app': 'Application musicale préférée',
+    'pref_lang': 'Langue préférée',
+    'open_spotify': 'Ouvrir dans Spotify',
+    'open_apple': 'Ouvrir dans Apple Music',
+    'history_title': 'Historique des recherches',
+    'clear_history': 'Effacer l\'historique',
+    'clear_history_confirm': 'Voulez-vous vraiment supprimer toutes les recherches enregistrées ?',
+    'no_history': 'Aucune chanson recherchée pour l\'instant !',
+    'cancel': 'Annuler',
+    'save': 'Enregistrer',
+    'clear': 'Effacer',
+    'tip': '💡 Astuce : Dites "Dis Siri, trouve la chanson avec Reczt" pour démarrer !',
+    'by': 'par',
+  },
+  'de': {
+    'app_title': 'Song-Erkennung',
+    'where_are_you': 'Wo bist du?',
+    'quiet_room': 'Ein ruhiger Raum',
+    'loud_room': 'Ein lauter Raum mit Hintergrundgeräuschen',
+    'skiing': 'Skifahren',
+    'initial_status': 'Wähle deine Umgebung und tippe auf das Mikrofon!',
+    'listening': 'Zuhören...',
+    'searching': 'Datenbank wird durchsucht...',
+    'match_found': 'Treffer gefunden!',
+    'mic_denied': 'Mikrofonberechtigung verweigert.',
+    'settings_title': 'App-Einstellungen',
+    'pref_music_app': 'Bevorzugte Musik-App',
+    'pref_lang': 'Bevorzugte Sprache',
+    'open_spotify': 'In Spotify öffnen',
+    'open_apple': 'In Apple Music öffnen',
+    'history_title': 'Suchverlauf',
+    'clear_history': 'Verlauf löschen',
+    'clear_history_confirm': 'Möchtest du wirklich alle gespeicherten Suchen löschen?',
+    'no_history': 'Noch keine Songs gesucht!',
+    'cancel': 'Abbrechen',
+    'save': 'Speichern',
+    'clear': 'Löschen',
+    'tip': '💡 Tipp: Sage "Hey Siri, finde Song mit Reczt", um sofort zu starten!',
+    'by': 'von',
+  },
+  'it': {
+    'app_title': 'Riconoscimento Brani',
+    'where_are_you': 'Dove ti trovi?',
+    'quiet_room': 'Una stanza silenziosa',
+    'loud_room': 'Una stanza rumorosa',
+    'skiing': 'Sciare',
+    'initial_status': 'Seleziona l\'ambiente e tocca il microfono!',
+    'listening': 'Ascolto in corso...',
+    'searching': 'Ricerca nel database...',
+    'match_found': 'Brano trovato!',
+    'mic_denied': 'Autorizzazione microfono negata.',
+    'settings_title': 'Preferenze App',
+    'pref_music_app': 'App musicale preferita',
+    'pref_lang': 'Lingua preferita',
+    'open_spotify': 'Apri su Spotify',
+    'open_apple': 'Apri su Apple Music',
+    'history_title': 'Cronologia ricerche',
+    'clear_history': 'Cancella cronologia',
+    'clear_history_confirm': 'Sei sicuro di voler eliminare tutta la cronologia?',
+    'no_history': 'Nessun brano cercato finora!',
+    'cancel': 'Annulla',
+    'save': 'Salva',
+    'clear': 'Cancella',
+    'tip': '💡 Consiglio: Dì "Ehi Siri, trova canzone con Reczt"!',
+    'by': 'di',
+  },
+  'pt': {
+    'app_title': 'Identificador de Músicas',
+    'where_are_you': 'Onde você está?',
+    'quiet_room': 'Um quarto silencioso',
+    'loud_room': 'Um ambiente barulhento',
+    'skiing': 'Esquiando',
+    'initial_status': 'Selecione seu ambiente e toque no microfone!',
+    'listening': 'Ouvindo...',
+    'searching': 'Buscando no banco de dados...',
+    'match_found': 'Música encontrada!',
+    'mic_denied': 'Permissão do microfone negada.',
+    'settings_title': 'Preferências do App',
+    'pref_music_app': 'App de música preferido',
+    'pref_lang': 'Idioma preferido',
+    'open_spotify': 'Abrir no Spotify',
+    'open_apple': 'Abrir no Apple Music',
+    'history_title': 'Histórico de busca',
+    'clear_history': 'Limpar histórico',
+    'clear_history_confirm': 'Tem certeza que deseja apagar o histórico?',
+    'no_history': 'Nenhuma música buscada ainda!',
+    'cancel': 'Cancelar',
+    'save': 'Salvar',
+    'clear': 'Limpar',
+    'tip': '💡 Dica: Diga "Eaí Siri, buscar música com Reczt"!',
+    'by': 'de',
+  },
+  'ja': {
+    'app_title': '楽曲識別アプリ',
+    'where_are_you': 'どこにいますか？',
+    'quiet_room': '静かな部屋',
+    'loud_room': '騒がしい場所',
+    'skiing': 'スキー中',
+    'initial_status': '環境を選択してマイクをタップしてください！',
+    'listening': '聞き取り中...',
+    'searching': 'データベースを検索中...',
+    'match_found': '曲が見つかりました！',
+    'mic_denied': 'マイクのアクセス許可が拒否されました。',
+    'settings_title': 'アプリ設定',
+    'pref_music_app': '優先音楽アプリ',
+    'pref_lang': '優先言語',
+    'open_spotify': 'Spotifyで開く',
+    'open_apple': 'Apple Musicで開く',
+    'history_title': '検索履歴',
+    'clear_history': '履歴を消去',
+    'clear_history_confirm': 'すべての検索履歴を削除しますか？',
+    'no_history': 'まだ検索された曲はありません！',
+    'cancel': 'キャンセル',
+    'save': '保存',
+    'clear': '消去',
+    'tip': '💡 ヒント：「Hey Siri、Recztで曲を探して」と言ってみよう！',
+    'by': 'アーティスト:',
+  },
+  'ko': {
+    'app_title': '음악 검색 식별기',
+    'where_are_you': '어디에 계신가요?',
+    'quiet_room': '조용한 방',
+    'loud_room': '시끄러운 장소',
+    'skiing': '스키 타는 중',
+    'initial_status': '환경을 선택하고 마이크를 탭하세요!',
+    'listening': '듣는 중...',
+    'searching': '데이터베이스 검색 중...',
+    'match_found': '곡을 찾았습니다!',
+    'mic_denied': '마이크 권한이 거부되었습니다.',
+    'settings_title': '앱 설정',
+    'pref_music_app': '선호하는 음악 앱',
+    'pref_lang': '선호하는 언어',
+    'open_spotify': 'Spotify에서 열기',
+    'open_apple': 'Apple Music에서 열기',
+    'history_title': '검색 기록',
+    'clear_history': '기록 삭제',
+    'clear_history_confirm': '모든 검색 기록을 삭제하시겠습니까?',
+    'no_history': '아직 검색한 노래가 없습니다!',
+    'cancel': '취소',
+    'save': '저장',
+    'clear': '삭제',
+    'tip': '💡 팁: "Siri야, Reczt로 노래 찾아줘"라고 말해보세요!',
+    'by': '아티스트:',
+  },
+  'zh': {
+    'app_title': '歌曲识别器',
+    'where_are_you': '你在哪里？',
+    'quiet_room': '安静的房间',
+    'loud_room': '吵闹的环境',
+    'skiing': '滑雪中',
+    'initial_status': '选择你的环境并轻按麦克风！',
+    'listening': '正在聆听...',
+    'searching': '正在搜索数据库...',
+    'match_found': '找到歌曲！',
+    'mic_denied': '麦克风权限被拒绝。',
+    'settings_title': '应用设置',
+    'pref_music_app': '首选音乐应用',
+    'pref_lang': '首选语言',
+    'open_spotify': '在 Spotify 中打开',
+    'open_apple': '在 Apple Music 中打开',
+    'history_title': '搜索历史',
+    'clear_history': '清除历史',
+    'clear_history_confirm': '确定要删除所有搜索记录吗？',
+    'no_history': '还没有搜索过歌曲！',
+    'cancel': '取消',
+    'save': '保存',
+    'clear': '清除',
+    'tip': '💡 提示：对 Siri 说“Hey Siri，用 Reczt 找歌”！',
+    'by': '歌手：',
+  },
+  'hi': {
+    'app_title': 'गाना पहचानें',
+    'where_are_you': 'आप कहाँ हैं?',
+    'quiet_room': 'शांत कमरा',
+    'loud_room': 'शोर-शराबे वाली जगह',
+    'skiing': 'स्कीइंग',
+    'initial_status': 'पर्यावरण चुनें और माइक पर टैप करें!',
+    'listening': 'सुन रहा है...',
+    'searching': 'डेटाबेस में खोज रहा है...',
+    'match_found': 'गाना मिल गया!',
+    'mic_denied': 'माइक अनुमति अस्वीकृत।',
+    'settings_title': 'ऐप प्राथमिकताएं',
+    'pref_music_app': 'पसंदीदा म्यूजिक ऐप',
+    'pref_lang': 'पसंदीदा भाषा',
+    'open_spotify': 'Spotify में खोलें',
+    'open_apple': 'Apple Music में खोलें',
+    'history_title': 'खोज इतिहास',
+    'clear_history': 'इतिहास मिटाएं',
+    'clear_history_confirm': 'क्या आप सभी खोज इतिहास को हटाना चाहते हैं?',
+    'no_history': 'अभी तक कोई गाना नहीं खोजा गया!',
+    'cancel': 'रद्द करें',
+    'save': 'सहेजें',
+    'clear': 'मिटाएं',
+    'tip': '💡 सुझाव: "Hey Siri, Reczt से गाना खोजो" कहें!',
+    'by': 'द्वारा',
+  },
+  'ru': {
+    'app_title': 'Распознавание Музыки',
+    'where_are_you': 'Где вы находитесь?',
+    'quiet_room': 'Тихая комната',
+    'loud_room': 'Шумное помещение',
+    'skiing': 'Катание на лыжах',
+    'initial_status': 'Выберите обстановку и нажмите на микрофон!',
+    'listening': 'Слушаю...',
+    'searching': 'Поиск в базе данных...',
+    'match_found': 'Песня найдена!',
+    'mic_denied': 'Доступ к микрофону запрещен.',
+    'settings_title': 'Настройки приложения',
+    'pref_music_app': 'Предпочитаемый плеер',
+    'pref_lang': 'Предпочитаемый язык',
+    'open_spotify': 'Открыть в Spotify',
+    'open_apple': 'Открыть в Apple Music',
+    'history_title': 'История поиска',
+    'clear_history': 'Очистить историю',
+    'clear_history_confirm': 'Вы уверены, что хотите удалить историю поиска?',
+    'no_history': 'Вы еще не искали песни!',
+    'cancel': 'Отмена',
+    'save': 'Сохранить',
+    'clear': 'Очистить',
+    'tip': '💡 Совет: Скажите "Привет, Siri, найди песню через Reczt"!',
+    'by': 'исполнитель',
+  },
+  'tr': {
+    'app_title': 'Şarkı Tanıma',
+    'where_are_you': 'Neredesiniz?',
+    'quiet_room': 'Sessiz bir oda',
+    'loud_room': 'Gürültülü bir ortam',
+    'skiing': 'Kayak yaparken',
+    'initial_status': 'Ortamınızı seçin ve mikrofona dokunun!',
+    'listening': 'Dinleniyor...',
+    'searching': 'Veritabanı aranıyor...',
+    'match_found': 'Eşleşme Bulundu!',
+    'mic_denied': 'Mikrofon izni reddedildi.',
+    'settings_title': 'Uygulama Tercihleri',
+    'pref_music_app': 'Tercih Edilen Müzik Uygulaması',
+    'pref_lang': 'Tercih Edilen Dil',
+    'open_spotify': 'Spotify\'da Aç',
+    'open_apple': 'Apple Music\'te Aç',
+    'history_title': 'Arama Geçmişi',
+    'clear_history': 'Geçmişi Temizle',
+    'clear_history_confirm': 'Tüm arama geçmişini silmek istediğinize emin misiniz?',
+    'no_history': 'Henüz şarkı aranmadı!',
+    'cancel': 'İptal',
+    'save': 'Kaydet',
+    'clear': 'Temizle',
+    'tip': '💡 İpucu: "Hey Siri, Reczt ile şarkı bul" deyin!',
+    'by': 'sanatçı',
+  },
+  'ar': {
+    'app_title': 'محدد الأغاني',
+    'where_are_you': 'أين أنت؟',
+    'quiet_room': 'غرفة هادئة',
+    'loud_room': 'مكان صاخب',
+    'skiing': 'التزلج',
+    'initial_status': 'حدد بيئتك واضغط على الميكروفون!',
+    'listening': 'جاري الاستماع...',
+    'searching': 'جاري البحث...',
+    'match_found': 'تم العثور على الأغنية!',
+    'mic_denied': 'تم رفض إذن الميكروفون.',
+    'settings_title': 'تفضيلات التطبيق',
+    'pref_music_app': 'تطبيق الموسيقى المفضل',
+    'pref_lang': 'اللغة المفضلة',
+    'open_spotify': 'فتح في Spotify',
+    'open_apple': 'فتح في Apple Music',
+    'history_title': 'سجل البحث',
+    'clear_history': 'مسح السجل',
+    'clear_history_confirm': 'هل أنت تأكد من رغبتك في حذف جميع عمليات البحث؟',
+    'no_history': 'لم يتم البحث عن أغاني بعد!',
+    'cancel': 'إلغاء',
+    'save': 'حفظ',
+    'clear': 'مسح',
+    'tip': '💡 تلميح: قل "يا Siri، ابحث عن أغنية باستخدام Reczt"!',
+    'by': 'بواسطة',
+  },
+  'nl': {
+    'app_title': 'Nummer Herkenner',
+    'where_are_you': 'Waar ben je?',
+    'quiet_room': 'Een stille ruimte',
+    'loud_room': 'Een drukke ruimte',
+    'skiing': 'Skiën',
+    'initial_status': 'Kies je omgeving en tik op de microfoon!',
+    'listening': 'Luisteren...',
+    'searching': 'Database zoeken...',
+    'match_found': 'Nummer Gevonden!',
+    'mic_denied': 'Microfoontoegang geweigerd.',
+    'settings_title': 'App Voorkeuren',
+    'pref_music_app': 'Voorkeurs Muziek App',
+    'pref_lang': 'Voorkeurstaal',
+    'open_spotify': 'Openen in Spotify',
+    'open_apple': 'Openen in Apple Music',
+    'history_title': 'Zoekgeschiedenis',
+    'clear_history': 'Geschiedenis Wissselen',
+    'clear_history_confirm': 'Weet je zeker dat je alle zoekopdrachten wilt wissselen?',
+    'no_history': 'Nog geen nummers gezocht!',
+    'cancel': 'Annuleren',
+    'save': 'Opslaan',
+    'clear': 'Wissselen',
+    'tip': '💡 Tip: Zeg "Hey Siri, vind nummer met Reczt"!',
+    'by': 'door',
+  },
+  'pl': {
+    'app_title': 'Rozpoznawanie Muzyki',
+    'where_are_you': 'Gdzie jesteś?',
+    'quiet_room': 'Ciche pomieszczenie',
+    'loud_room': 'Głośne otoczenie',
+    'skiing': 'Jazda na nartach',
+    'initial_status': 'Wybierz otoczenie i dotknij mikrofonu!',
+    'listening': 'Słucham...',
+    'searching': 'Wyszukiwanie w bazie...',
+    'match_found': 'Znaleziono utwór!',
+    'mic_denied': 'Odmowa dostępu do mikrofonu.',
+    'settings_title': 'Preferencje Aplikacji',
+    'pref_music_app': 'Preferowana aplikacja muzyczna',
+    'pref_lang': 'Preferowany język',
+    'open_spotify': 'Otwórz w Spotify',
+    'open_apple': 'Otwórz w Apple Music',
+    'history_title': 'Historia wyszukiwania',
+    'clear_history': 'Wyczyść historię',
+    'clear_history_confirm': 'Czy na pewno chcesz usunąć całą historię?',
+    'no_history': 'Nie wyszukano jeszcze żadnych piosenek!',
+    'cancel': 'Anuluj',
+    'save': 'Zapisz',
+    'clear': 'Wyczyść',
+    'tip': '💡 Wskazówka: Powiedz "Hey Siri, znajdź piosenkę z Reczt"!',
+    'by': 'wykonawca',
+  },
+};
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -35,21 +431,18 @@ class MyApp extends StatelessWidget {
 }
 
 enum EnvironmentMode {
-  quiet(label: 'A quiet room', duration: 6, icon: Icons.king_bed),
-  loud(
-      label: 'A loud room with background noise',
-      duration: 8,
-      icon: Icons.volume_up),
-  skiing(label: 'Skiing', duration: 12, icon: Icons.downhill_skiing);
+  quiet(duration: 6, icon: Icons.king_bed, key: 'quiet_room'),
+  loud(duration: 8, icon: Icons.volume_up, key: 'loud_room'),
+  skiing(duration: 12, icon: Icons.downhill_skiing, key: 'skiing');
 
-  final String label;
   final int duration;
   final IconData icon;
+  final String key;
 
   const EnvironmentMode({
-    required this.label,
     required this.duration,
     required this.icon,
+    required this.key,
   });
 }
 
@@ -79,20 +472,30 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   Timer? _autoStopTimer;
   Timer? _countdownTimer;
 
-  // App Settings / Preferences
-  String _preferredMusicApp = 'spotify'; // 'spotify' or 'apple_music'
-  String _selectedLanguage = 'en'; // Language code (e.g., 'en', 'es', 'fr')
+  String _preferredMusicApp = 'spotify';
+  String _selectedLanguage = 'en';
 
   final Map<String, String> _languages = {
     'en': '🇺🇸 English',
     'es': '🇪🇸 Español',
     'fr': '🇫🇷 Français',
     'de': '🇩🇪 Deutsch',
+    'it': '🇮🇹 Italiano',
+    'pt': '🇵🇹 Português',
     'ja': '🇯🇵 日本語',
+    'ko': '🇰🇷 한국어',
+    'zh': '🇨🇳 中文',
+    'hi': '🇮🇳 हिन्दी',
+    'ru': '🇷🇺 Русский',
+    'tr': '🇹🇷 Türkçe',
+    'ar': '🇸🇦 العربية',
+    'nl': '🇳🇱 Nederlands',
+    'pl': '🇵🇱 Polski',
   };
 
-  String _statusText =
-      'Select your environment and tap the mic or squeeze AirPods stem!';
+  String _statusTextKey = 'initial_status';
+  String? _customStatusText;
+
   String? _songTitle;
   String? _artist;
   String? _spotifyUrl;
@@ -105,6 +508,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
   final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
+
+  // Helper method for localized text
+  String t(String key) {
+    return localizedStrings[_selectedLanguage]?[key] ??
+        localizedStrings['en']![key] ??
+        key;
+  }
 
   @override
   void initState() {
@@ -125,7 +535,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  // Load User Preferences (Language & Default Music Player)
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final savedApp = prefs.getString('preferred_music_app');
@@ -136,7 +545,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       _selectedLanguage = savedLang ?? 'en';
     });
 
-    // If first launch, prompt preferences modal
     if (savedApp == null || savedLang == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showPreferencesDialog();
@@ -164,34 +572,30 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         return StatefulBuilder(
           builder: (context, setModalState) {
             return AlertDialog(
-              title: const Text('App Preferences'),
+              title: Text(t('settings_title')),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Preferred Music App',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(t('pref_music_app'),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   RadioListTile<String>(
                     title: const Text('Spotify'),
                     value: 'spotify',
                     groupValue: tempApp,
-                    onChanged: (val) {
-                      setModalState(() => tempApp = val!);
-                    },
+                    onChanged: (val) => setModalState(() => tempApp = val!),
                   ),
                   RadioListTile<String>(
                     title: const Text('Apple Music'),
                     value: 'apple_music',
                     groupValue: tempApp,
-                    onChanged: (val) {
-                      setModalState(() => tempApp = val!);
-                    },
+                    onChanged: (val) => setModalState(() => tempApp = val!),
                   ),
                   const Divider(),
                   const SizedBox(height: 8),
-                  const Text('Preferred Language',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(t('pref_lang'),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   DropdownButton<String>(
                     isExpanded: true,
@@ -213,14 +617,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: Text(t('cancel')),
                 ),
                 ElevatedButton(
                   onPressed: () {
                     _savePreferences(tempApp, tempLang);
                     Navigator.pop(context);
                   },
-                  child: const Text('Save'),
+                  child: Text(t('save')),
                 ),
               ],
             );
@@ -257,7 +661,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       await _silencePlayer.setReleaseMode(ReleaseMode.loop);
       await _silencePlayer.play(AssetSource('silence.mp3'));
     } catch (e) {
-      debugPrint('Error starting local silence background audio: $e');
+      debugPrint('Error starting silence background audio: $e');
     }
   }
 
@@ -382,7 +786,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         setState(() {
           _isRecording = true;
           _secondsRemaining = duration;
-          _statusText = 'Listening... (${_secondsRemaining}s remaining)';
+          _statusTextKey = 'listening';
+          _customStatusText = null;
           _songTitle = null;
           _artist = null;
           _spotifyUrl = null;
@@ -395,7 +800,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
           setState(() {
             if (_secondsRemaining > 1) {
               _secondsRemaining--;
-              _statusText = 'Listening... (${_secondsRemaining}s remaining)';
             } else {
               _countdownTimer?.cancel();
             }
@@ -408,13 +812,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         });
       } else {
         setState(() {
-          _statusText = 'Microphone permission denied.';
+          _statusTextKey = 'mic_denied';
+          _customStatusText = null;
         });
         _playErrorCue();
       }
     } catch (e) {
       setState(() {
-        _statusText = 'Error starting recording: $e';
+        _customStatusText = 'Error: $e';
       });
       _playErrorCue();
     }
@@ -428,11 +833,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       setState(() {
         _isRecording = false;
         _isLoading = true;
-        _statusText = 'Searching database...';
+        _statusTextKey = 'searching';
+        _customStatusText = null;
       });
 
       final path = await _audioRecorder.stop();
-
       _silencePlayer.resume();
 
       if (path != null && path.isNotEmpty) {
@@ -440,7 +845,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       } else {
         setState(() {
           _isLoading = false;
-          _statusText = 'Error: Recording failed or path was empty.';
+          _customStatusText = 'Error: Path was empty.';
         });
         _playErrorCue();
       }
@@ -448,7 +853,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       _silencePlayer.resume();
       setState(() {
         _isLoading = false;
-        _statusText = 'Error stopping recording: $e';
+        _customStatusText = 'Error stopping: $e';
       });
       _playErrorCue();
     }
@@ -458,20 +863,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     final uri = Uri.parse(_backendUrl);
     var request = http.MultipartRequest('POST', uri);
 
-    // Pass chosen language to backend
     request.fields['language'] = _selectedLanguage;
 
     try {
       if (kIsWeb) {
         final response = await http.get(Uri.parse(path));
         final bytes = response.bodyBytes;
-
         request.files.add(
-          http.MultipartFile.fromBytes(
-            'file',
-            bytes,
-            filename: 'recording.wav',
-          ),
+          http.MultipartFile.fromBytes('file', bytes, filename: 'recording.wav'),
         );
       } else {
         request.files.add(await http.MultipartFile.fromPath('file', path));
@@ -496,12 +895,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
             _artist = artist;
             _spotifyUrl = data['spotify_url'];
             _appleMusicUrl = data['apple_music_url'];
-            _statusText = 'Match Found!';
+            _statusTextKey = 'match_found';
+            _customStatusText = null;
           });
 
           await _saveToHistory('$title - $artist');
 
-          // Open in preferred music app automatically
           if (_preferredMusicApp == 'apple_music' &&
               _appleMusicUrl != null &&
               _appleMusicUrl!.isNotEmpty) {
@@ -512,21 +911,20 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         } else {
           _playErrorCue();
           setState(() {
-            _statusText =
-                data['message'] ?? 'No match found. Try singing clearly!';
+            _customStatusText = data['message'] ?? 'No match found.';
           });
         }
       } else {
         _playErrorCue();
         setState(() {
-          _statusText = 'Server Error: ${response.statusCode}';
+          _customStatusText = 'Server Error: ${response.statusCode}';
         });
       }
     } catch (e) {
       _playErrorCue();
       setState(() {
         _isLoading = false;
-        _statusText = 'Failed to connect to backend: $e';
+        _customStatusText = 'Failed to connect: $e';
       });
     }
   }
@@ -547,25 +945,36 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
+  String _getDisplayStatusText() {
+    if (_customStatusText != null) {
+      return _customStatusText!;
+    }
+    if (_isRecording) {
+      return '${t('listening')} (${_secondsRemaining}s)';
+    }
+    return t(_statusTextKey);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hands-Free Song Identifier'),
+        title: Text(t('app_title')),
         centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            tooltip: 'App Preferences',
+            tooltip: t('settings_title'),
             onPressed: _showPreferencesDialog,
           ),
           IconButton(
             icon: const Icon(Icons.history),
-            tooltip: 'Search History',
+            tooltip: t('history_title'),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const HistoryPage()),
+                MaterialPageRoute(
+                    builder: (context) => HistoryPage(lang: _selectedLanguage)),
               );
             },
           ),
@@ -577,9 +986,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                'Where Are You?',
-                style: TextStyle(
+              Text(
+                t('where_are_you'),
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.deepPurple,
@@ -624,7 +1033,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                mode.label,
+                                t(mode.key),
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: isSelected
@@ -665,7 +1074,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
               ),
               const SizedBox(height: 32),
               Text(
-                _statusText,
+                _getDisplayStatusText(),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     fontSize: 16, fontWeight: FontWeight.w500),
@@ -694,11 +1103,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                   ),
                 ),
               const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 32.0),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: Text(
-                  '💡 Tip: Say "Hey Siri, find song with Reczt" to open the app and instantly start finding the song stuck in your head!',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                  t('tip'),
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -726,7 +1135,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'by $_artist',
+                          '${t('by')} $_artist',
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.grey.shade700,
@@ -746,7 +1155,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                             ),
                             onPressed: () => _openMusicUrl(_appleMusicUrl!),
                             icon: const Icon(Icons.play_arrow),
-                            label: const Text('Open in Apple Music'),
+                            label: Text(t('open_apple')),
                           )
                         else if (_spotifyUrl != null &&
                             _spotifyUrl!.isNotEmpty)
@@ -759,7 +1168,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                             ),
                             onPressed: () => _openSpotifyNative(_spotifyUrl!),
                             icon: const Icon(Icons.play_arrow),
-                            label: const Text('Open in Spotify App'),
+                            label: Text(t('open_spotify')),
                           ),
                       ],
                     ),
@@ -775,10 +1184,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 }
 
 // ----------------------------------------------------
-// SEARCH HISTORY PAGE
+// LOCALIZED SEARCH HISTORY PAGE
 // ----------------------------------------------------
 class HistoryPage extends StatefulWidget {
-  const HistoryPage({super.key});
+  final String lang;
+  const HistoryPage({super.key, required this.lang});
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
@@ -786,6 +1196,12 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   List<String> _history = [];
+
+  String t(String key) {
+    return localizedStrings[widget.lang]?[key] ??
+        localizedStrings['en']![key] ??
+        key;
+  }
 
   @override
   void initState() {
@@ -812,32 +1228,31 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Search History'),
+        title: Text(t('history_title')),
         centerTitle: true,
         actions: [
           if (_history.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'Clear History',
+              tooltip: t('clear_history'),
               onPressed: () {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Clear History?'),
-                    content: const Text(
-                        'Are you sure you want to delete all saved song searches?'),
+                    title: Text(t('clear_history')),
+                    content: Text(t('clear_history_confirm')),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(t('cancel')),
                       ),
                       TextButton(
                         onPressed: () {
                           Navigator.pop(context);
                           _clearHistory();
                         },
-                        child: const Text('Clear',
-                            style: TextStyle(color: Colors.red)),
+                        child: Text(t('clear'),
+                            style: const TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
@@ -847,10 +1262,10 @@ class _HistoryPageState extends State<HistoryPage> {
         ],
       ),
       body: _history.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
-                'No songs searched yet!',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+                t('no_history'),
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
             )
           : ListView.builder(

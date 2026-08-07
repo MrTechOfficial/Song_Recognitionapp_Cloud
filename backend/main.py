@@ -170,16 +170,21 @@ def transcribe_audio_with_groq(audio_file_path: str, language: str = "en") -> st
         return ""
     try:
         with open(audio_file_path, "rb") as audio_file:
+            # Language-aware prompt tuning
+            prompt_text = "Transcribe lyrics sung in audio clip."
+            if language != "en":
+                prompt_text = f"Transcribe lyrics sung in {language} language."
+
             kwargs = {
                 "model": "whisper-large-v3-turbo",
                 "file": audio_file,
-                "prompt": "Transcribe lyrics sung in audio clip."
+                "prompt": prompt_text,
+                "language": language  # Force Whisper to listen specifically for this language code
             }
-            if language:
-                kwargs["language"] = language
 
             transcript = groq_client.audio.transcriptions.create(**kwargs)
-        return transcript.text.strip()
+            print(f"[GROQ TRANSCRIPTION ({language})]: '{transcript.text.strip()}'")
+            return transcript.text.strip()
     except Exception as e:
         print(f"[GROQ ERROR]: {e}")
         return ""
