@@ -113,14 +113,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
   // Native Siri Deep Link Event Listener
   void _initSiriListener() {
-    // 1. Warm Launch: App is already in background when Siri opens link
     _siriChannel.setMethodCallHandler((call) async {
       if (call.method == 'onSiriTrigger') {
         _triggerAutoRecordingFromSiri();
       }
     });
 
-    // 2. Cold Launch: App was closed when Siri opens link
     _siriChannel.invokeMethod<String>('getInitialUrl').then((url) {
       if (url != null && url.isNotEmpty) {
         _triggerAutoRecordingFromSiri();
@@ -165,6 +163,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('selected_environment_mode', mode.index);
+  }
+
+  Future<void> _saveToHistory(String songEntry) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> history = prefs.getStringList('song_history') ?? [];
+    history.insert(0, songEntry); // Add newest search at the top
+    await prefs.setStringList('song_history', history);
   }
 
   Future<void> _initAirPodsListener() async {
@@ -361,12 +366,18 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         final data = jsonDecode(response.body);
 
         if (data['success'] == true) {
+          final String title = data['title'] ?? 'Unknown Title';
+          final String artist = data['artist'] ?? 'Unknown Artist';
+
           setState(() {
-            _songTitle = data['title'];
-            _artist = data['artist'];
+            _songTitle = title;
+            _artist = artist;
             _spotifyUrl = data['spotify_url'];
             _statusText = 'Match Found! Launching Spotify...';
           });
+
+          // Save song to history storage
+          await _saveToHistory('$title - $artist');
 
           if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
             _openSpotifyNative(_spotifyUrl!);
@@ -417,6 +428,18 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       appBar: AppBar(
         title: const Text('Hands-Free Song Identifier'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Search History',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HistoryPage()),
+              );
+            },
+          ),
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -540,6 +563,15 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                     ),
                   ),
                 ),
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32.0),
+                child: Text(
+                  '💡 Tip: Say "Hey Siri, find song with Reczt" to open the app and instantly start finding the song stuck in your head!',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ),
               const SizedBox(height: 30),
               if (_songTitle != null && _artist != null) ...[
                 Card(
@@ -597,6 +629,112 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 }
 
+// ----------------------------------------------------
+// SEARCH HISTORY PAGE
+// ----------------------------------------------------
+class HistoryPage extends StatefulWidget {
+  const HistoryPage({super.key});
+
+  @override
+  State<HistoryPage> createState() => _HistoryPageState();
+}
+
+class _HistoryPageState extends State<HistoryPage> {
+  List<String> _history = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _history = prefs.getStringList('song_history') ?? [];
+    });
+  }
+
+  Future<void> _clearHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('song_history');
+    setState(() {
+      _history = [];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Search History'),
+        centerTitle: true,
+        actions: [
+          if (_history.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Clear History',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Clear History?'),
+                    content: const Text(
+                        'Are you sure you want to delete all saved song searches?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _clearHistory();
+                        },
+                        child: const Text('Clear',
+                            style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+      body: _history.isEmpty
+          ? const Center(
+              child: Text(
+                'No songs searched yet!',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            )
+          : ListView.builder(
+              itemCount: _history.length,
+              itemBuilder: (context, index) {
+                final songEntry = _history[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 6.0),
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.deepPurple,
+                      child: Icon(Icons.music_note, color: Colors.white),
+                    ),
+                    title: Text(
+                      songEntry,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// AIRPODS AUDIO HANDLER
+// ----------------------------------------------------
 class AirPodsAudioHandler extends BaseAudioHandler {
   final VoidCallback onMediaButtonTriggered;
 
