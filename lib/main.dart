@@ -29,14 +29,6 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      // Detects incoming Siri deep links (e.g. handsfreefinder://start)
-      onGenerateRoute: (settings) {
-        final bool shouldAutoStart =
-            settings.name != null && settings.name != '/';
-        return MaterialPageRoute(
-          builder: (context) => AudioRecorderScreen(autoStart: shouldAutoStart),
-        );
-      },
       home: const AudioRecorderScreen(),
     );
   }
@@ -62,8 +54,7 @@ enum EnvironmentMode {
 }
 
 class AudioRecorderScreen extends StatefulWidget {
-  final bool autoStart;
-  const AudioRecorderScreen({super.key, this.autoStart = false});
+  const AudioRecorderScreen({super.key});
 
   @override
   State<AudioRecorderScreen> createState() => _AudioRecorderScreenState();
@@ -71,6 +62,9 @@ class AudioRecorderScreen extends StatefulWidget {
 
 class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     with WidgetsBindingObserver {
+  static const MethodChannel _siriChannel =
+      MethodChannel('com.handsfreefinder/siri');
+
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
   late final AudioPlayer _silencePlayer;
@@ -108,28 +102,40 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     _errorPlayer = AudioPlayer();
     _silencePlayer = AudioPlayer();
 
-    // 1. Load saved environment mode
     _loadSavedMode();
-
-    // 2. Play local silence background loop
     _initSilencePlayer();
 
-    // 3. Register AirPods hardware listener
     if (!kIsWeb) {
       _initAirPodsListener();
-    }
-
-    // 4. Trigger auto-recording if opened via Siri / Deep Link route
-    if (widget.autoStart) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_isRecording && !_isLoading && mounted) {
-          _startRecording(playDing: true);
-        }
-      });
+      _initSiriListener();
     }
   }
 
-  // Play local silence.mp3 on infinite loop to keep iOS audio session warm
+  // Native Siri Deep Link Event Listener
+  void _initSiriListener() {
+    // 1. Warm Launch: App is already in background when Siri opens link
+    _siriChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onSiriTrigger') {
+        _triggerAutoRecordingFromSiri();
+      }
+    });
+
+    // 2. Cold Launch: App was closed when Siri opens link
+    _siriChannel.invokeMethod<String>('getInitialUrl').then((url) {
+      if (url != null && url.isNotEmpty) {
+        _triggerAutoRecordingFromSiri();
+      }
+    });
+  }
+
+  void _triggerAutoRecordingFromSiri() {
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!_isRecording && !_isLoading && mounted) {
+        _startRecording(playDing: true);
+      }
+    });
+  }
+
   Future<void> _initSilencePlayer() async {
     try {
       await _silencePlayer.setReleaseMode(ReleaseMode.loop);
