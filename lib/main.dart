@@ -29,6 +29,14 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
+      // Detects incoming Siri deep links (e.g. handsfreefinder://start)
+      onGenerateRoute: (settings) {
+        final bool shouldAutoStart =
+            settings.name != null && settings.name != '/';
+        return MaterialPageRoute(
+          builder: (context) => AudioRecorderScreen(autoStart: shouldAutoStart),
+        );
+      },
       home: const AudioRecorderScreen(),
     );
   }
@@ -36,7 +44,10 @@ class MyApp extends StatelessWidget {
 
 enum EnvironmentMode {
   quiet(label: 'A quiet room', duration: 6, icon: Icons.king_bed),
-  loud(label: 'A loud room with background noise', duration: 8, icon: Icons.volume_up),
+  loud(
+      label: 'A loud room with background noise',
+      duration: 8,
+      icon: Icons.volume_up),
   skiing(label: 'Skiing', duration: 12, icon: Icons.downhill_skiing);
 
   final String label;
@@ -51,7 +62,8 @@ enum EnvironmentMode {
 }
 
 class AudioRecorderScreen extends StatefulWidget {
-  const AudioRecorderScreen({super.key});
+  final bool autoStart;
+  const AudioRecorderScreen({super.key, this.autoStart = false});
 
   @override
   State<AudioRecorderScreen> createState() => _AudioRecorderScreenState();
@@ -99,7 +111,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     // 1. Load saved environment mode
     _loadSavedMode();
 
-    // 2. Play local silence.mp3 loop immediately on launch
+    // 2. Play local silence background loop
     _initSilencePlayer();
 
     // 3. Register AirPods hardware listener
@@ -107,41 +119,23 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       _initAirPodsListener();
     }
 
-    // 4. Check if launched via Siri / Deep Link route
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkSiriLaunch();
-    });
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Triggers when Siri resumes the app from the background
-    if (state == AppLifecycleState.resumed) {
-      _checkSiriLaunch();
+    // 4. Trigger auto-recording if opened via Siri / Deep Link route
+    if (widget.autoStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_isRecording && !_isLoading && mounted) {
+          _startRecording(playDing: true);
+        }
+      });
     }
   }
 
-  // 🤫 Play local silence.mp3 on infinite loop to keep iOS media controls active
+  // Play local silence.mp3 on infinite loop to keep iOS audio session warm
   Future<void> _initSilencePlayer() async {
     try {
       await _silencePlayer.setReleaseMode(ReleaseMode.loop);
       await _silencePlayer.play(AssetSource('silence.mp3'));
     } catch (e) {
       debugPrint('Error starting local silence background audio: $e');
-    }
-  }
-
-  void _checkSiriLaunch() {
-    final route = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
-    debugPrint('Current launch route: $route');
-
-    // Siri shortcuts or custom URL launches pass a deep link path (not standard '/')
-    if (route.isNotEmpty && route != '/') {
-      Future.delayed(const Duration(milliseconds: 400), () {
-        if (!_isRecording && !_isLoading && mounted) {
-          _startRecording(playDing: true);
-        }
-      });
     }
   }
 
@@ -235,7 +229,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
 
         if (playDing) {
           await _playDingCue();
-          // ⏱️ 500 ms delay so chime finishes playing before mic starts recording
           await Future.delayed(const Duration(milliseconds: 500));
         }
 
@@ -434,7 +427,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                 ),
               ),
               const SizedBox(height: 16),
-
               Column(
                 children: EnvironmentMode.values.map((mode) {
                   final isSelected = _selectedMode == mode;
@@ -512,9 +504,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                   );
                 }).toList(),
               ),
-
               const SizedBox(height: 32),
-
               Text(
                 _statusText,
                 textAlign: TextAlign.center,
@@ -522,7 +512,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                     fontSize: 16, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 30),
-
               if (_isLoading)
                 const CircularProgressIndicator()
               else
@@ -545,9 +534,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
                     ),
                   ),
                 ),
-
               const SizedBox(height: 30),
-
               if (_songTitle != null && _artist != null) ...[
                 Card(
                   elevation: 6,
