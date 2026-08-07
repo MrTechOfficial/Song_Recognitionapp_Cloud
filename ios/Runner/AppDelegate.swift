@@ -42,3 +42,43 @@ import Flutter
     return true
   }
 }
+import UIKit
+import Flutter
+import AppIntents
+
+// 1. Define the Intent Action
+@available(iOS 16.0, *)
+struct FindSongIntent: AppIntent {
+    static var title: LocalizedStringResource = "Find Song"
+    static var description = IntentDescription("Opens Reczt and starts recognizing audio.")
+
+    // Open app when triggered by Siri
+    static var openAppWhenRun: Bool = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        // Send deep link signal to Flutter UI
+        if let controller = UIApplication.shared.windows.first?.rootViewController as? FlutterViewController {
+            let channel = FlutterMethodChannel(name: "com.handsfreefinder/siri", binaryMessenger: controller.binaryMessenger)
+            channel.invokeMethod("onSiriTrigger", arguments: nil)
+        }
+        return .result()
+    }
+}
+
+// 2. Register Auto-Shortcuts (Runs the moment the app is downloaded!)
+@available(iOS 16.0, *)
+struct AppShortcuts: AppShortcutProvider {
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: FindSongIntent(),
+            phrases: [
+                "Find song in \(.applicationName)",
+                "Find song with \(.applicationName)",
+                "Find song"
+            ],
+            shortTitle: "Find Song",
+            systemImageName: "music.note"
+        )
+    }
+}

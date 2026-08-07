@@ -66,5 +66,18 @@
 			</array>
 		</dict>
 	</array>
+    <key>CFBundleURLTypes</key>
+<array>
+	<dict>
+		<key>CFBundleTypeRole</key>
+		<key>Editor</key>
+		<key>CFBundleURLName</key>
+		<key>com.handsfreefinder.reczt</key>
+		<key>CFBundleURLSchemes</key>
+		<array>
+			<string>reczt</string>
+		</array>
+	</dict>
+</array>
 </dict>
 </plist>

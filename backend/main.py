@@ -28,6 +28,25 @@ SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID', '')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET', '')
 GENIUS_ACCESS_TOKEN = os.getenv('GENIUS_ACCESS_TOKEN', '')
 
+# Mapping language codes to Spotify/Apple Music regional markets
+LANGUAGE_TO_MARKET = {
+    'en': {'spotify': 'US', 'apple': 'us'},
+    'es': {'spotify': 'ES', 'apple': 'es'},
+    'fr': {'spotify': 'FR', 'apple': 'fr'},
+    'de': {'spotify': 'DE', 'apple': 'de'},
+    'it': {'spotify': 'IT', 'apple': 'it'},
+    'pt': {'spotify': 'BR', 'apple': 'br'},
+    'ja': {'spotify': 'JP', 'apple': 'jp'},
+    'ko': {'spotify': 'KR', 'apple': 'kr'},
+    'zh': {'spotify': 'TW', 'apple': 'tw'},
+    'hi': {'spotify': 'IN', 'apple': 'in'},
+    'ru': {'spotify': 'RU', 'apple': 'ru'},
+    'tr': {'spotify': 'TR', 'apple': 'tr'},
+    'ar': {'spotify': 'SA', 'apple': 'sa'},
+    'nl': {'spotify': 'NL', 'apple': 'nl'},
+    'pl': {'spotify': 'PL', 'apple': 'pl'},
+}
+
 app = FastAPI(title="Song Recognition Engine")
 
 app.add_middleware(
@@ -89,43 +108,46 @@ def resolve_lyrics_to_song_with_genius(lyrics: str):
         print(f"[GENIUS API ERROR]: {e}")
     return None
 
-def get_apple_music_url(title: str, artist: str) -> str:
-    """Queries the iTunes Search API to fetch the direct Apple Music link."""
+def get_apple_music_url(title: str, artist: str, language: str = "en") -> str:
+    """Queries iTunes Search API targeted at the specific language/country market."""
     clean_title = re.sub(r"[^\w\s]", "", title)
     clean_artist = re.sub(r"[^\w\s]", "", artist)
     query = f"{clean_title} {clean_artist}".strip()
     
+    country_code = LANGUAGE_TO_MARKET.get(language, {}).get('apple', 'us')
+
     if not query:
         return ""
 
-    url = f"https://itunes.apple.com/search?term={requests.utils.quote(query)}&entity=song&limit=1"
+    url = f"https://itunes.apple.com/search?term={requests.utils.quote(query)}&entity=song&limit=1&country={country_code}"
     try:
         res = requests.get(url, timeout=5)
         if res.status_code == 200:
             results = res.json().get('results', [])
             if results:
                 apple_url = results[0].get('trackViewUrl')
-                print(f"[APPLE MUSIC WINNER]: {apple_url}")
+                print(f"[APPLE MUSIC WINNER ({country_code.upper()})]: {apple_url}")
                 return apple_url or ""
     except Exception as e:
         print(f"[APPLE MUSIC SEARCH ERROR]: {e}")
         
     return f"https://music.apple.com/us/search?term={requests.utils.quote(query)}"
 
-def get_official_spotify_track(title: str, artist: str):
-    """Searches Spotify, strips conflicting punctuation, and enforces a minimum popularity score."""
+def get_official_spotify_track(title: str, artist: str, language: str = "en"):
+    """Searches Spotify filtered by the selected language's regional market."""
     token = get_spotify_access_token()
+    market = LANGUAGE_TO_MARKET.get(language, {}).get('spotify', 'US')
     
-    MIN_POPULARITY = 60
+    MIN_POPULARITY = 50
 
     clean_title = re.sub(r"[^\w\s]", "", title)
     clean_artist = re.sub(r"[^\w\s]", "", artist)
-    query = f"{clean_title} {clean_artist}"
+    query = f"{clean_title} {clean_artist}".strip()
 
     if not token:
         return {"title": title, "artist": artist, "spotify_url": f"spotify:search:{requests.utils.quote(query)}"}
 
-    search_url = f"https://api.spotify.com/v1/search?q={requests.utils.quote(query)}&type=track&limit=10"
+    search_url = f"https://api.spotify.com/v1/search?q={requests.utils.quote(query)}&type=track&limit=10&market={market}"
     headers = {"Authorization": f"Bearer {token}"}
     
     try:
@@ -153,7 +175,7 @@ def get_official_spotify_track(title: str, artist: str):
                 a_name = top_hit['artists'][0]['name']
                 track_id = top_hit.get('id')
 
-                print(f"[SPOTIFY WINNER]: '{t_name}' by {a_name} (Popularity Score: {top_hit.get('popularity')})")
+                print(f"[SPOTIFY WINNER ({market})]: '{t_name}' by {a_name} (Popularity Score: {top_hit.get('popularity')})")
 
                 return {
                     "title": t_name,
@@ -170,16 +192,15 @@ def transcribe_audio_with_groq(audio_file_path: str, language: str = "en") -> st
         return ""
     try:
         with open(audio_file_path, "rb") as audio_file:
-            # Language-aware prompt tuning
             prompt_text = "Transcribe lyrics sung in audio clip."
             if language != "en":
-                prompt_text = f"Transcribe lyrics sung in {language} language."
+                prompt_text = f"Transcribe lyrics sung in language {language}."
 
             kwargs = {
                 "model": "whisper-large-v3-turbo",
                 "file": audio_file,
                 "prompt": prompt_text,
-                "language": language  # Force Whisper to listen specifically for this language code
+                "language": language
             }
 
             transcript = groq_client.audio.transcriptions.create(**kwargs)
@@ -226,8 +247,8 @@ async def recognize_audio(
             artist = artists[0]['name'] if artists else ''
 
             if not is_cover_version(title, artist):
-                song_info = get_official_spotify_track(title, artist)
-                apple_music_url = get_apple_music_url(song_info['title'], song_info['artist'])
+                song_info = get_official_spotify_track(title, artist, language=language)
+                apple_music_url = get_apple_music_url(song_info['title'], song_info['artist'], language=language)
                 
                 return {
                     "success": True,
@@ -246,11 +267,11 @@ async def recognize_audio(
             genius_match = resolve_lyrics_to_song_with_genius(lyrics)
             
             if genius_match:
-                song_info = get_official_spotify_track(genius_match['title'], genius_match['artist'])
+                song_info = get_official_spotify_track(genius_match['title'], genius_match['artist'], language=language)
             else:
-                song_info = get_official_spotify_track(lyrics, "")
+                song_info = get_official_spotify_track(lyrics, "", language=language)
 
-            apple_music_url = get_apple_music_url(song_info['title'], song_info['artist'])
+            apple_music_url = get_apple_music_url(song_info['title'], song_info['artist'], language=language)
 
             return {
                 "success": True,

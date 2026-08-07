@@ -635,11 +635,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 
   void _initSiriListener() {
-    _siriChannel.setMethodCallHandler((call) async {
-      if (call.method == 'onSiriTrigger') {
-        _triggerAutoRecordingFromSiri();
-      }
-    });
+  _siriChannel.setMethodCallHandler((call) async {
+    if (call.method == 'onSiriTrigger') {
+      _triggerAutoRecordingFromSiri();
+    }
+  });
+
 
     _siriChannel.invokeMethod<String>('getInitialUrl').then((url) {
       if (url != null && url.isNotEmpty) {
