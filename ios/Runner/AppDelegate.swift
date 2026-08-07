@@ -12,8 +12,10 @@ import AppIntents
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     let controller : FlutterViewController = window?.rootViewController as! FlutterViewController
-    siriChannel = FlutterMethodChannel(name: "com.handsfreefinder/siri",
-                                       binaryMessenger: controller.binaryMessenger)
+    siriChannel = FlutterMethodChannel(
+      name: "com.handsfreefinder/siri",
+      binaryMessenger: controller.binaryMessenger
+    )
 
     siriChannel?.setMethodCallHandler({
       (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
@@ -42,7 +44,7 @@ import AppIntents
   }
 }
 
-// MARK: - Siri App Shortcuts
+// MARK: - Siri App Shortcuts (iOS 16+)
 @available(iOS 16.0, *)
 struct AppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
@@ -50,8 +52,8 @@ struct AppShortcuts: AppShortcutsProvider {
             AppShortcut(
                 intent: IdentifySongIntent(),
                 phrases: [
-                    "Identify song in \(\$.applicationName)",
-                    "Record song with \(\$.applicationName)"
+                    "Identify song in \(.applicationName)",
+                    "Record song with \(.applicationName)"
                 ],
                 shortTitle: "Identify Song",
                 systemImageName: "waveform"
