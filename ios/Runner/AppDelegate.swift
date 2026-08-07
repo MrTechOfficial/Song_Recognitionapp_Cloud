@@ -4,12 +4,38 @@ import AppIntents
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+  static var siriChannel: FlutterMethodChannel?
+  static var siriTriggeredOnLaunch = false
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
+
+    if let controller = window?.rootViewController as? FlutterViewController {
+      let channel = FlutterMethodChannel(
+        name: "com.example.songrecognition/siri",
+        binaryMessenger: controller.binaryMessenger
+      )
+      AppDelegate.siriChannel = channel
+
+      channel.setMethodCallHandler { (call, result) in
+        if call.method == "checkSiriTrigger" {
+          result(AppDelegate.siriTriggeredOnLaunch)
+          AppDelegate.siriTriggeredOnLaunch = false
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  static func triggerSiriRecord() {
+    siriTriggeredOnLaunch = true
+    siriChannel?.invokeMethod("triggerSiriRecord", arguments: nil)
   }
 }
 
@@ -20,6 +46,7 @@ struct FindSongIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        AppDelegate.triggerSiriRecord()
         return .result()
     }
 }

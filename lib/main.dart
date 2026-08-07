@@ -505,7 +505,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
   final String _dingUrl =
-      'https://assets.mixkit.co/active_storage/sfx/2871/2871-preview.mp3';  
+      'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3';  
       final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
 
