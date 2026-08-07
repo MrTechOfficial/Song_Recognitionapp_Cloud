@@ -26,6 +26,7 @@ struct FindSongIntent: AppIntent {
 
 @available(iOS 16.0, *)
 struct AppShortcuts: AppShortcutsProvider {
+    @AppShortcutsBuilder
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: FindSongIntent(),
