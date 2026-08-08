@@ -4,9 +4,6 @@ import AppIntents
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
-    
-    // Shared flag accessible by AppIntent
-    static var launchedFromSiri: Bool = false
     private var siriChannel: FlutterMethodChannel?
 
     override func application(
@@ -17,14 +14,18 @@ import AppIntents
         
         if let controller = window?.rootViewController as? FlutterViewController {
             siriChannel = FlutterMethodChannel(
-                name: "com.example.song_recognition/siri", // Check that this matches main.dart!
+                name: "com.example.song_recognition/siri",
                 binaryMessenger: controller.binaryMessenger
             )
             
-            siriChannel?.setMethodCallHandler({ [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+            siriChannel?.setMethodCallHandler({ (call: FlutterMethodCall, result: @escaping FlutterResult) in
                 if call.method == "checkSiriTrigger" {
-                    result(AppDelegate.launchedFromSiri)
-                    AppDelegate.launchedFromSiri = false // Reset flag after reading
+                    // Check persistent storage for Siri flag
+                    let triggered = UserDefaults.standard.bool(forKey: "launchedFromSiri")
+                    if triggered {
+                        UserDefaults.standard.set(false, forKey: "launchedFromSiri") // Reset flag
+                    }
+                    result(triggered)
                 } else {
                     result(FlutterMethodNotImplemented)
                 }
@@ -34,21 +35,16 @@ import AppIntents
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
-    // URL Scheme Handler (e.g. handsfreefinder://siri)
     override func application(
         _ app: UIApplication,
         open url: URL,
         options: [UIApplication.OpenURLOptionsKey : Any] = [:]
     ) -> Bool {
         if url.scheme == "handsfreefinder" || url.absoluteString.contains("siri") {
-            AppDelegate.launchedFromSiri = true
+            UserDefaults.standard.set(true, forKey: "launchedFromSiri")
             siriChannel?.invokeMethod("onSiriTrigger", arguments: nil)
         }
         return super.application(app, open: url, options: options)
-    }
-
-    static func triggerSiriRecord() {
-        AppDelegate.launchedFromSiri = true
     }
 }
 
@@ -78,8 +74,8 @@ struct IdentifySongIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        // Set flag so Flutter knows Siri opened the app
-        AppDelegate.launchedFromSiri = true
+        // Persist flag directly to UserDefaults
+        UserDefaults.standard.set(true, forKey: "launchedFromSiri")
         return .result()
     }
 }

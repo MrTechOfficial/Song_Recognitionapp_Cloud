@@ -455,8 +455,75 @@ class AudioRecorderScreen extends StatefulWidget {
 
 class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     with WidgetsBindingObserver {
+
+  // IMPORTANT: Ensure this string matches AppDelegate.swift exactly!
   static const MethodChannel _siriChannel =
       MethodChannel('com.handsfreefinder/siri');
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Register lifecycle observer for Siri background-to-foreground triggers
+    WidgetsBinding.instance.addObserver(this);
+
+    // Initialize audio players & app settings
+    _audioRecorder = AudioRecorder();
+    _dingPlayer = AudioPlayer();
+    _errorPlayer = AudioPlayer();
+    _silencePlayer = AudioPlayer();
+
+    _loadSavedMode();
+    _loadPreferences();
+    _initSilencePlayer();
+
+    if (!kIsWeb) {
+      _initAirPodsListener();
+      _initSiriListener();
+    }
+
+    // Set up Siri handler and check cold-start trigger
+    _siriChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onSiriTrigger') {
+        _checkAndStartSiriRecording();
+      }
+    });
+
+    _checkAndStartSiriRecording();
+  }
+
+   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoStopTimer?.cancel();
+    _countdownTimer?.cancel();
+    _audioRecorder.dispose();
+    _dingPlayer.dispose();
+    _errorPlayer.dispose();
+    _silencePlayer.dispose();
+    super.dispose();
+  }
+
+  // Detects when the app comes to the foreground via Siri
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkAndStartSiriRecording();
+    }
+  }
+
+  Future<void> _checkAndStartSiriRecording() async {
+    try {
+      final bool triggered =
+          await _siriChannel.invokeMethod('checkSiriTrigger');
+      if (triggered && !_isRecording) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        _startRecording();
+      }
+    } catch (e) {
+      debugPrint('Error checking Siri trigger: $e');
+    }
+  }
 
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
@@ -516,24 +583,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
         key;
   }
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _audioRecorder = AudioRecorder();
-    _dingPlayer = AudioPlayer();
-    _errorPlayer = AudioPlayer();
-    _silencePlayer = AudioPlayer();
-
-    _loadSavedMode();
-    _loadPreferences();
-    _initSilencePlayer();
-
-    if (!kIsWeb) {
-      _initAirPodsListener();
-      _initSiriListener();
-    }
-  }
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
@@ -720,17 +769,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _autoStopTimer?.cancel();
-    _countdownTimer?.cancel();
-    _audioRecorder.dispose();
-    _dingPlayer.dispose();
-    _errorPlayer.dispose();
-    _silencePlayer.dispose();
-    super.dispose();
-  }
 
 Future<void> _playSingleDing() async {
   try {
