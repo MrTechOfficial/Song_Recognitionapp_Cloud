@@ -505,8 +505,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
   // 1-second high-pitched chime ding sound
-  final String _dingUrl =
-      'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3';
+  final String _dingAsset = 'ding.mp3';
   final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
 
@@ -733,16 +732,16 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     super.dispose();
   }
 
-  // Helper to play a single clean ding without sound stacking
-  Future<void> _playSingleDing() async {
-    try {
-      await _dingPlayer.stop();
-      // Plays your custom local asset instantly
-      await _dingPlayer.play(AssetSource('sounds/ding.mp3'));
-    } catch (e) {
-      debugPrint('Error playing ding: $e');
-    }
+Future<void> _playSingleDing() async {
+  try {
+    final player = AudioPlayer();
+    
+    // Use AssetSource instead of UrlSource
+    await player.play(AssetSource('ding.mp3')); 
+  } catch (e) {
+    debugPrint('Error playing ding sound: $e');
   }
+}
 
   Future<void> _playErrorCue() async {
     try {
