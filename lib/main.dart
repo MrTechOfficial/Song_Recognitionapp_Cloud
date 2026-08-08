@@ -464,7 +464,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   void initState() {
     super.initState();
 
-    AudioPlayer.global.setAudioContext(const AudioContext(
+    AudioPlayer.global.setAudioContext(AudioContext(
     iOS: AudioContextIOS(
       category: AVAudioSessionCategory.playAndRecord,
       options: {
