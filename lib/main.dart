@@ -531,34 +531,59 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
   }
 }
  Future<void> _checkAndStartSiriRecording() async {
-  try {
-    final bool triggered = await _siriChannel.invokeMethod('checkSiriTrigger');
+    try {
+      final bool triggered =
+          await _siriChannel.invokeMethod('checkSiriTrigger');
 
-    if (triggered) {
-      debugPrint("Siri trigger confirmed! Initiating auto-recognition...");
+      if (triggered) {
+        debugPrint("Siri trigger confirmed! Waiting for Siri hardware release...");
 
-      // Flag that we are intentionally pausing silence for recording
-      _isExplicitlyPausedForRecording = true;
-      await _silencePlayer.pause();
-      
-      // Short buffer for hardware mic handoff from Siri
-      await Future.delayed(const Duration(milliseconds: 300));
+        // 1. Pause silence track briefly for clean mic initialization
+        _isExplicitlyPausedForRecording = true;
+        await _silencePlayer.pause();
 
-      if (await _audioRecorder.hasPermission()) {
-        if (mounted && !_isRecording) {
-          _startRecording();
+        // 2. Wait 800ms for Siri's dismiss animation to fully release hardware mic lock
+        await Future.delayed(const Duration(milliseconds: 800));
+
+        if (await _audioRecorder.hasPermission()) {
+          if (mounted && !_isRecording) {
+            await _startRecordingWithRetry();
+          }
+        } else {
+          debugPrint("Microphone permission missing!");
+          _isExplicitlyPausedForRecording = false;
+          _initSilencePlayer();
         }
-      } else {
-        debugPrint("Microphone permission missing!");
-        _isExplicitlyPausedForRecording = false;
-        _initSilencePlayer(); // Restart silence if mic fails
+      }
+    } catch (e) {
+      debugPrint('Error checking Siri trigger: $e');
+      _isExplicitlyPausedForRecording = false;
+    }
+  }
+
+  // Self-healing retry function to handle Siri microphone handoff
+  Future<void> _startRecordingWithRetry() async {
+    int attempts = 0;
+    bool success = false;
+
+    while (attempts < 3 && !success && mounted) {
+      attempts++;
+      try {
+        debugPrint("Attempting to start recording (Attempt $attempts)...");
+        await _startRecording();
+        success = true;
+        debugPrint("Microphone successfully locked and recording!");
+      } catch (e) {
+        debugPrint("Attempt $attempts failed (Siri still holding hardware): $e");
+        await Future.delayed(const Duration(milliseconds: 500));
       }
     }
-  } catch (e) {
-    debugPrint('Error checking Siri trigger: $e');
-    _isExplicitlyPausedForRecording = false;
+
+    if (!success) {
+      _isExplicitlyPausedForRecording = false;
+      _initSilencePlayer();
+    }
   }
-}
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
   late final AudioPlayer _silencePlayer;
