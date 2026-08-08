@@ -513,17 +513,23 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 
   Future<void> _checkAndStartSiriRecording() async {
-    try {
-      final bool triggered =
-          await _siriChannel.invokeMethod('checkSiriTrigger');
-      if (triggered && !_isRecording) {
-        await Future.delayed(const Duration(milliseconds: 300));
+  try {
+    final bool triggered = await _siriChannel.invokeMethod('checkSiriTrigger');
+    
+    if (triggered && !_isRecording) {
+      debugPrint("Siri trigger detected! Waiting for iOS audio session...");
+      
+      // Give iOS 1 second to release the microphone from Siri to Flutter
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
+      if (mounted && !_isRecording) {
         _startRecording();
       }
-    } catch (e) {
-      debugPrint('Error checking Siri trigger: $e');
     }
+  } catch (e) {
+    debugPrint('Error checking Siri trigger: $e');
   }
+}
 
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
