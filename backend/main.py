@@ -138,7 +138,8 @@ def get_official_spotify_track(title: str, artist: str, language: str = "en"):
     token = get_spotify_access_token()
     market = LANGUAGE_TO_MARKET.get(language, {}).get('spotify', 'US')
     
-    MIN_POPULARITY = 50
+    MIN_POPULARITY = 65
+
 
     clean_title = re.sub(r"[^\w\s]", "", title)
     clean_artist = re.sub(r"[^\w\s]", "", artist)

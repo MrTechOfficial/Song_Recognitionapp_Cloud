@@ -535,15 +535,13 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
     final bool triggered = await _siriChannel.invokeMethod('checkSiriTrigger');
 
     if (triggered) {
-      debugPrint("Siri trigger confirmed!");
+      debugPrint("Siri trigger confirmed! Initiating auto-recognition...");
 
-      // Make sure silence track is actively running
-      if (_silencePlayer.state != PlayerState.playing) {
-        await _initSilencePlayer();
-      }
-
-      // Briefly pause silence to yield mic access to the recording engine
+      // Flag that we are intentionally pausing silence for recording
+      _isExplicitlyPausedForRecording = true;
       await _silencePlayer.pause();
+      
+      // Short buffer for hardware mic handoff from Siri
       await Future.delayed(const Duration(milliseconds: 300));
 
       if (await _audioRecorder.hasPermission()) {
@@ -551,14 +549,16 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
           _startRecording();
         }
       } else {
-        debugPrint("Microphone permission not granted!");
+        debugPrint("Microphone permission missing!");
+        _isExplicitlyPausedForRecording = false;
+        _initSilencePlayer(); // Restart silence if mic fails
       }
     }
   } catch (e) {
     debugPrint('Error checking Siri trigger: $e');
+    _isExplicitlyPausedForRecording = false;
   }
 }
-
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
   late final AudioPlayer _silencePlayer;
@@ -745,16 +745,29 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
     });
   }
 
-  Future<void> _initSilencePlayer() async {
+bool _isExplicitlyPausedForRecording = false;
+
+Future<void> _initSilencePlayer() async {
   try {
-    // Force the silence track to loop continuously
+    // 1. Force looping mode
     await _silencePlayer.setReleaseMode(ReleaseMode.loop);
     
-    // Explicitly play from assets (starts the audio session immediately)
+    // 2. Set up a self-healing watchdog state listener
+    _silencePlayer.onPlayerStateChanged.listen((state) {
+      debugPrint("Silence Player State Changed: $state");
+      
+      // If iOS pauses or stops it, force it back on UNLESS we are in the middle of mic recording
+      if ((state == PlayerState.paused || state == PlayerState.stopped) && !_isExplicitlyPausedForRecording) {
+        debugPrint("Silence track was interrupted! Auto-restarting loop...");
+        _silencePlayer.play(AssetSource('silence.mp3'));
+      }
+    });
+
+    // 3. Start playback immediately
     await _silencePlayer.play(AssetSource('silence.mp3'));
-    debugPrint("Silence track started looping successfully!");
+    debugPrint("Silence track successfully locked in forever-loop!");
   } catch (e) {
-    debugPrint("Error starting silence player: $e");
+    debugPrint("Error initializing silence player: $e");
   }
 }
   Future<void> _loadSavedMode() async {
@@ -885,6 +898,8 @@ Future<void> _startRecording({bool playDing = true}) async {
   Future<void> _stopAndSendRecording() async {
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
+    _isExplicitlyPausedForRecording = false;
+_initSilencePlayer(); // Re-engage background audio lock
 
     try {
       setState(() {
