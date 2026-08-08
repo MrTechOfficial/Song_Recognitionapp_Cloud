@@ -516,26 +516,42 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     super.dispose();
   }
 
-  // Detects when the app comes to the foreground via Siri
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkAndStartSiriRecording();
+@override
+void didChangeAppLifecycleState(AppLifecycleState state) {
+  if (state == AppLifecycleState.resumed) {
+    debugPrint("App resumed: ensuring silence player is active...");
+    
+    // If silence isn't playing, start it up immediately
+    if (_silencePlayer.state != PlayerState.playing) {
+      _initSilencePlayer();
     }
+    
+    // Check if Siri opened the app and start recording
+    _checkAndStartSiriRecording();
   }
-
-  Future<void> _checkAndStartSiriRecording() async {
+}
+ Future<void> _checkAndStartSiriRecording() async {
   try {
     final bool triggered = await _siriChannel.invokeMethod('checkSiriTrigger');
-    
-    if (triggered && !_isRecording) {
-      debugPrint("Siri trigger detected! Waiting for iOS audio session...");
-      
-      // Give iOS 1 second to release the microphone from Siri to Flutter
-      await Future.delayed(const Duration(milliseconds: 1000));
-      
-      if (mounted && !_isRecording) {
-        _startRecording();
+
+    if (triggered) {
+      debugPrint("Siri trigger confirmed!");
+
+      // Make sure silence track is actively running
+      if (_silencePlayer.state != PlayerState.playing) {
+        await _initSilencePlayer();
+      }
+
+      // Briefly pause silence to yield mic access to the recording engine
+      await _silencePlayer.pause();
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      if (await _audioRecorder.hasPermission()) {
+        if (mounted && !_isRecording) {
+          _startRecording();
+        }
+      } else {
+        debugPrint("Microphone permission not granted!");
       }
     }
   } catch (e) {
@@ -730,14 +746,17 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 
   Future<void> _initSilencePlayer() async {
-    try {
-      await _silencePlayer.setReleaseMode(ReleaseMode.loop);
-      await _silencePlayer.play(AssetSource('silence.mp3'));
-    } catch (e) {
-      debugPrint('Error starting silence background audio: $e');
-    }
+  try {
+    // Force the silence track to loop continuously
+    await _silencePlayer.setReleaseMode(ReleaseMode.loop);
+    
+    // Explicitly play from assets (starts the audio session immediately)
+    await _silencePlayer.play(AssetSource('silence.mp3'));
+    debugPrint("Silence track started looping successfully!");
+  } catch (e) {
+    debugPrint("Error starting silence player: $e");
   }
-
+}
   Future<void> _loadSavedMode() async {
     final prefs = await SharedPreferences.getInstance();
     final savedIndex = prefs.getInt('selected_environment_mode');
