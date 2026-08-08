@@ -463,7 +463,19 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   @override
   void initState() {
     super.initState();
-    
+
+    AudioPlayer.global.setAudioContext(const AudioContext(
+    iOS: AudioContextIOS(
+      category: AVAudioSessionCategory.playAndRecord,
+      options: {
+        AVAudioSessionOptions.defaultToSpeaker,
+        AVAudioSessionOptions.mixWithOthers,
+        AVAudioSessionOptions.allowBluetooth,
+        AVAudioSessionOptions.allowBluetoothA2DP,
+  },
+    ),
+  ));
+
     // Register lifecycle observer for Siri background-to-foreground triggers
     WidgetsBinding.instance.addObserver(this);
 
@@ -503,29 +515,25 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     _silencePlayer.dispose();
     super.dispose();
   }
-@override
-void didChangeAppLifecycleState(AppLifecycleState state) {
-  if (state == AppLifecycleState.resumed) {
-    // 1. Force-resume silence player when returning to foreground
-    _silencePlayer.resume();
-    _checkAndStartSiriRecording();
-  }
-}
 
-Future<void> _checkAndStartSiriRecording() async {
+  // Detects when the app comes to the foreground via Siri
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkAndStartSiriRecording();
+    }
+  }
+
+  Future<void> _checkAndStartSiriRecording() async {
   try {
     final bool triggered = await _siriChannel.invokeMethod('checkSiriTrigger');
     
     if (triggered && !_isRecording) {
-      debugPrint("Siri trigger detected! Re-establishing audio session...");
-
-      // 2. Stop and re-initialize silence player to recover session after Siri's interruption
-      await _silencePlayer.stop();
-      await _initSilencePlayer(); 
+      debugPrint("Siri trigger detected! Waiting for iOS audio session...");
       
-      // 3. Give iOS 800ms to mix silence.mp3 with Spotify's audio stream
-      await Future.delayed(const Duration(milliseconds: 800));
-
+      // Give iOS 1 second to release the microphone from Siri to Flutter
+      await Future.delayed(const Duration(milliseconds: 1000));
+      
       if (mounted && !_isRecording) {
         _startRecording();
       }
