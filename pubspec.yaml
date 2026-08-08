@@ -29,6 +29,7 @@ flutter:
 
   assets:
     - assets/silence.mp3
+    - assets/ding.mp3
     
 dependency_overrides:
   record_platform_interface: 1.2.0

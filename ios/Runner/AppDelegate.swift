@@ -52,8 +52,8 @@ struct AppShortcuts: AppShortcutsProvider {
             AppShortcut(
                 intent: IdentifySongIntent(),
                 phrases: [
-                    "Identify song in \(.applicationName)",
-                    "Record song with \(.applicationName)"
+                    "Activate \(.applicationName)",
+                    "Find Song With \(.applicationName)"
                 ],
                 shortTitle: "Identify Song",
                 systemImageName: "waveform"

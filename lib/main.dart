@@ -737,7 +737,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   Future<void> _playSingleDing() async {
     try {
       await _dingPlayer.stop();
-      await _dingPlayer.play(UrlSource(_dingUrl));
+      // Plays your custom local asset instantly
+      await _dingPlayer.play(AssetSource('sounds/ding.mp3'));
     } catch (e) {
       debugPrint('Error playing ding: $e');
     }
@@ -760,23 +761,34 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
     }
   }
 
-  // Start Recording Method
-  Future<void> _startRecording({bool playDing = true}) async {
+Future<void> _startRecording({bool playDing = true}) async {
     if (_isRecording || _isLoading) return;
 
+    if (playDing) {
+      _playSingleDing();
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+
+    setState(() {
+      _isRecording = true;
+    });
+
     try {
-      if (!kIsWeb && !await Permission.microphone.request().isGranted) {
-        await _silencePlayer.pause();
+      String filePath = '';
+      if (!kIsWeb) {
+        final directory = await getTemporaryDirectory();
+        filePath = '${directory.path}/recording.wav';
       }
 
-      if (playDing) {
-        await _playSingleDing();
-        await Future.delayed(const Duration(milliseconds: 300));
-      }
-
-      setState(() {
-        _isRecording = true;
-      });
+      await _audioRecorder.start(
+        const RecordConfig(encoder: AudioEncoder.wav),
+        path: filePath,
+      );
+    } catch (e) {
+      debugPrint('Error starting recording: $e');
+    }
+  
+    try {
 
       String filePath = '';
       if (!kIsWeb) {
