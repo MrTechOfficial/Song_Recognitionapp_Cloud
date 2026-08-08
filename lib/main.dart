@@ -765,29 +765,29 @@ Future<void> _startRecording({bool playDing = true}) async {
     if (_isRecording || _isLoading) return;
 
     if (playDing) {
-      _playSingleDing();
+      // Play ding without letting it block the timer if it fails
+      _playSingleDing(); 
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
     setState(() {
       _isRecording = true;
+      _secondsRemaining = _selectedMode.duration;
+      _songTitle = null;
+      _artist = null; // Reset timer counter
     });
 
-    try {
-      String filePath = '';
-      if (!kIsWeb) {
-        final directory = await getTemporaryDirectory();
-        filePath = '${directory.path}/recording.wav';
-      }
-
-      await _audioRecorder.start(
-        const RecordConfig(encoder: AudioEncoder.wav),
-        path: filePath,
-      );
-    } catch (e) {
-      debugPrint('Error starting recording: $e');
-    }
-  
+   _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining > 0) {
+        setState(() {
+          _secondsRemaining--;
+        });
+      }if (_secondsRemaining == 0) {
+    timer.cancel();
+    _stopAndSendRecording();
+  }
+});
     try {
 
       String filePath = '';
