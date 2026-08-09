@@ -530,37 +530,30 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
     _checkAndStartSiriRecording();
   }
 }
- Future<void> _checkAndStartSiriRecording() async {
-    try {
-      final bool triggered =
-          await _siriChannel.invokeMethod('checkSiriTrigger');
+Future<void> _checkAndStartSiriRecording() async {
+  try {
+    debugPrint("=== DEBUG: Invoking checkSiriTrigger on native channel... ===");
+    final dynamic result = await _siriChannel.invokeMethod('checkSiriTrigger');
+    debugPrint("=== DEBUG: checkSiriTrigger returned: $result ===");
 
-      if (triggered) {
-        debugPrint("Siri trigger confirmed! Waiting for Siri hardware release...");
+    if (result == true) {
+      debugPrint("=== DEBUG: Siri trigger was TRUE! Starting recorder... ===");
+      _isExplicitlyPausedForRecording = true;
+      await _silencePlayer.pause();
+      await Future.delayed(const Duration(milliseconds: 800));
 
-        // 1. Pause silence track briefly for clean mic initialization
-        _isExplicitlyPausedForRecording = true;
-        await _silencePlayer.pause();
-
-        // 2. Wait 800ms for Siri's dismiss animation to fully release hardware mic lock
-        await Future.delayed(const Duration(milliseconds: 800));
-
-        if (await _audioRecorder.hasPermission()) {
-          if (mounted && !_isRecording) {
-            await _startRecordingWithRetry();
-          }
-        } else {
-          debugPrint("Microphone permission missing!");
-          _isExplicitlyPausedForRecording = false;
-          _initSilencePlayer();
+      if (await _audioRecorder.hasPermission()) {
+        if (mounted && !_isRecording) {
+          _startRecording();
         }
       }
-    } catch (e) {
-      debugPrint('Error checking Siri trigger: $e');
-      _isExplicitlyPausedForRecording = false;
+    } else {
+      debugPrint("=== DEBUG: Trigger returned false or null. No recording started. ===");
     }
+  } catch (e) {
+    debugPrint('=== DEBUG ERROR: $e ===');
   }
-
+}
   // Self-healing retry function to handle Siri microphone handoff
   Future<void> _startRecordingWithRetry() async {
     int attempts = 0;

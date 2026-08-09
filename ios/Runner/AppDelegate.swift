@@ -1,54 +1,37 @@
-import UIKit
 import Flutter
-import AppIntents
+import UIKit
 
-@main
-@objc class AppDelegate: FlutterAppDelegate {
-    private var siriChannel: FlutterMethodChannel?
+class SceneDelegate: FlutterSceneDelegate {
 
-    override func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
-    ) -> Bool {
-        GeneratedPluginRegistrant.register(with: self)
+    // 1. Cold Start
+    override func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        super.scene(scene, willConnectTo: session, options: connectionOptions)
         
-        if let controller = window?.rootViewController as? FlutterViewController {
-            siriChannel = FlutterMethodChannel(
-                name: "com.example.song_recognition/siri",
-                binaryMessenger: controller.binaryMessenger
-            )
-            
-            siriChannel?.setMethodCallHandler({ (call: FlutterMethodCall, result: @escaping FlutterResult) in
-                if call.method == "checkSiriTrigger" {
-                    // Check persistent storage for Siri flag
-                    let triggered = UserDefaults.standard.bool(forKey: "launchedFromSiri")
-                    if triggered {
-                        UserDefaults.standard.set(false, forKey: "launchedFromSiri") // Reset flag
-                    }
-                    result(triggered)
-                } else {
-                    result(FlutterMethodNotImplemented)
-                }
-            })
+        if let url = connectionOptions.urlContexts.first?.url {
+            if url.scheme == "handsfreefinder" || url.absoluteString.contains("siri") {
+                UserDefaults.standard.set(true, forKey: "launchedFromSiri")
+            }
         }
-
-        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
-    override func application(
-        _ app: UIApplication,
-        open url: URL,
-        options: [UIApplication.OpenURLOptionsKey : Any] = [:]
-    ) -> Bool {
-        if url.scheme == "handsfreefinder" || url.absoluteString.contains("siri") {
-            UserDefaults.standard.set(true, forKey: "launchedFromSiri")
-            siriChannel?.invokeMethod("onSiriTrigger", arguments: nil)
+    // 2. Warm Start (App already in background when Siri opens URL)
+    override func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        super.scene(scene, openURLContexts: URLContexts)
+        if let url = URLContexts.first?.url {
+            if url.scheme == "handsfreefinder" || url.absoluteString.contains("siri") {
+                UserDefaults.standard.set(true, forKey: "launchedFromSiri")
+            }
         }
-        return super.application(app, open: url, options: options)
+    }
+
+    // 3. Siri User Activity / Shortcut Intent
+    override func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        super.scene(scene, continue: userActivity)
+        if userActivity.activityType.contains("IdentifySongIntent") || userActivity.activityType.contains("siri") {
+            UserDefaults.standard.set(true, forKey: "launchedFromSiri")
+        }
     }
 }
-
-// MARK: - Siri App Shortcuts (iOS 16+)
 
 @available(iOS 16.0, *)
 struct AppShortcuts: AppShortcutsProvider {
