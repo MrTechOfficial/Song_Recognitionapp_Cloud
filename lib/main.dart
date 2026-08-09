@@ -1427,3 +1427,55 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     return super.click(button);
   }
 }
+// ... all your existing main.dart code and classes end here ...
+
+ // <-- Last closing bracket of your _AudioRecorderScreenState class
+
+// PASTE IT HERE (outside any class)
+class LanguageMatcher {
+  static String normalizeLanguage(String lang) {
+    final cleaned = lang.toLowerCase().trim();
+    if (cleaned.startsWith('en') || cleaned == 'english') return 'en';
+    if (cleaned.startsWith('es') || cleaned == 'spanish') return 'es';
+    if (cleaned.startsWith('fr') || cleaned == 'french') return 'fr';
+    if (cleaned.startsWith('de') || cleaned == 'german') return 'de';
+    if (cleaned.startsWith('ja') || cleaned == 'japanese') return 'ja';
+    if (cleaned.startsWith('ko') || cleaned == 'korean') return 'ko';
+    return cleaned.length >= 2 ? cleaned.substring(0, 2) : cleaned;
+  }
+
+  static bool isLanguageMatch({
+    required String userLanguage,
+    required String trackLanguage,
+    bool allowUnknown = true,
+  }) {
+    final userCode = normalizeLanguage(userLanguage);
+    final trackCode = normalizeLanguage(trackLanguage);
+    if (userCode == trackCode) return true;
+    if (allowUnknown && (trackCode == 'un' || trackCode == 'zxx' || trackCode.isEmpty)) {
+      return true;
+    }
+    return false;
+  }
+
+  static List<T> filterResultsByLanguage<T>({
+    required List<T> results,
+    required String userLanguage,
+    required String Function(T item) getTrackLanguage,
+    bool strictMode = false,
+  }) {
+    final matchedResults = results.where((item) {
+      final trackLang = getTrackLanguage(item);
+      return isLanguageMatch(
+        userLanguage: userLanguage,
+        trackLanguage: trackLang,
+        allowUnknown: !strictMode,
+      );
+    }).toList();
+
+    if (matchedResults.isEmpty) {
+      return results; // Fallback if no exact match found
+    }
+    return matchedResults;
+  }
+}
