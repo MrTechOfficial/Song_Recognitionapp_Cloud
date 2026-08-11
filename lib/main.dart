@@ -1734,7 +1734,7 @@ class LanguageMatcher {
     if (cleaned.startsWith('ja') || cleaned == 'japanese') return 'ja';
     if (cleaned.startsWith('ko') || cleaned == 'korean') return 'ko';
     return cleaned.length >= 2 ? cleaned.substring(0, 2) : cleaned;
-  }
+    }
 
   static bool isLanguageMatch({
     required String userLanguage,
