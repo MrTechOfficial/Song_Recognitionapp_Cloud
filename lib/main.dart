@@ -1771,4 +1771,3 @@ class LanguageMatcher {
     return matchedResults;
   }
 }
-
