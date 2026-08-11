@@ -44,8 +44,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Cancel',
     'save': 'Save',
     'clear': 'Clear',
-    'tip': '💡 Tip: Say "Hey Siri, find song with Reczt" to open the app and instantly start finding the song stuck in your head!',
     'by': 'by',
+    'User Manual': 'User Manual',
+    'step 1': 'Configure Your Settings',
+    'step1_desc': 'Select your preferred music platform and language.',
+    'step 2': 'Where Are You?',
+    'step2_desc': 'Click the button that corresponds to your environment. These buttons determine how long the app will listen for music.',
+    'step 3': 'Sing',
+    'step3_desc': 'Squeeze your AirPods stem or click the microphone button to begin the song recognition process.',
+    'step 4': 'Enjoy Your Music!',
+    'step4_desc': 'Once a song is recognized, you can play it directly in your preferred music app.',
+    'step 5': 'View Your History',
+    'step5_desc': 'Can\'t remember the song you just listened to? View your search history by clicking the clock icon on the main page of Reczt.',
+    'got it': 'Got it!',
   },
   'es': {
     'app_title': 'Identificador de Canciones',
@@ -70,8 +81,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Cancelar',
     'save': 'Guardar',
     'clear': 'Borrar',
-    'tip': '💡 Consejo: Di "Oye Siri, buscar canción con Reczt" para abrir la aplicación e identificar la canción.',
     'by': 'de',
+    'User Manual': 'Cómo usar',
+    'step 1': 'Paso 1: Configura tus ajustes',
+    'step1_desc': 'Selecciona tu plataforma de música y idioma preferidos.',
+    'step 2': 'Paso 2: ¿Dónde estás?',
+    'step2_desc': 'Haz clic en el botón que corresponde a tu entorno. Estos botones determinan cuánto tiempo escuchará la aplicación música.',
+    'step 3': 'Paso 3: ¡Canta!',
+    'step3_desc': 'Aprieta el tallo de tus AirPods o haz clic en el botón del micrófono para comenzar el proceso de reconocimiento de canciones.',
+    'step 4': 'Paso 4: ¡Disfruta tu música!',
+    'step4_desc': 'Una vez que se reconozca una canción, puedes reproducirla directamente en tu aplicación de música preferida.',
+    'step 5': 'Paso 5: Ver tu historial',
+    'step5_desc': '¿No recuerdas la canción que acabas de escuchar? Puedes ver tu historial de búsqueda haciendo clic en el icono del reloj en la página principal de Reczt.',
+    'got it': '¡Entendido!',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
@@ -96,8 +118,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Annuler',
     'save': 'Enregistrer',
     'clear': 'Effacer',
-    'tip': '💡 Astuce : Dites "Dis Siri, trouve la chanson avec Reczt" pour démarrer !',
     'by': 'par',
+    'User Manual': 'Comment utiliser',
+    'step 1': 'Étape 1 : Configurez vos paramètres',
+    'step1_desc': 'Sélectionnez votre plateforme musicale et votre langue préférées.',
+    'step 2': 'Étape 2 : Où êtes-vous ?',
+    'step2_desc': 'Cliquez sur le bouton correspondant à votre environnement. Ces boutons déterminent combien de temps l\'application écoutera la musique.',
+    'step 3': 'Étape 3 : Chantez !',
+    'step3_desc': 'Appuyez sur la tige de vos AirPods ou cliquez sur le bouton du microphone pour commencer le processus de reconnaissance de chansons.',
+    'step 4': 'Étape 4 : Profitez de votre musique !',
+    'step4_desc': 'Une fois qu\'une chanson est reconnue, vous pouvez la lire directement dans votre application musicale préférée.',
+    'step 5': 'Étape 5 : Consultez votre historique',
+    'step5_desc': 'Vous ne vous souvenez pas de la chanson que vous venez d\'écouter ? Vous pouvez consulter votre historique de recherche en cliquant sur l\'icône de l\'horloge sur la page principale de Reczt.',
+    'got it': 'Compris !',
   },
   'de': {
     'app_title': 'Song-Erkennung',
@@ -122,8 +155,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Abbrechen',
     'save': 'Speichern',
     'clear': 'Löschen',
-    'tip': '💡 Tipp: Sage "Hey Siri, finde Song mit Reczt", um sofort zu starten!',
     'by': 'von',
+    'User Manual': 'Wie man es benutzt',
+    'step 1': 'Schritt 1: Konfiguriere deine Einstellungen',
+    'step1_desc': 'Wähle deine bevorzugte Musikplattform und Sprache aus.',
+    'step 2': 'Schritt 2: Wo bist du?',
+    'step2_desc': 'Klicke auf die Schaltfläche, die deiner Umgebung entspricht. Diese Schaltflächen bestimmen, wie lange die App Musik hören wird.',
+    'step 3': 'Schritt 3: Singe!',
+    'step3_desc': 'Drücke den Stiel deiner AirPods oder klicke auf die Mikrofontaste, um den Song-Erkennungsprozess zu starten.',
+    'step 4': 'Schritt 4: Genieße deine Musik!',
+    'step4_desc': 'Sobald ein Song erkannt wurde, kannst du ihn direkt in deiner bevorzugten Musik-App abspielen.',
+    'step 5': 'Schritt 5: Sieh dir deinen Verlauf an',
+    'step5_desc': 'Kannst du dich nicht an den Song erinnern, den du gerade gehört hast? Sieh dir deinen Suchverlauf an, indem du auf das Uhrensymbol auf der Hauptseite von Reczt klickst.',
+    'got it': 'Verstanden!',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
@@ -148,8 +192,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Annulla',
     'save': 'Salva',
     'clear': 'Cancella',
-    'tip': '💡 Consiglio: Dì "Ehi Siri, trova canzone con Reczt"!',
     'by': 'di',
+    'User Manual': 'Come usare',
+    'step 1': 'Passo 1: Configura le tue impostazioni',
+    'step1_desc': 'Seleziona la tua piattaforma musicale e lingua preferita.',
+    'step 2': 'Passo 2: Dove ti trovi?',
+    'step2_desc': 'Clicca sul pulsante che corrisponde al tuo ambiente. Questi pulsanti determinano per quanto tempo l\'app ascolterà la musica.',
+    'step 3': 'Passo 3: Canta!',
+    'step3_desc': 'Stringi il gambo dei tuoi AirPods o clicca sul pulsante del microfono per iniziare il processo di riconoscimento della canzone.',
+    'step 4': 'Passo 4: Goditi la tua musica!',
+    'step4_desc': 'Una volta riconosciuta una canzone, puoi riprodurla direttamente nella tua app musicale preferita.',
+    'step 5': 'Passo 5: Visualizza la tua cronologia',
+    'step5_desc': 'Non ricordi la canzone che hai appena ascoltato? Visualizza la cronologia delle ricerche cliccando sull\'icona dell\'orologio nella pagina principale di Reczt.',
+    'got it': 'Capito!',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
@@ -174,8 +229,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Cancelar',
     'save': 'Salvar',
     'clear': 'Limpar',
-    'tip': '💡 Dica: Diga "Eaí Siri, buscar música com Reczt"!',
     'by': 'de',
+    'User Manual': 'Como usar',
+    'step 1': 'Passo 1: Configure suas preferências',
+    'step1_desc': 'Selecione sua plataforma musical e idioma preferido.',
+    'step 2': 'Passo 2: Onde você está?',
+    'step2_desc': 'Clique no botão que corresponde ao seu ambiente. Esses botões determinam por quanto tempo o app ouvirá a música.',
+    'step 3': 'Passo 3: Cante!',
+    'step3_desc': 'Segure a alça dos seus AirPods ou clique no botão do microfone para iniciar o processo de reconhecimento da música.',
+    'step 4': 'Passo 4: Aproveite sua música!',
+    'step4_desc': 'Assim que uma música for reconhecida, você pode reproduzi-la diretamente em seu app musical preferido.',
+    'step 5': 'Passo 5: Visualize seu histórico',
+    'step5_desc': 'Não se lembra da música que acabou de ouvir? Visualize o histórico de buscas clicando no ícone do relógio na página principal do Reczt.',
+    'got it': 'Entendi!',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
@@ -200,8 +266,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'キャンセル',
     'save': '保存',
     'clear': '消去',
-    'tip': '💡 ヒント：「Hey Siri、Recztで曲を探して」と言ってみよう！',
     'by': 'アーティスト:',
+    'User Manual': '使い方',
+    'step 1': '手順 1: 設定を構成する',
+    'step1_desc': 'お好みの音楽プラットフォームと言語を選択してください。',
+    'step 2': '手順 2: どこにいますか？',
+    'step2_desc': '環境に一致するボタンをクリックしてください。これらのボタンは、アプリが音楽を聞く時間を決定します。',
+    'step 3': '手順 3: 歌ってください！',
+    'step3_desc': 'AirPodsのハンドルを押すか、マイクボタンをクリックして、曲認識プロセスを開始してください。',
+    'step 4': '手順 4: 音楽をお楽しみください！',
+    'step4_desc': '曲が認識されると、お好みの音楽アプリで直接再生できます。',
+    'step 5': '手順 5: 履歴を表示する',
+    'step5_desc': '最近聞いた曲が思い出せませんか？ Recztのメインページで時計アイコンをクリックして検索履歴を表示できます。',
+    'got it': '了解しました！',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
@@ -226,8 +303,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': '취소',
     'save': '저장',
     'clear': '삭제',
-    'tip': '💡 팁: "Siri야, Reczt로 노래 찾아줘"라고 말해보세요!',
     'by': '아티스트:',
+    'User Manual': '사용 방법',
+    'step 1': '1단계: 설정 구성',
+    'step1_desc': '선호하는 음악 플랫폼과 언어를 선택하세요.',
+    'step 2': '2단계: 어디에 계신가요?',
+    'step2_desc': '환경에 해당하는 버튼을 클릭하세요. 이 버튼들은 앱이 음악을 듣는 시간을 결정합니다.',
+    'step 3': '3단계: 노래 부르기',
+    'step3_desc': 'AirPods 스템을 누르거나 마이크 버튼을 클릭하여 노래 인식 프로세스를 시작하세요.',
+    'step 4': '4단계: 음악 즐기기!',
+    'step4_desc': '노래가 인식되면 선호하는 음악 앱에서 직접 재생할 수 있습니다.',
+    'step 5': '5단계: 기록 보기',
+    'step5_desc': '방금 들은 노래가 기억나지 않나요? Reczt의 메인 페이지에서 시계 아이콘을 클릭하여 검색 기록을 확인할 수 있습니다.',
+    'got it': '알겠습니다!',
   },
   'zh': {
     'app_title': '歌曲识别器',
@@ -252,8 +340,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': '取消',
     'save': '保存',
     'clear': '清除',
-    'tip': '💡 提示：对 Siri 说“Hey Siri，用 Reczt 找歌”！',
     'by': '歌手：',
+    'User Manual': '使用方法',
+    'step 1': '第一步：配置设置',
+    'step1_desc': '请选择您偏好的音乐平台和语言。',
+    'step 2': '第二步：您在哪里？',
+    'step2_desc': '点击与您的环境相对应的按钮。这些按钮将决定应用程序聆听音乐的时间。',
+    'step 3': '第三步：唱歌！',
+    'step3_desc': '按住您的 AirPods 手柄或点击麦克风按钮以启动歌曲识别过程。',
+    'step 4': '第四步：享受您的音乐！',
+    'step4_desc': '一旦识别出歌曲，您就可以直接在您偏好的音乐应用中播放它。',
+    'step 5': '第五步：查看历史记录',
+    'step5_desc': '记不起刚听过的歌曲吗？在 Reczt 的主页面上点击时钟图标来查看搜索历史。',
+    'got it': '明白了！',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
@@ -278,8 +377,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'रद्द करें',
     'save': 'सहेजें',
     'clear': 'मिटाएं',
-    'tip': '💡 सुझाव: "Hey Siri, Reczt से गाना खोजो" कहें!',
     'by': 'द्वारा',
+    'User Manual': 'कैसे उपयोग करें',
+    'step 1': 'चरण 1: अपनी सेटिंग्स कॉन्फ़िगर करें',
+    'step1_desc': 'अपनी पसंदीदा म्यूजिक प्लेटफ़ॉर्म और भाषा चुनें।',
+    'step 2': 'चरण 2: आप कहाँ हैं?',
+    'step2_desc': 'अपने वातावरण के अनुसार बटन पर क्लिक करें। ये बटन यह निर्धारित करते हैं कि ऐप कितनी देर तक संगीत सुनेगा।',
+    'step 3': 'चरण 3: गाओ!',
+    'step3_desc': 'अपने AirPods स्टेम को दबाएं या गाने की पहचान प्रक्रिया शुरू करने के लिए माइक्रोफ़ोन बटन पर क्लिक करें।',
+    'step 4': 'चरण 4: अपने संगीत का आनंद लें!',
+    'step4_desc': 'एक बार जब कोई गाना पहचाना जाता है, तो आप ইसे सीधे অपनी पसंदीदा म्यूजिक ঐप में চला सकते हैं।',
+    'step 5': 'चरण 5: অপনা ইতিহাস দেখেন',
+    'step5_desc': 'ক্যা আপকো মনে না হয় কি আপনি এখনই কোনো গানা শুনেছিলেন? Reczt এর প্রধান পৃষ্ঠায় ঘড়ির আইকনের উপরে click করে আপ અપनાર search historyকে view کرতے پারবেن।',
+    'got it': 'समझ गया!',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
@@ -304,8 +414,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Отмена',
     'save': 'Сохранить',
     'clear': 'Очистить',
-    'tip': '💡 Совет: Скажите "Привет, Siri, найди песню через Reczt"!',
     'by': 'исполнитель',
+    'User Manual': 'Как использовать',
+    'step 1': 'Шаг 1: Настройте параметры',
+    'step1_desc': 'Выберите предпочитаемую музыкальную платформу и язык.',
+    'step 2': 'Шаг 2: Где вы находитесь?',
+    'step2_desc': 'Нажмите кнопку, соответствующую вашей обстановке. Эти кнопки определяют, как долго приложение будет слушать музыку.',
+    'step 3': 'Шаг 3: Пойте!',
+    'step3_desc': 'Нажмите на стержень ваших AirPods или нажмите кнопку микрофона, чтобы начать процесс распознавания песни.',
+    'step 4': 'Шаг 4: Наслаждайтесь музыкой!',
+    'step4_desc': 'После распознавания песни вы можете воспроизвести ее напрямую в предпочитаемом музыкальном приложении.',
+    'step 5': 'Шаг 5: Просмотр истории',
+    'step5_desc': 'Не можете вспомнить песню, которую только что слушали? Просмотрите историю поиска, нажав на значок часов на главной странице Reczt.',
+    'got it': 'С понятием!',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
@@ -330,8 +451,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'İptal',
     'save': 'Kaydet',
     'clear': 'Temizle',
-    'tip': '💡 İpucu: "Hey Siri, Reczt ile şarkı bul" deyin!',
     'by': 'sanatçı',
+    'User Manual': 'Nasıl Kullanılır',
+    'step 1': 'Adım 1: Ayarlarınızı Yapılandırın',
+    'step1_desc': 'Tercih ettiğiniz müzik platformunu ve dili seçin.',
+    'step 2': 'Adım 2: Neredesiniz?',
+    'step2_desc': 'Ortamınıza karşılık gelen düğmeye tıklayın. Bu düğmeler, uygulamanın müziği ne kadar süre dinleyeceğini belirler.',
+    'step 3': 'Adım 3: Şarkı Söyleyin!',
+    'step3_desc': 'AirPods sapını sıkın veya şarkı tanıma sürecini başlatmak için mikrofon düğmesine tıklayın.',
+    'step 4': 'Adım 4: Müziğinizin Tadını Çıkarın!',
+    'step4_desc': 'Bir şarkı tanındığında, onu tercih ettiğiniz müzik uygulamasında doğrudan çalabilirsiniz.',
+    'step 5': 'Adım 5: Geçmişinizi Görüntüleyin',
+    'step5_desc': 'Az önce dinlediğiniz şarkıyı hatırlamıyor musunuz? Reczt ana sayfasındaki saat simgesine tıklayarak arama geçmişinizi görüntüleyebilirsiniz.',
+    'got it': 'Anladım!',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
@@ -356,8 +488,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'إلغاء',
     'save': 'حفظ',
     'clear': 'مسح',
-    'tip': '💡 تلميح: قل "يا Siri، ابحث عن أغنية باستخدام Reczt"!',
     'by': 'بواسطة',
+    'User Manual': 'كيفية الاستخدام',
+    'step 1': 'الخطوة 1: تكوين إعداداتك',
+    'step1_desc': 'حدد منصة الموسيقى واللغة المفضلة لديك.',
+    'step 2': 'الخطوة 2: أين أنت؟',
+    'step2_desc': 'انقر على الزر الذي يتوافق مع بيئتك. تحدد هذه الأزرار المدة التي ستستمع فيها التطبيق إلى الموسيقى.',
+    'step 3': 'الخطوة 3: غنِ!',
+    'step3_desc': 'اضغط على ساق AirPods الخاصة بك أو انقر على زر الميكروفون لبدء عملية التعرف على الأغاني.',
+    'step 4': 'الخطوة 4: استمتع بموسيقاك!',
+    'step4_desc': 'بمجرد التعرف على أغنية، يمكنك تشغيلها مباشرة في تطبيق الموسيقى المفضل لديك.',
+    'step 5': 'الخطوة 5: عرض سجل البحث الخاص بك',
+    'step5_desc': 'هل لا تتذكر الأغنية التي استمعت إليها للتو؟ يمكنك عرض سجل البحث الخاص بك بالنقر على أيقونة الساعة في الصفحة الرئيسية لتطبيق Reczt.',
+    'got it': 'فهمت!',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
@@ -382,8 +525,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Annuleren',
     'save': 'Opslaan',
     'clear': 'Wissselen',
-    'tip': '💡 Tip: Zeg "Hey Siri, vind nummer met Reczt"!',
     'by': 'door',
+    'User Manual': 'Hoe te gebruiken',
+    'step 1': 'Stap 1: Stel je voorkeuren in',
+    'step1_desc': 'Selecteer je favoriete muziekplatform en taal.',
+    'step 2': 'Stap 2: Waar ben je?',
+    'step2_desc': 'Klik op de knop die overeenkomt met je omgeving. Deze knoppen bepalen hoe lang de app naar muziek zal luisteren.',
+    'step 3': 'Stap 3: Zing!',
+    'step3_desc': 'Druk op de steel van je AirPods of klik op de microfoonknop om het nummerherkenningsproces te starten.',
+    'step 4': 'Stap 4: Geniet van je muziek!',
+    'step4_desc': 'Zodra een nummer is herkend, kun je het direct afspelen in je favoriete muziekapp.',
+    'step 5': 'Stap 5: Bekijk je geschiedenis',
+    'step5_desc': 'Kun je je niet herinneren welk nummer je net hebt gehoord? Je kunt je zoekgeschiedenis bekijken door op het klokpictogram op de startpagina van Reczt te klikken.',
+    'got it': 'Verstanden!',
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
@@ -408,23 +562,31 @@ final Map<String, Map<String, String>> localizedStrings = {
     'cancel': 'Anuluj',
     'save': 'Zapisz',
     'clear': 'Wyczyść',
-    'tip': '💡 Wskazówka: Powiedz "Hey Siri, znajdź piosenkę z Reczt"!',
     'by': 'wykonawca',
+    'User Manual': 'Jak korzystać',
+    'step 1': 'Krok 1: Skonfiguruj ustawienia',
+    'step1_desc': 'Wybierz preferowaną platformę muzyczną i język.',
+    'step 2': 'Krok 2: Gdzie jesteś?',
+    'step2_desc': 'Kliknij przycisk odpowiadający Twojemu otoczeniu. Te przyciski określają, jak długo aplikacja będzie słuchać muzyki.',
+    'step 3': 'Krok 3: Śpiewaj!',
+    'step3_desc': 'Naciśnij trzonek swoich AirPods lub kliknij przycisk mikrofonu, aby rozpocząć proces rozpoznawania utworu.',
+    'step 4': 'Krok 4: Ciesz się muzyką!',
+    'step4_desc': 'Po rozpoznaniu utworu możesz odtworzyć go bezpośrednio w preferowanej aplikacji muzycznej.',
+    'step 5': 'Krok 5: Sprawdź swoją historię',
+    'step5_desc': 'Nie pamiętasz, jaką piosenkę właśnie słuchałeś? Możesz sprawdzić historię wyszukiwania, klikając ikonę zegara na stronie głównej Reczt.',
+    'got it': 'Zrozumiano!',
   },
 };
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String currentLang;
+  
+  const MyApp({super.key, this.currentLang = 'en'});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Hands-Free Song Identifier',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      locale: Locale(currentLang), // Replaces _currentLocale
       home: const AudioRecorderScreen(),
     );
   }
@@ -1051,30 +1213,12 @@ _initSilencePlayer(); // Re-engage background audio lock
     return t(_statusTextKey);
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(t('app_title')),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: t('settings_title'),
-            onPressed: _showPreferencesDialog,
-          ),
-          IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: t('history_title'),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => HistoryPage(lang: _selectedLanguage)),
-              );
-            },
-          ),
-        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -1082,6 +1226,61 @@ _initSilencePlayer(); // Re-engage background audio lock
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // =========================================================
+              // 1. CENTERED TITLE & 3 HORIZONTAL BUTTONS
+              // =========================================================
+              Text(
+                t('app_title'),
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Button 1: Settings
+                  IconButton(
+                    icon: const Icon(Icons.settings, color: Colors.deepPurple),
+                    tooltip: t('settings_title'),
+                    onPressed: _showPreferencesDialog,
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Button 2: History
+                  IconButton(
+                    icon: const Icon(Icons.history, color: Colors.deepPurple),
+                    tooltip: t('history_title'),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => HistoryPage(lang: _selectedLanguage),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Button 3: User Manual (Book Icon)
+                  IconButton(
+                    icon: const Icon(Icons.menu_book, color: Colors.deepPurple),
+                    tooltip: t('User Manual'),
+                    onPressed: () => _showUserManualDialog(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 20),
+
+              // =========================================================
+              // EXISTING RECORDING & MODE SELECTION UI
+              // =========================================================
               Text(
                 t('where_are_you'),
                 style: const TextStyle(
@@ -1198,15 +1397,6 @@ _initSilencePlayer(); // Re-engage background audio lock
                     ),
                   ),
                 ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Text(
-                  t('tip'),
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
-              ),
               const SizedBox(height: 30),
               if (_songTitle != null && _artist != null) ...[
                 Card(
@@ -1275,6 +1465,108 @@ _initSilencePlayer(); // Re-engage background audio lock
           ),
         ),
       ),
+    );
+  }
+
+void _showUserManualDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: Row(
+        children: [
+          const Icon(Icons.menu_book, color: Colors.deepPurple),
+          const SizedBox(width: 8),
+          Text(t('User Manual')), // Dynamic translation
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildManualStep(
+            step: "1",
+            title: t('step 1'), // Dynamic translation
+            desc: t('step1_desc'),   // Dynamic translation
+          ),
+          const Divider(height: 20),
+          _buildManualStep(
+            step: "2",
+            title: t('step 2'), // Dynamic translation
+            desc: t('step2_desc'),   // Dynamic translation
+          ),
+          const Divider(height: 20),
+          _buildManualStep(
+            step: "3",
+            title: t('step 3'), // Dynamic translation
+            desc: t('step3_desc'),   // Dynamic translation
+          ),
+          const Divider(height: 20),
+          _buildManualStep(
+            step: "4",
+            title: t('step 4'), // Dynamic translation
+            desc: t('step4_desc'),   // Dynamic translation
+          ),
+          const Divider(height: 20),
+          _buildManualStep(
+            step: "5",
+            title: t('step 5'), // Dynamic translation
+            desc: t('step5_desc'),   // Dynamic translation
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(t('got it')), // Dynamic translation
+        ),
+      ],
+    ),
+  );
+}
+
+  Widget _buildManualStep({
+    required String step,
+    required String title,
+    required String desc,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 12,
+          backgroundColor: Colors.deepPurple,
+          child: Text(
+            step,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                desc,
+                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1479,3 +1771,4 @@ class LanguageMatcher {
     return matchedResults;
   }
 }
+
