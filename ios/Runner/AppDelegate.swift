@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import AppIntents
 
 class SceneDelegate: FlutterSceneDelegate {
 
