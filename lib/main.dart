@@ -688,8 +688,11 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
       _initSilencePlayer();
     }
     
+   WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndStartSiriRecording();
+});
     // Check if Siri opened the app and start recording
-    _checkAndStartSiriRecording();
+
   }
 }
 Future<void> _checkAndStartSiriRecording() async {
@@ -1111,10 +1114,9 @@ _initSilencePlayer(); // Re-engage background audio lock
     }
   }
 
-  Future<void> _sendAudioToBackend(String path) async {
+Future<void> _sendAudioToBackend(String path) async {
     final uri = Uri.parse(_backendUrl);
     var request = http.MultipartRequest('POST', uri);
-
     request.fields['language'] = _selectedLanguage;
 
     try {
@@ -1139,26 +1141,61 @@ _initSilencePlayer(); // Re-engage background audio lock
         final data = jsonDecode(response.body);
 
         if (data['success'] == true) {
-          final String title = data['title'] ?? 'Unknown Title';
-          final String artist = data['artist'] ?? 'Unknown Artist';
+          // =========================================================
+          // 1. EXTRACT CONFIDENCE SCORE FROM BACKEND RESPONSE
+          // =========================================================
+          final int confidence = (data['confidence'] as num?)?.toInt() ?? 0;
 
-          setState(() {
-            _songTitle = title;
-            _artist = artist;
-            _spotifyUrl = data['spotify_url'];
-            _appleMusicUrl = data['apple_music_url'];
-            _statusTextKey = 'match_found';
-            _customStatusText = null;
-          });
+          // =========================================================
+          // 2. PASS TO GATEKEEPER BEFORE UPDATING STATE & PLAYBACK
+          // =========================================================
+          final searchResults = [data];
 
-          await _saveToHistory('$title - $artist');
+          final filteredResults = LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
+            results: List<Map<String, dynamic>>.from(searchResults),
+            selectedLanguage: _selectedLanguage,
+            getLanguage: (item) => item['language']?.toString() ?? 'en',
+            confidenceScore: confidence,
+          );
 
-          if (_preferredMusicApp == 'apple_music' &&
-              _appleMusicUrl != null &&
-              _appleMusicUrl!.isNotEmpty) {
-            _openMusicUrl(_appleMusicUrl!);
-          } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
-            _openSpotifyNative(_spotifyUrl!);
+          // =========================================================
+          // 3. CHECK IF GATEKEEPER PASSED (Score >= 80)
+          // =========================================================
+          if (filteredResults.isNotEmpty) {
+            // 🟢 HIGH CONFIDENCE MATCH FOUND
+            final topMatch = filteredResults.first;
+            final String title = topMatch['title'] ?? 'Unknown Title';
+            final String artist = topMatch['artist'] ?? 'Unknown Artist';
+
+            setState(() {
+              _songTitle = title;
+              _artist = artist;
+              _spotifyUrl = topMatch['spotify_url'];
+              _appleMusicUrl = topMatch['apple_music_url'];
+              _statusTextKey = 'match_found';
+              _customStatusText = null;
+            });
+
+            await _saveToHistory('$title - $artist');
+
+            // 🎵 Auto-play on Spotify / Apple Music safely!
+            if (_preferredMusicApp == 'apple_music' &&
+                _appleMusicUrl != null &&
+                _appleMusicUrl!.isNotEmpty) {
+              _openMusicUrl(_appleMusicUrl!);
+            } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
+              _openSpotifyNative(_spotifyUrl!);
+            }
+          } else {
+            // 🔴 LOW CONFIDENCE / GATE BLOCKED
+            _playErrorCue();
+            setState(() {
+              _songTitle = null;
+              _artist = null;
+              _spotifyUrl = null;
+              _appleMusicUrl = null;
+              _customStatusText = 'No confident match found. Try singing again!';
+            });
           }
         } else {
           _playErrorCue();
@@ -1217,7 +1254,7 @@ _initSilencePlayer(); // Re-engage background audio lock
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(t('app_title')),
+        title: Text('Reczt'),
         centerTitle: true,
       ),
       body: Center(
@@ -1750,24 +1787,35 @@ class LanguageMatcher {
     return false;
   }
 
-  static List<T> filterResultsByLanguage<T>({
+static List<T> filterResultsByLanguage<T>({
     required List<T> results,
-    required String userLanguage,
-    required String Function(T item) getTrackLanguage,
-    bool strictMode = false,
+    required String selectedLanguage,
+    required String Function(T) getLanguage,
+    required int confidenceScore, // You require it here...
   }) {
     final matchedResults = results.where((item) {
-      final trackLang = getTrackLanguage(item);
+      final trackLang = getLanguage(item); // Use the function passed in
       return isLanguageMatch(
-        userLanguage: userLanguage,
+        userLanguage: selectedLanguage, // Match the parameter name
         trackLanguage: trackLang,
-        allowUnknown: !strictMode,
+        allowUnknown: true, // Assuming you want this true based on your previous code
       );
     }).toList();
 
     if (matchedResults.isEmpty) {
-      return results; // Fallback if no exact match found
+      print('DEBUG: No matches found for selected language (${selectedLanguage.toLowerCase()}).');
+      
+      // ...so you DO NOT need to declare it again here! Just use it.
+      
+      // Apply the strict 80+ filter
+      if (confidenceScore >= 80) {
+        print('DEBUG: High confidence match ($confidenceScore%). Accepting fail-safe.');
+        return results; 
+      } else {
+        print('DEBUG: Confidence too low ($confidenceScore%). Rejecting fail-safe to prevent wild guesses.');
+        return []; // Return an empty list so the app correctly says "Song Not Found"
+      }
     }
     return matchedResults;
+   }
   }
-}//hellooo 
