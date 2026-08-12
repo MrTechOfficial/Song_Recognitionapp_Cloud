@@ -625,18 +625,17 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   @override
   void initState() {
     super.initState();
-
     AudioPlayer.global.setAudioContext(AudioContext(
-    iOS: AudioContextIOS(
-      category: AVAudioSessionCategory.playAndRecord,
-      options: {
-        AVAudioSessionOptions.defaultToSpeaker,
-        AVAudioSessionOptions.mixWithOthers,
-        AVAudioSessionOptions.allowBluetooth,
-        AVAudioSessionOptions.allowBluetoothA2DP,
-  },
-    ),
-  ));
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playAndRecord,
+        options: {
+          AVAudioSessionOptions.defaultToSpeaker,
+          AVAudioSessionOptions.mixWithOthers,
+          AVAudioSessionOptions.allowBluetooth,
+          AVAudioSessionOptions.allowBluetoothA2DP,
+        },
+      ),
+    ));
 
     // Register lifecycle observer for Siri background-to-foreground triggers
     WidgetsBinding.instance.addObserver(this);
@@ -656,69 +655,61 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       _initSiriListener();
     }
 
-    // Set up Siri handler and check cold-start trigger
+    // 1. WARM START: Listen for live Siri signals while app is open/in background
     _siriChannel.setMethodCallHandler((call) async {
-      if (call.method == 'onSiriTrigger') {
+      if (call.method == 'startSiriRecognition') {
         _checkAndStartSiriRecording();
       }
     });
 
-    _checkAndStartSiriRecording();
+    // 2. COLD START: Check if Siri launched the app from a fully closed state
+    _checkColdStartSiri();
   }
 
-   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _autoStopTimer?.cancel();
-    _countdownTimer?.cancel();
-    _audioRecorder.dispose();
-    _dingPlayer.dispose();
-    _errorPlayer.dispose();
-    _silencePlayer.dispose();
-    super.dispose();
-  }
+  // -----------------------------------------------------------
+  // SIRI TRIGGER & COLD START METHODS (INSIDE CLASS)
+  // -----------------------------------------------------------
 
-@override
-void didChangeAppLifecycleState(AppLifecycleState state) {
-  if (state == AppLifecycleState.resumed) {
-    debugPrint("App resumed: ensuring silence player is active...");
-    
-    // If silence isn't playing, start it up immediately
-    if (_silencePlayer.state != PlayerState.playing) {
-      _initSilencePlayer();
-    }
-    
-   WidgetsBinding.instance.addPostFrameCallback((_) {
+  /// Checks SharedPreferences flag to see if app was launched via Siri from cold start
+  Future<void> _checkColdStartSiri() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool launchedFromSiri = prefs.getBool('launchedFromSiri') ?? false;
+
+    if (launchedFromSiri) {
+      // Wipe the flag immediately so normal app launches don't re-trigger
+      await prefs.setBool('launchedFromSiri', false);
+
+      // Start Siri recording process
       _checkAndStartSiriRecording();
-});
-    // Check if Siri opened the app and start recording
-
-  }
-}
-Future<void> _checkAndStartSiriRecording() async {
-  try {
-    debugPrint("=== DEBUG: Invoking checkSiriTrigger on native channel... ===");
-    final dynamic result = await _siriChannel.invokeMethod('checkSiriTrigger');
-    debugPrint("=== DEBUG: checkSiriTrigger returned: $result ===");
-
-    if (result == true) {
-      debugPrint("=== DEBUG: Siri trigger was TRUE! Starting recorder... ===");
-      _isExplicitlyPausedForRecording = true;
-      await _silencePlayer.pause();
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      if (await _audioRecorder.hasPermission()) {
-        if (mounted && !_isRecording) {
-          _startRecording();
-        }
-      }
-    } else {
-      debugPrint("=== DEBUG: Trigger returned false or null. No recording started. ===");
     }
-  } catch (e) {
-    debugPrint('=== DEBUG ERROR: $e ===');
   }
-}
+
+  /// Triggers recording with native channel verification and delay for mic handoff
+  Future<void> _checkAndStartSiriRecording() async {
+    try {
+      debugPrint("=== DEBUG: Invoking checkSiriTrigger on native channel... ===");
+      final dynamic result = await _siriChannel.invokeMethod('checkSiriTrigger');
+      debugPrint("=== DEBUG: checkSiriTrigger returned: $result ===");
+
+      if (result == true) {
+        debugPrint("=== DEBUG: Siri trigger was TRUE! Starting recorder... ===");
+        _isExplicitlyPausedForRecording = true;
+        await _silencePlayer.pause();
+        await Future.delayed(const Duration(milliseconds: 800));
+
+        if (await _audioRecorder.hasPermission()) {
+          if (mounted && !_isRecording) {
+            _startRecording();
+          }
+        }
+      } else {
+        debugPrint("=== DEBUG: Trigger returned false or null. No recording started. ===");
+      }
+    } catch (e) {
+      debugPrint('=== DEBUG ERROR: $e ===');
+    }
+  }
+
   // Self-healing retry function to handle Siri microphone handoff
   Future<void> _startRecordingWithRetry() async {
     int attempts = 0;
@@ -742,6 +733,34 @@ Future<void> _checkAndStartSiriRecording() async {
       _initSilencePlayer();
     }
   }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoStopTimer?.cancel();
+    _countdownTimer?.cancel();
+    _audioRecorder.dispose();
+    _dingPlayer.dispose();
+    _errorPlayer.dispose();
+    _silencePlayer.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint("App resumed: ensuring silence player is active...");
+
+      if (_silencePlayer.state != PlayerState.playing) {
+        _initSilencePlayer();
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkAndStartSiriRecording();
+      });
+    }
+  }
+
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
   late final AudioPlayer _silencePlayer;
@@ -788,18 +807,15 @@ Future<void> _checkAndStartSiriRecording() async {
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
-  // 1-second high-pitched chime ding sound
   final String _dingAsset = 'ding.mp3';
   final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
 
-  // Helper method for localized text
   String t(String key) {
     return localizedStrings[_selectedLanguage]?[key] ??
         localizedStrings['en']![key] ??
         key;
   }
-
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
@@ -928,31 +944,29 @@ Future<void> _checkAndStartSiriRecording() async {
     });
   }
 
-bool _isExplicitlyPausedForRecording = false;
+  bool _isExplicitlyPausedForRecording = false;
 
-Future<void> _initSilencePlayer() async {
-  try {
-    // 1. Force looping mode
-    await _silencePlayer.setReleaseMode(ReleaseMode.loop);
-    
-    // 2. Set up a self-healing watchdog state listener
-    _silencePlayer.onPlayerStateChanged.listen((state) {
-      debugPrint("Silence Player State Changed: $state");
-      
-      // If iOS pauses or stops it, force it back on UNLESS we are in the middle of mic recording
-      if ((state == PlayerState.paused || state == PlayerState.stopped) && !_isExplicitlyPausedForRecording) {
-        debugPrint("Silence track was interrupted! Auto-restarting loop...");
-        _silencePlayer.play(AssetSource('silence.mp3'));
-      }
-    });
+  Future<void> _initSilencePlayer() async {
+    try {
+      await _silencePlayer.setReleaseMode(ReleaseMode.loop);
 
-    // 3. Start playback immediately
-    await _silencePlayer.play(AssetSource('silence.mp3'));
-    debugPrint("Silence track successfully locked in forever-loop!");
-  } catch (e) {
-    debugPrint("Error initializing silence player: $e");
+      _silencePlayer.onPlayerStateChanged.listen((state) {
+        debugPrint("Silence Player State Changed: $state");
+
+        if ((state == PlayerState.paused || state == PlayerState.stopped) &&
+            !_isExplicitlyPausedForRecording) {
+          debugPrint("Silence track was interrupted! Auto-restarting loop...");
+          _silencePlayer.play(AssetSource('silence.mp3'));
+        }
+      });
+
+      await _silencePlayer.play(AssetSource('silence.mp3'));
+      debugPrint("Silence track successfully locked in forever-loop!");
+    } catch (e) {
+      debugPrint("Error initializing silence player: $e");
+    }
   }
-}
+
   Future<void> _loadSavedMode() async {
     final prefs = await SharedPreferences.getInstance();
     final savedIndex = prefs.getInt('selected_environment_mode');
@@ -1002,17 +1016,14 @@ Future<void> _initSilencePlayer() async {
     }
   }
 
-
-Future<void> _playSingleDing() async {
-  try {
-    final player = AudioPlayer();
-    
-    // Use AssetSource instead of UrlSource
-    await player.play(AssetSource('ding.mp3')); 
-  } catch (e) {
-    debugPrint('Error playing ding sound: $e');
+  Future<void> _playSingleDing() async {
+    try {
+      final player = AudioPlayer();
+      await player.play(AssetSource('ding.mp3'));
+    } catch (e) {
+      debugPrint('Error playing ding sound: $e');
+    }
   }
-}
 
   Future<void> _playErrorCue() async {
     try {
@@ -1031,12 +1042,11 @@ Future<void> _playSingleDing() async {
     }
   }
 
-Future<void> _startRecording({bool playDing = true}) async {
+  Future<void> _startRecording({bool playDing = true}) async {
     if (_isRecording || _isLoading) return;
 
     if (playDing) {
-      // Play ding without letting it block the timer if it fails
-      _playSingleDing(); 
+      _playSingleDing();
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
@@ -1044,22 +1054,23 @@ Future<void> _startRecording({bool playDing = true}) async {
       _isRecording = true;
       _secondsRemaining = _selectedMode.duration;
       _songTitle = null;
-      _artist = null; // Reset timer counter
+      _artist = null;
     });
 
-   _countdownTimer?.cancel();
+    _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_secondsRemaining > 0) {
         setState(() {
           _secondsRemaining--;
         });
-      }if (_secondsRemaining == 0) {
-    timer.cancel();
-    _stopAndSendRecording();
-  }
-});
-    try {
+      }
+      if (_secondsRemaining == 0) {
+        timer.cancel();
+        _stopAndSendRecording();
+      }
+    });
 
+    try {
       String filePath = '';
       if (!kIsWeb) {
         final directory = await getTemporaryDirectory();
@@ -1082,7 +1093,7 @@ Future<void> _startRecording({bool playDing = true}) async {
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
     _isExplicitlyPausedForRecording = false;
-_initSilencePlayer(); // Re-engage background audio lock
+    _initSilencePlayer();
 
     try {
       setState(() {
@@ -1114,7 +1125,7 @@ _initSilencePlayer(); // Re-engage background audio lock
     }
   }
 
-Future<void> _sendAudioToBackend(String path) async {
+  Future<void> _sendAudioToBackend(String path) async {
     final uri = Uri.parse(_backendUrl);
     var request = http.MultipartRequest('POST', uri);
     request.fields['language'] = _selectedLanguage;
@@ -1141,28 +1152,18 @@ Future<void> _sendAudioToBackend(String path) async {
         final data = jsonDecode(response.body);
 
         if (data['success'] == true) {
-          // =========================================================
-          // 1. EXTRACT CONFIDENCE SCORE FROM BACKEND RESPONSE
-          // =========================================================
           final int confidence = (data['confidence'] as num?)?.toInt() ?? 0;
-
-          // =========================================================
-          // 2. PASS TO GATEKEEPER BEFORE UPDATING STATE & PLAYBACK
-          // =========================================================
           final searchResults = [data];
 
-          final filteredResults = LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
+          final filteredResults =
+              LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
             results: List<Map<String, dynamic>>.from(searchResults),
             selectedLanguage: _selectedLanguage,
             getLanguage: (item) => item['language']?.toString() ?? 'en',
             confidenceScore: confidence,
           );
 
-          // =========================================================
-          // 3. CHECK IF GATEKEEPER PASSED (Score >= 80)
-          // =========================================================
           if (filteredResults.isNotEmpty) {
-            // 🟢 HIGH CONFIDENCE MATCH FOUND
             final topMatch = filteredResults.first;
             final String title = topMatch['title'] ?? 'Unknown Title';
             final String artist = topMatch['artist'] ?? 'Unknown Artist';
@@ -1178,7 +1179,6 @@ Future<void> _sendAudioToBackend(String path) async {
 
             await _saveToHistory('$title - $artist');
 
-            // 🎵 Auto-play on Spotify / Apple Music safely!
             if (_preferredMusicApp == 'apple_music' &&
                 _appleMusicUrl != null &&
                 _appleMusicUrl!.isNotEmpty) {
@@ -1187,14 +1187,14 @@ Future<void> _sendAudioToBackend(String path) async {
               _openSpotifyNative(_spotifyUrl!);
             }
           } else {
-            // 🔴 LOW CONFIDENCE / GATE BLOCKED
             _playErrorCue();
             setState(() {
               _songTitle = null;
               _artist = null;
               _spotifyUrl = null;
               _appleMusicUrl = null;
-              _customStatusText = 'No confident match found. Try singing again!';
+              _customStatusText =
+                  'No confident match found. Try singing again!';
             });
           }
         } else {
@@ -1250,11 +1250,11 @@ Future<void> _sendAudioToBackend(String path) async {
     return t(_statusTextKey);
   }
 
-@override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Reczt'),
+        title: const Text('Reczt'),
         centerTitle: true,
       ),
       body: Center(
@@ -1263,9 +1263,6 @@ Future<void> _sendAudioToBackend(String path) async {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // =========================================================
-              // 1. CENTERED TITLE & 3 HORIZONTAL BUTTONS
-              // =========================================================
               Text(
                 t('app_title'),
                 style: const TextStyle(
@@ -1276,19 +1273,15 @@ Future<void> _sendAudioToBackend(String path) async {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Button 1: Settings
                   IconButton(
                     icon: const Icon(Icons.settings, color: Colors.deepPurple),
                     tooltip: t('settings_title'),
                     onPressed: _showPreferencesDialog,
                   ),
                   const SizedBox(width: 16),
-
-                  // Button 2: History
                   IconButton(
                     icon: const Icon(Icons.history, color: Colors.deepPurple),
                     tooltip: t('history_title'),
@@ -1302,8 +1295,6 @@ Future<void> _sendAudioToBackend(String path) async {
                     },
                   ),
                   const SizedBox(width: 16),
-
-                  // Button 3: User Manual (Book Icon)
                   IconButton(
                     icon: const Icon(Icons.menu_book, color: Colors.deepPurple),
                     tooltip: t('User Manual'),
@@ -1314,10 +1305,6 @@ Future<void> _sendAudioToBackend(String path) async {
               const SizedBox(height: 20),
               const Divider(),
               const SizedBox(height: 20),
-
-              // =========================================================
-              // EXISTING RECORDING & MODE SELECTION UI
-              // =========================================================
               Text(
                 t('where_are_you'),
                 style: const TextStyle(
@@ -1505,63 +1492,63 @@ Future<void> _sendAudioToBackend(String path) async {
     );
   }
 
-void _showUserManualDialog(BuildContext context) {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      title: Row(
-        children: [
-          const Icon(Icons.menu_book, color: Colors.deepPurple),
-          const SizedBox(width: 8),
-          Text(t('User Manual')), // Dynamic translation
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildManualStep(
-            step: "1",
-            title: t('step 1'), // Dynamic translation
-            desc: t('step1_desc'),   // Dynamic translation
-          ),
-          const Divider(height: 20),
-          _buildManualStep(
-            step: "2",
-            title: t('step 2'), // Dynamic translation
-            desc: t('step2_desc'),   // Dynamic translation
-          ),
-          const Divider(height: 20),
-          _buildManualStep(
-            step: "3",
-            title: t('step 3'), // Dynamic translation
-            desc: t('step3_desc'),   // Dynamic translation
-          ),
-          const Divider(height: 20),
-          _buildManualStep(
-            step: "4",
-            title: t('step 4'), // Dynamic translation
-            desc: t('step4_desc'),   // Dynamic translation
-          ),
-          const Divider(height: 20),
-          _buildManualStep(
-            step: "5",
-            title: t('step 5'), // Dynamic translation
-            desc: t('step5_desc'),   // Dynamic translation
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(t('got it')), // Dynamic translation
+  void _showUserManualDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
-      ],
-    ),
-  );
-}
+        title: Row(
+          children: [
+            const Icon(Icons.menu_book, color: Colors.deepPurple),
+            const SizedBox(width: 8),
+            Text(t('User Manual')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildManualStep(
+              step: "1",
+              title: t('step 1'),
+              desc: t('step1_desc'),
+            ),
+            const Divider(height: 20),
+            _buildManualStep(
+              step: "2",
+              title: t('step 2'),
+              desc: t('step2_desc'),
+            ),
+            const Divider(height: 20),
+            _buildManualStep(
+              step: "3",
+              title: t('step 3'),
+              desc: t('step3_desc'),
+            ),
+            const Divider(height: 20),
+            _buildManualStep(
+              step: "4",
+              title: t('step 4'),
+              desc: t('step4_desc'),
+            ),
+            const Divider(height: 20),
+            _buildManualStep(
+              step: "5",
+              title: t('step 5'),
+              desc: t('step5_desc'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(t('got it')),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildManualStep({
     required String step,
