@@ -1,5 +1,5 @@
-# Set global platform to iOS 13.0
-platform :ios, '14.0' 
+# Set global platform to iOS 14.0
+platform :ios, '14.0'
 
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
@@ -33,6 +33,7 @@ target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
 
+# FORCE ALL PODS AND TARGETS TO iOS 14.0
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
