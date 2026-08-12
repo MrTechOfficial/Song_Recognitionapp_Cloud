@@ -27,7 +27,9 @@ jobs:
 
       - name: Get Dependencies
         run: flutter pub get
-
+      - name: Set iOS Minimum Version
+        run: |
+          sed -i '' "s/platform :ios, '[0-9.]*'/platform :ios, '13.0'/g" ios/Podfile
       - name: Patch iOS Target & Inject xcconfig Overrides
         run: |
           # Set deployment target to iOS 13.0
