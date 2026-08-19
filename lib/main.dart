@@ -26,7 +26,6 @@ final Map<String, Map<String, String>> localizedStrings = {
     'where_are_you': 'Where Are You?',
     'quiet_room': 'A quiet room',
     'loud_room': 'A loud room with background noise',
-    'skiing': 'Skiing',
     'initial_status': 'Select your environment and tap the mic or squeeze AirPods stem!',
     'listening': 'Listening...',
     'searching': 'Searching database...',
@@ -57,13 +56,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'View Your History',
     'step5_desc': 'Can\'t remember the song you just listened to? View your search history by clicking the clock icon on the main page of Reczt.',
     'got it': 'Got it!',
+    'Outdoors': 'Outdoors',
   },
   'es': {
     'app_title': 'Identificador de Canciones',
     'where_are_you': '¿Dónde estás?',
     'quiet_room': 'Una habitación silenciosa',
     'loud_room': 'Una habitación ruidosa con ruido de fondo',
-    'skiing': 'Esquiando',
     'initial_status': '¡Selecciona tu entorno y toca el micrófono o presiona tus AirPods!',
     'listening': 'Escuchando...',
     'searching': 'Buscando en la base de datos...',
@@ -94,13 +93,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Paso 5: Ver tu historial',
     'step5_desc': '¿No recuerdas la canción que acabas de escuchar? Puedes ver tu historial de búsqueda haciendo clic en el icono del reloj en la página principal de Reczt.',
     'got it': '¡Entendido!',
+    'Outdoors': 'Al aire libre',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
     'where_are_you': 'Où êtes-vous ?',
     'quiet_room': 'Une pièce calme',
     'loud_room': 'Une pièce bruyante avec du bruit de fond',
-    'skiing': 'En train de skier',
     'initial_status': 'Sélectionnez votre environnement et appuyez sur le micro !',
     'listening': 'Écoute en cours...',
     'searching': 'Recherche dans la base de données...',
@@ -131,13 +130,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Étape 5 : Consultez votre historique',
     'step5_desc': 'Vous ne vous souvenez pas de la chanson que vous venez d\'écouter ? Vous pouvez consulter votre historique de recherche en cliquant sur l\'icône de l\'horloge sur la page principale de Reczt.',
     'got it': 'Compris !',
+    'Outdoors': 'En plein air',
   },
   'de': {
     'app_title': 'Song-Erkennung',
     'where_are_you': 'Wo bist du?',
     'quiet_room': 'Ein ruhiger Raum',
     'loud_room': 'Ein lauter Raum mit Hintergrundgeräuschen',
-    'skiing': 'Skifahren',
     'initial_status': 'Wähle deine Umgebung und tippe auf das Mikrofon!',
     'listening': 'Zuhören...',
     'searching': 'Datenbank wird durchsucht...',
@@ -168,13 +167,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Schritt 5: Sieh dir deinen Verlauf an',
     'step5_desc': 'Kannst du dich nicht an den Song erinnern, den du gerade gehört hast? Sieh dir deinen Suchverlauf an, indem du auf das Uhrensymbol auf der Hauptseite von Reczt klickst.',
     'got it': 'Verstanden!',
+    'Outdoors': 'Draußen',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
     'where_are_you': 'Dove ti trovi?',
     'quiet_room': 'Una stanza silenziosa',
     'loud_room': 'Una stanza rumorosa',
-    'skiing': 'Sciare',
     'initial_status': 'Seleziona l\'ambiente e tocca il microfono!',
     'listening': 'Ascolto in corso...',
     'searching': 'Ricerca nel database...',
@@ -205,13 +204,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Passo 5: Visualizza la tua cronologia',
     'step5_desc': 'Non ricordi la canzone che hai appena ascoltato? Visualizza la cronologia delle ricerche cliccando sull\'icona dell\'orologio nella pagina principale di Reczt.',
     'got it': 'Capito!',
+    'Outdoors': 'All\'aperto',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
     'where_are_you': 'Onde você está?',
     'quiet_room': 'Um quarto silencioso',
     'loud_room': 'Um ambiente barulhento',
-    'skiing': 'Esquiando',
     'initial_status': 'Selecione seu ambiente e toque no microfone!',
     'listening': 'Ouvindo...',
     'searching': 'Buscando no banco de dados...',
@@ -242,13 +241,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Passo 5: Visualize seu histórico',
     'step5_desc': 'Não se lembra da música que acabou de ouvir? Visualize o histórico de buscas clicando no ícone do relógio na página principal do Reczt.',
     'got it': 'Entendi!',
+    'Outdoors': 'Ao ar livre',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
     'where_are_you': 'どこにいますか？',
     'quiet_room': '静かな部屋',
     'loud_room': '騒がしい場所',
-    'skiing': 'スキー中',
     'initial_status': '環境を選択してマイクをタップしてください！',
     'listening': '聞き取り中...',
     'searching': 'データベースを検索中...',
@@ -279,13 +278,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': '手順 5: 履歴を表示する',
     'step5_desc': '最近聞いた曲が思い出せませんか？ Recztのメインページで時計アイコンをクリックして検索履歴を表示できます。',
     'got it': '了解しました！',
+    'Outdoors': '屋外',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
     'where_are_you': '어디에 계신가요?',
     'quiet_room': '조용한 방',
     'loud_room': '시끄러운 장소',
-    'skiing': '스키 타는 중',
     'initial_status': '환경을 선택하고 마이크를 탭하세요!',
     'listening': '듣는 중...',
     'searching': '데이터베이스 검색 중...',
@@ -316,13 +315,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': '5단계: 기록 보기',
     'step5_desc': '방금 들은 노래가 기억나지 않나요? Reczt의 메인 페이지에서 시계 아이콘을 클릭하여 검색 기록을 확인할 수 있습니다.',
     'got it': '알겠습니다!',
+    'Outdoors': '야외',
   },
   'zh': {
     'app_title': '歌曲识别器',
     'where_are_you': '你在哪里？',
     'quiet_room': '安静的房间',
     'loud_room': '吵闹的环境',
-    'skiing': '滑雪中',
     'initial_status': '选择你的环境并轻按麦克风！',
     'listening': '正在聆听...',
     'searching': '正在搜索数据库...',
@@ -353,13 +352,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': '第五步：查看历史记录',
     'step5_desc': '记不起刚听过的歌曲吗？在 Reczt 的主页面上点击时钟图标来查看搜索历史。',
     'got it': '明白了！',
+    'Outdoors': '户外',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
     'where_are_you': 'आप कहाँ हैं?',
     'quiet_room': 'शांत कमरा',
     'loud_room': 'शोर-शराबे वाली जगह',
-    'skiing': 'स्कीइंग',
     'initial_status': 'पर्यावरण चुनें और माइक पर टैप करें!',
     'listening': 'सुन रहा है...',
     'searching': 'डेटाबेस में खोज रहा है...',
@@ -390,13 +389,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'चरण 5: অপনা ইতিহাস দেখেন',
     'step5_desc': 'ক্যা আপকো মনে না হয় কি আপনি এখনই কোনো গানা শুনেছিলেন? Reczt এর প্রধান পৃষ্ঠায় ঘড়ির আইকনের উপরে click করে আপ અપनાર search historyকে view کرতے پারবেن।',
     'got it': 'समझ गया!',
+    'Outdoors': 'बाहर',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
     'where_are_you': 'Где вы находитесь?',
     'quiet_room': 'Тихая комната',
     'loud_room': 'Шумное помещение',
-    'skiing': 'Катание на лыжах',
     'initial_status': 'Выберите обстановку и нажмите на микрофон!',
     'listening': 'Слушаю...',
     'searching': 'Поиск в базе данных...',
@@ -427,13 +426,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Шаг 5: Просмотр истории',
     'step5_desc': 'Не можете вспомнить песню, которую только что слушали? Просмотрите историю поиска, нажав на значок часов на главной странице Reczt.',
     'got it': 'С понятием!',
+    'Outdoors': 'На улице',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
     'where_are_you': 'Neredesiniz?',
     'quiet_room': 'Sessiz bir oda',
     'loud_room': 'Gürültülü bir ortam',
-    'skiing': 'Kayak yaparken',
     'initial_status': 'Ortamınızı seçin ve mikrofona dokunun!',
     'listening': 'Dinleniyor...',
     'searching': 'Veritabanı aranıyor...',
@@ -464,13 +463,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Adım 5: Geçmişinizi Görüntüleyin',
     'step5_desc': 'Az önce dinlediğiniz şarkıyı hatırlamıyor musunuz? Reczt ana sayfasındaki saat simgesine tıklayarak arama geçmişinizi görüntüleyebilirsiniz.',
     'got it': 'Anladım!',
+    'Outdoors': 'Dışarıda',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
     'where_are_you': 'أين أنت؟',
     'quiet_room': 'غرفة هادئة',
     'loud_room': 'مكان صاخب',
-    'skiing': 'التزلج',
     'initial_status': 'حدد بيئتك واضغط على الميكروفون!',
     'listening': 'جاري الاستماع...',
     'searching': 'جاري البحث...',
@@ -501,13 +500,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'الخطوة 5: عرض سجل البحث الخاص بك',
     'step5_desc': 'هل لا تتذكر الأغنية التي استمعت إليها للتو؟ يمكنك عرض سجل البحث الخاص بك بالنقر على أيقونة الساعة في الصفحة الرئيسية لتطبيق Reczt.',
     'got it': 'فهمت!',
+    'Outdoors': 'في الهواء الطلق',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
     'where_are_you': 'Waar ben je?',
     'quiet_room': 'Een stille ruimte',
     'loud_room': 'Een drukke ruimte',
-    'skiing': 'Skiën',
     'initial_status': 'Kies je omgeving en tik op de microfoon!',
     'listening': 'Luisteren...',
     'searching': 'Database zoeken...',
@@ -538,13 +537,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Stap 5: Bekijk je geschiedenis',
     'step5_desc': 'Kun je je niet herinneren welk nummer je net hebt gehoord? Je kunt je zoekgeschiedenis bekijken door op het klokpictogram op de startpagina van Reczt te klikken.',
     'got it': 'Verstanden!',
+    'Outdoors': 'Op het plaatje'
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
     'where_are_you': 'Gdzie jesteś?',
     'quiet_room': 'Ciche pomieszczenie',
     'loud_room': 'Głośne otoczenie',
-    'skiing': 'Jazda na nartach',
     'initial_status': 'Wybierz otoczenie i dotknij mikrofonu!',
     'listening': 'Słucham...',
     'searching': 'Wyszukiwanie w bazie...',
@@ -575,6 +574,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Krok 5: Sprawdź swoją historię',
     'step5_desc': 'Nie pamiętasz, jaką piosenkę właśnie słuchałeś? Możesz sprawdzić historię wyszukiwania, klikając ikonę zegara na stronie głównej Reczt.',
     'got it': 'Zrozumiano!',
+    'Outdoors': 'Na zewnątrz',
   },
 };
 
@@ -595,7 +595,7 @@ class MyApp extends StatelessWidget {
 enum EnvironmentMode {
   quiet(duration: 6, icon: Icons.king_bed, key: 'quiet_room'),
   loud(duration: 8, icon: Icons.volume_up, key: 'loud_room'),
-  skiing(duration: 12, icon: Icons.downhill_skiing, key: 'skiing');
+  Outdoors(duration: 12, icon: Icons.forest, key: 'Outdoors');
 
   final int duration;
   final IconData icon;
@@ -770,7 +770,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   bool _isRecording = false;
   bool _isLoading = false;
 
-  EnvironmentMode _selectedMode = EnvironmentMode.skiing;
+  EnvironmentMode _selectedMode = EnvironmentMode.Outdoors;
   int _secondsRemaining = 12;
   Timer? _autoStopTimer;
   Timer? _countdownTimer;
@@ -947,24 +947,17 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   bool _isExplicitlyPausedForRecording = false;
 
   Future<void> _initSilencePlayer() async {
-    try {
-      await _silencePlayer.setReleaseMode(ReleaseMode.loop);
-
-      _silencePlayer.onPlayerStateChanged.listen((state) {
-        debugPrint("Silence Player State Changed: $state");
-
-        if ((state == PlayerState.paused || state == PlayerState.stopped) &&
-            !_isExplicitlyPausedForRecording) {
-          debugPrint("Silence track was interrupted! Auto-restarting loop...");
-          _silencePlayer.play(AssetSource('silence.mp3'));
-        }
-      });
-
-      await _silencePlayer.play(AssetSource('silence.mp3'));
-      debugPrint("Silence track successfully locked in forever-loop!");
-    } catch (e) {
-      debugPrint("Error initializing silence player: $e");
-    }
+  try {
+    // This natively tells the player to loop forever without manual listeners
+    await _silencePlayer.setReleaseMode(ReleaseMode.loop);
+    
+    // Start playing it immediately when the app opens
+    await _silencePlayer.play(AssetSource('silence.mp3'));
+    
+    debugPrint("Silence player started and set to loop natively.");
+  } catch (e) {
+    debugPrint("Error starting silence player: $e");
+  }
   }
 
   Future<void> _loadSavedMode() async {
@@ -1228,11 +1221,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   }
 
   Future<void> _openMusicUrl(String url) async {
-    try {
-      await _silencePlayer.stop();
-    } catch (e) {
-      debugPrint('Error stopping silence player: $e');
-    }
+  await _silencePlayer.stop();
+  
+  // 2. Launch Spotify/Apple Music
 
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {

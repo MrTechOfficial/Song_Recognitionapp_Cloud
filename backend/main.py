@@ -140,7 +140,6 @@ def get_official_spotify_track(title: str, artist: str, language: str = "en"):
     
     MIN_POPULARITY = 65
 
-
     clean_title = re.sub(r"[^\w\s]", "", title)
     clean_artist = re.sub(r"[^\w\s]", "", artist)
     query = f"{clean_title} {clean_artist}".strip()
@@ -214,6 +213,10 @@ def transcribe_audio_with_groq(audio_file_path: str, language: str = "en") -> st
 @app.get("/")
 def read_root():
     return {"status": "ACRCloud + Groq Whisper + Spotify + Apple Music + Genius Active"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 @app.post("/recognize")
 async def recognize_audio(
