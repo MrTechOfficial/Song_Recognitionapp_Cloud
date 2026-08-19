@@ -25,13 +25,17 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Set iOS Minimum Version in Podfile
+        run: |
+          sed -i '' "s/platform :ios, '[0-9.]*'/platform :ios, '14.0'/g" ios/Podfile
+
       - name: Get Dependencies
         run: flutter pub get
-    
+     
       - name: Patch iOS Target & Inject xcconfig Overrides
         run: |
-          # Set deployment target to iOS 13.0
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          # Set deployment target to iOS 14.0
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/g' ios/Runner.xcodeproj/project.pbxproj
           
           # Inject dummy Team ID and disable signing directly via Release.xcconfig
           echo "DEVELOPMENT_TEAM=ABC1234567" >> ios/Flutter/Release.xcconfig
@@ -39,7 +43,10 @@ jobs:
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
           echo "EXPANDED_CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
-    
+
+      - name: Generate Flutter iOS Files (Creates Generated.xcconfig)
+        run: flutter build ios --release --no-codesign --config-only
+
       - name: Install CocoaPods
         run: |
           cd ios
@@ -59,8 +66,3 @@ jobs:
         with:
           name: song_recognition_app
           path: song_recognition.ipa
-      - name: Build iOS App
-        run: flutter build ios --release --no-codesign
-      - name: Set iOS Minimum Version
-        run: |
-          sed -i '' "s/platform :ios, '[0-9.]*'/platform :ios, '13.0'/g" ios/Podfile
