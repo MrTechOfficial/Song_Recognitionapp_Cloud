@@ -1043,11 +1043,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       await Future.delayed(const Duration(milliseconds: 300));
     }
 
-    setState(() {
+setState(() {
       _isRecording = true;
       _secondsRemaining = _selectedMode.duration;
       _songTitle = null;
       _artist = null;
+      _customStatusText = null; // <-- ADD THIS LINE to clear the old error message!
     });
 
     _countdownTimer?.cancel();
