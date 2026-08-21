@@ -57,6 +57,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Can\'t remember the song you just listened to? View your search history by clicking the clock icon on the main page of Reczt.',
     'got it': 'Got it!',
     'Outdoors': 'Outdoors',
+    'no_valid_match': 'No valid match met the dynamic confidence score. Try again!',
   },
   'es': {
     'app_title': 'Identificador de Canciones',
@@ -94,6 +95,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': '¿No recuerdas la canción que acabas de escuchar? Puedes ver tu historial de búsqueda haciendo clic en el icono del reloj en la página principal de Reczt.',
     'got it': '¡Entendido!',
     'Outdoors': 'Al aire libre',
+    'no_valid_match': 'Ninguna coincidencia válida cumplió con la puntuación de confianza dinámica. ¡Inténtalo de nuevo!',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
@@ -131,6 +133,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Vous ne vous souvenez pas de la chanson que vous venez d\'écouter ? Vous pouvez consulter votre historique de recherche en cliquant sur l\'icône de l\'horloge sur la page principale de Reczt.',
     'got it': 'Compris !',
     'Outdoors': 'En plein air',
+    'no_valid_match': 'Aucune correspondance valide n\'a atteint le score de confiance dynamique. Réessayez !',
   },
   'de': {
     'app_title': 'Song-Erkennung',
@@ -168,6 +171,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Kannst du dich nicht an den Song erinnern, den du gerade gehört hast? Sieh dir deinen Suchverlauf an, indem du auf das Uhrensymbol auf der Hauptseite von Reczt klickst.',
     'got it': 'Verstanden!',
     'Outdoors': 'Draußen',
+    'no_valid_match': 'Kein gültiger Treffer hat die dynamische Vertrauenspunktzahl erreicht. Versuche es erneut!',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
@@ -205,6 +209,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Non ricordi la canzone che hai appena ascoltato? Visualizza la cronologia delle ricerche cliccando sull\'icona dell\'orologio nella pagina principale di Reczt.',
     'got it': 'Capito!',
     'Outdoors': 'All\'aperto',
+    'no_valid_match': 'Nessuna corrispondenza valida ha raggiunto il punteggio di fiducia dinamico. Riprova!',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
@@ -242,6 +247,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Não se lembra da música que acabou de ouvir? Visualize o histórico de buscas clicando no ícone do relógio na página principal do Reczt.',
     'got it': 'Entendi!',
     'Outdoors': 'Ao ar livre',
+    'no_valid_match': 'Nenhuma correspondência válida atingiu a pontuação de confiança dinâmica. Tente novamente!',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
@@ -279,6 +285,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': '最近聞いた曲が思い出せませんか？ Recztのメインページで時計アイコンをクリックして検索履歴を表示できます。',
     'got it': '了解しました！',
     'Outdoors': '屋外',
+    'no_valid_match': '有効な一致が動的信頼スコアを満たしませんでした。もう一度お試しください！',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
@@ -316,6 +323,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': '방금 들은 노래가 기억나지 않나요? Reczt의 메인 페이지에서 시계 아이콘을 클릭하여 검색 기록을 확인할 수 있습니다.',
     'got it': '알겠습니다!',
     'Outdoors': '야외',
+    'no_valid_match': '유효한 일치 항목이 동적 신뢰 점수를 충족하지 못했습니다. 다시 시도하세요!',
   },
   'zh': {
     'app_title': '歌曲识别器',
@@ -353,6 +361,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': '记不起刚听过的歌曲吗？在 Reczt 的主页面上点击时钟图标来查看搜索历史。',
     'got it': '明白了！',
     'Outdoors': '户外',
+    'no_valid_match': '没有有效的匹配满足动态置信度分数。请再试一次！',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
@@ -390,6 +399,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'क्या आपको याद न हो कि आपने अभी कोई गाना सुना था? Reczt के मुख्य पृष्ठ पर घड़ी के आइकॉन के ऊपर click करके आप अपनी search history को view कर सकते हैं।',
     'got it': 'समझ गया!',
     'Outdoors': 'बाहर',
+    'no_valid_match': 'कोई मान्य मिलान गतिशील विश्वास स्कोर को पूरा नहीं करता है। फिर से प्रयास करें!',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
@@ -427,6 +437,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Не можете вспомнить песню, которую только что слушали? Просмотрите историю поиска, нажав на значок часов на главной странице Reczt.',
     'got it': 'С понятием!',
     'Outdoors': 'На улице',
+    'no_valid_match': 'Ни одно совпадение не достигло динамического уровня достоверности. Попробуйте еще раз!',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
@@ -464,6 +475,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Az önce dinlediğiniz şarkıyı hatırlamıyor musunuz? Reczt ana sayfasındaki saat simgesine tıklayarak arama geçmişinizi görüntüleyebilirsiniz.',
     'got it': 'Anladım!',
     'Outdoors': 'Dışarıda',
+    'no_valid_match': 'Geçerli bir eşleşme dinamik güven puanına ulaşamadı. Tekrar deneyin!',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
@@ -501,6 +513,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'هل لا تتذكر الأغنية التي استمعت إليها للتو؟ يمكنك عرض سجل البحث الخاص بك بالنقر على أيقونة الساعة في الصفحة الرئيسية لتطبيق Reczt.',
     'got it': 'فهمت!',
     'Outdoors': 'في الهواء الطلق',
+    'no_valid_match': 'لم يصل أي تطابق صالح إلى درجة الثقة الديناميكية. حاول مرة أخرى!',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
@@ -537,7 +550,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 5': 'Stap 5: Bekijk je geschiedenis',
     'step5_desc': 'Kun je je niet herinneren welk nummer je net hebt gehoord? Je kunt je zoekgeschiedenis bekijken door op het klokpictogram op de startpagina van Reczt te klikken.',
     'got it': 'Verstanden!',
-    'Outdoors': 'Op het plaatje'
+    'Outdoors': 'Op het plaatje',
+    'no_valid_match': 'Geen geldige match voldoet aan de dynamische vertrouwensscore. Probeer het opnieuw!'
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
@@ -575,6 +589,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Nie pamiętasz, jaką piosenkę właśnie słuchałeś? Możesz sprawdzić historię wyszukiwania, klikając ikonę zegara na stronie głównej Reczt.',
     'got it': 'Zrozumiano!',
     'Outdoors': 'Na zewnątrz',
+    'no_valid_match': 'Geen geldige match voldoet aan de dynamische vertrouwensscore. Probeer het opnieuw!'
   },
 };
 
@@ -1062,17 +1077,6 @@ Future<void> _stopAndSendRecording() async {
           }).toList();
 
           if (validResults.isNotEmpty) {
-            validResults.sort((a, b) {
-              final double scoreA = LanguageMatcher.calculateCompositeScore(
-                (a['confidence'] as num?)?.toInt() ?? 0,
-                (a['popularity'] as num?)?.toInt() ?? 0,
-              );
-              final double scoreB = LanguageMatcher.calculateCompositeScore(
-                (b['confidence'] as num?)?.toInt() ?? 0,
-                (b['popularity'] as num?)?.toInt() ?? 0,
-              );
-              return scoreB.compareTo(scoreA);
-            });
 
             final topMatch = validResults.first;
             final String title = topMatch['title'] ?? 'Unknown Title';
@@ -1102,8 +1106,7 @@ Future<void> _stopAndSendRecording() async {
               _artist = null;
               _spotifyUrl = null;
               _appleMusicUrl = null;
-              _customStatusText =
-                  'No valid match met the dynamic confidence score. Try again!';
+              _customStatusText = t('no_valid_match');
             });
           }
         } else {
@@ -1728,23 +1731,6 @@ class LanguageMatcher {
     return false;
   }
 
-  /// ADDED: Calculates dynamic confidence threshold based on environment mode
-  static double getDynamicThreshold(EnvironmentMode mode) {
-    switch (mode) {
-      case EnvironmentMode.quiet:
-        return 25.0; // Quiet room requires clear, high match precision
-      case EnvironmentMode.loud:
-        return 15.0; // Lower raw match threshold due to background noise floor
-      case EnvironmentMode.Outdoors:
-        return 20.0; // Moderate threshold for ambient background noise
-    }
-  }
-
-  /// ADDED: Combines acoustic confidence (70%) and popularity score (30%)
-  static double calculateCompositeScore(int confidence, int popularity) {
-    return (confidence * 0.9) + (popularity * 0.1);
-  }
-
   /// STRICT FILTER: Blocks covers, karaoke versions, tribute bands, and album-to-title duplicates
   static bool isValidOriginalSong(Map<String, dynamic> trackData) {
     final String title = (trackData['title'] ?? '').toString().toLowerCase();
@@ -1782,11 +1768,9 @@ class LanguageMatcher {
     required String Function(T) getLanguage,
     required EnvironmentMode mode,
   }) {
-    final double requiredThreshold = getDynamicThreshold(mode);
 
     final matchedResults = results.where((item) {
       final trackLang = getLanguage(item);
-      final int confidence = (item['confidence'] as num?)?.toInt() ?? 0;
 
       final bool langOk = isLanguageMatch(
         userLanguage: selectedLanguage,
@@ -1795,7 +1779,7 @@ class LanguageMatcher {
       );
 
       // ADDED: Filters out results below the dynamic environment threshold
-      return langOk && confidence >= requiredThreshold;
+      return langOk;
     }).toList();
 
     return matchedResults;
