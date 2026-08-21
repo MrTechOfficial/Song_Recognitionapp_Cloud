@@ -385,9 +385,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step 3': 'चरण 3: गाओ!',
     'step3_desc': 'गाने की पहचान करने की प्रक्रिया शुरू करने के लिए माइक्रोफ़ोन बटन पर क्लिक करें या "Hey Siri, Activate Reczt" कहें।',
     'step 4': 'चरण 4: अपने संगीत का आनंद लें!',
-    'step4_desc': 'एक बार जब कोई गाना पहचाना जाता है, तो आप ইसे सीधे অपनी पसंदीदा म्यूजिक ঐप में চला सकते हैं।',
-    'step 5': 'चरण 5: অপনা ইতিহাস দেখেন',
-    'step5_desc': 'ক্যা আপকো মনে না হয় কি আপনি এখনই কোনো গানা শুনেছিলেন? Reczt এর প্রধান পৃষ্ঠায় ঘড়ির আইকনের উপরে click করে আপ અપनાર search historyকে view کرতے پারবেن।',
+    'step4_desc': 'एक बार जब कोई गाना पहचाना जाता है, तो आप इसे सीधे अपनी पसंदीदा म्यूजिक ऐप में चला सकते हैं।',
+    'step 5': 'चरण 5: अपना इतिहास देखें',
+    'step5_desc': 'क्या आपको याद न हो कि आपने अभी कोई गाना सुना था? Reczt के मुख्य पृष्ठ पर घड़ी के आइकॉन के ऊपर click करके आप अपनी search history को view कर सकते हैं।',
     'got it': 'समझ गया!',
     'Outdoors': 'बाहर',
   },
@@ -470,7 +470,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'where_are_you': 'أين أنت؟',
     'quiet_room': 'غرفة هادئة',
     'loud_room': 'مكان صاخب',
-    'initial_status': 'بك واضغط على الميكروفوناختر البيئة الخاصة أو قُل: "Hey Siri, Activate Reczt!',
+    'initial_status': 'ابك واضغط على الميكروفوناختر البيئة الخاصة أو قُل: "Hey Siri, Activate Reczt!',
     'listening': 'جاري الاستماع...',
     'searching': 'جاري البحث...',
     'match_found': 'تم العثور على الأغنية!',
@@ -586,7 +586,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      locale: Locale(currentLang), // Replaces _currentLocale
+      locale: Locale(currentLang),
       home: const AudioRecorderScreen(),
     );
   }
@@ -615,10 +615,8 @@ class AudioRecorderScreen extends StatefulWidget {
   State<AudioRecorderScreen> createState() => _AudioRecorderScreenState();
 }
 
-class _AudioRecorderScreenState extends State<AudioRecorderScreen>
-    with WidgetsBindingObserver {
+class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsBindingObserver {
 
-  // IMPORTANT: Ensure this string matches AppDelegate.swift exactly!
   static const MethodChannel _siriChannel =
       MethodChannel('com.handsfreefinder/siri');
 
@@ -637,10 +635,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       ),
     ));
 
-    // Register lifecycle observer for Siri background-to-foreground triggers
     WidgetsBinding.instance.addObserver(this);
 
-    // Initialize audio players & app settings
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
@@ -655,44 +651,37 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       _initSiriListener();
     }
 
-    // 1. WARM START: Listen for live Siri signals while app is open/in background
     _siriChannel.setMethodCallHandler((call) async {
       if (call.method == 'startSiriRecognition') {
         _checkAndStartSiriRecording();
       }
     });
 
-    // 2. COLD START: Check if Siri launched the app from a fully closed state
     _checkColdStartSiri();
   }
-
-  // -----------------------------------------------------------
-  // SIRI TRIGGER & COLD START METHODS (INSIDE CLASS)
-  // -----------------------------------------------------------
-
-  /// Checks SharedPreferences flag to see if app was launched via Siri from cold start
+String _getDisplayStatusText() {
+    if (_customStatusText != null) {
+      return _customStatusText!;
+    }
+    if (_isRecording) {
+      return '${t('listening')} (${_secondsRemaining}s)';
+    }
+    return t(_statusTextKey);
+  }
   Future<void> _checkColdStartSiri() async {
     final prefs = await SharedPreferences.getInstance();
     final bool launchedFromSiri = prefs.getBool('launchedFromSiri') ?? false;
 
     if (launchedFromSiri) {
-      // Wipe the flag immediately so normal app launches don't re-trigger
       await prefs.setBool('launchedFromSiri', false);
-
-      // Start Siri recording process
       _checkAndStartSiriRecording();
     }
   }
 
-  /// Triggers recording with native channel verification and delay for mic handoff
   Future<void> _checkAndStartSiriRecording() async {
     try {
-      debugPrint("=== DEBUG: Invoking checkSiriTrigger on native channel... ===");
       final dynamic result = await _siriChannel.invokeMethod('checkSiriTrigger');
-      debugPrint("=== DEBUG: checkSiriTrigger returned: $result ===");
-
       if (result == true) {
-        debugPrint("=== DEBUG: Siri trigger was TRUE! Starting recorder... ===");
         _isExplicitlyPausedForRecording = true;
         await _silencePlayer.pause();
         await Future.delayed(const Duration(milliseconds: 800));
@@ -702,35 +691,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
             _startRecording();
           }
         }
-      } else {
-        debugPrint("=== DEBUG: Trigger returned false or null. No recording started. ===");
       }
     } catch (e) {
       debugPrint('=== DEBUG ERROR: $e ===');
-    }
-  }
-
-  // Self-healing retry function to handle Siri microphone handoff
-  Future<void> _startRecordingWithRetry() async {
-    int attempts = 0;
-    bool success = false;
-
-    while (attempts < 3 && !success && mounted) {
-      attempts++;
-      try {
-        debugPrint("Attempting to start recording (Attempt $attempts)...");
-        await _startRecording();
-        success = true;
-        debugPrint("Microphone successfully locked and recording!");
-      } catch (e) {
-        debugPrint("Attempt $attempts failed (Siri still holding hardware): $e");
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-    }
-
-    if (!success) {
-      _isExplicitlyPausedForRecording = false;
-      _initSilencePlayer();
     }
   }
 
@@ -749,8 +712,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      debugPrint("App resumed: ensuring silence player is active...");
-
       if (_silencePlayer.state != PlayerState.playing) {
         _initSilencePlayer();
       }
@@ -807,7 +768,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
-  final String _dingAsset = 'ding.mp3';
   final String _errorSoundUrl =
       'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
 
@@ -927,13 +887,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       if (url != null && url.isNotEmpty) {
         _triggerAutoRecordingFromSiri();
       }
-    }).catchError((e) => debugPrint('Siri initial URL check error: $e'));
+    });
 
     _siriChannel.invokeMethod<bool>('checkSiriTrigger').then((triggered) {
       if (triggered == true) {
         _triggerAutoRecordingFromSiri();
       }
-    }).catchError((e) => debugPrint('Siri trigger check error: $e'));
+    });
   }
 
   void _triggerAutoRecordingFromSiri() {
@@ -947,17 +907,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
   bool _isExplicitlyPausedForRecording = false;
 
   Future<void> _initSilencePlayer() async {
-  try {
-    // This natively tells the player to loop forever without manual listeners
-    await _silencePlayer.setReleaseMode(ReleaseMode.loop);
-    
-    // Start playing it immediately when the app opens
-    await _silencePlayer.play(AssetSource('silence.mp3'));
-    
-    debugPrint("Silence player started and set to loop natively.");
-  } catch (e) {
-    debugPrint("Error starting silence player: $e");
-  }
+    try {
+      await _silencePlayer.setReleaseMode(ReleaseMode.loop);
+      await _silencePlayer.play(AssetSource('silence.mp3'));
+    } catch (e) {
+      debugPrint("Error starting silence player: $e");
+    }
   }
 
   Future<void> _loadSavedMode() async {
@@ -1026,64 +981,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen>
       debugPrint('Error playing failure sound: $e');
     }
   }
-
-  void triggerAirPodsSqueeze() {
-    if (!_isRecording && !_isLoading) {
-      _startRecording(playDing: false);
-    } else if (_isRecording) {
-      _stopAndSendRecording();
-    }
-  }
-
-  Future<void> _startRecording({bool playDing = true}) async {
-    if (_isRecording || _isLoading) return;
-
-    if (playDing) {
-      _playSingleDing();
-      await Future.delayed(const Duration(milliseconds: 300));
-    }
-
-setState(() {
-      _isRecording = true;
-      _secondsRemaining = _selectedMode.duration;
-      _songTitle = null;
-      _artist = null;
-      _customStatusText = null; // <-- ADD THIS LINE to clear the old error message!
-    });
-
-    _countdownTimer?.cancel();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsRemaining > 0) {
-        setState(() {
-          _secondsRemaining--;
-        });
-      }
-      if (_secondsRemaining == 0) {
-        timer.cancel();
-        _stopAndSendRecording();
-      }
-    });
-
-    try {
-      String filePath = '';
-      if (!kIsWeb) {
-        final directory = await getTemporaryDirectory();
-        filePath = '${directory.path}/recording.wav';
-      }
-
-      await _audioRecorder.start(
-        const RecordConfig(encoder: AudioEncoder.wav),
-        path: filePath,
-      );
-    } catch (e) {
-      debugPrint('Error starting recording: $e');
-      setState(() {
-        _isRecording = false;
-      });
-    }
-  }
-
-  Future<void> _stopAndSendRecording() async {
+Future<void> _stopAndSendRecording() async {
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
     _isExplicitlyPausedForRecording = false;
@@ -1118,11 +1016,12 @@ setState(() {
       _playErrorCue();
     }
   }
-
   Future<void> _sendAudioToBackend(String path) async {
     final uri = Uri.parse(_backendUrl);
     var request = http.MultipartRequest('POST', uri);
     request.fields['language'] = _selectedLanguage;
+    request.fields['vocal_isolation'] = 'true'; 
+    request.fields['environment'] = _selectedMode.name; 
 
     try {
       if (kIsWeb) {
@@ -1146,19 +1045,36 @@ setState(() {
         final data = jsonDecode(response.body);
 
         if (data['success'] == true) {
-          final int confidence = (data['confidence'] as num?)?.toInt() ?? 0;
-          final searchResults = [data];
+          final List<Map<String, dynamic>> rawResults = data['results'] != null
+              ? List<Map<String, dynamic>>.from(data['results'])
+              : [data];
 
           final filteredResults =
               LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
-            results: List<Map<String, dynamic>>.from(searchResults),
+            results: rawResults,
             selectedLanguage: _selectedLanguage,
             getLanguage: (item) => item['language']?.toString() ?? 'en',
-            confidenceScore: confidence,
+            mode: _selectedMode,
           );
 
-          if (filteredResults.isNotEmpty) {
-            final topMatch = filteredResults.first;
+          final validResults = filteredResults.where((item) {
+            return LanguageMatcher.isValidOriginalSong(item);
+          }).toList();
+
+          if (validResults.isNotEmpty) {
+            validResults.sort((a, b) {
+              final double scoreA = LanguageMatcher.calculateCompositeScore(
+                (a['confidence'] as num?)?.toInt() ?? 0,
+                (a['popularity'] as num?)?.toInt() ?? 0,
+              );
+              final double scoreB = LanguageMatcher.calculateCompositeScore(
+                (b['confidence'] as num?)?.toInt() ?? 0,
+                (b['popularity'] as num?)?.toInt() ?? 0,
+              );
+              return scoreB.compareTo(scoreA);
+            });
+
+            final topMatch = validResults.first;
             final String title = topMatch['title'] ?? 'Unknown Title';
             final String artist = topMatch['artist'] ?? 'Unknown Artist';
 
@@ -1170,7 +1086,6 @@ setState(() {
               _statusTextKey = 'match_found';
               _customStatusText = null;
             });
-
             await _saveToHistory('$title - $artist');
 
             if (_preferredMusicApp == 'apple_music' &&
@@ -1188,7 +1103,7 @@ setState(() {
               _spotifyUrl = null;
               _appleMusicUrl = null;
               _customStatusText =
-                  'No confident match found. Try singing again!';
+                  'No valid match met the dynamic confidence score. Try again!';
             });
           }
         } else {
@@ -1211,7 +1126,6 @@ setState(() {
       });
     }
   }
-
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
     if (url.startsWith('spotify:track:')) {
@@ -1222,26 +1136,72 @@ setState(() {
   }
 
   Future<void> _openMusicUrl(String url) async {
-  await _silencePlayer.stop();
-  
-  // 2. Launch Spotify/Apple Music
-
+    await _silencePlayer.stop();
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
-
-  String _getDisplayStatusText() {
-    if (_customStatusText != null) {
-      return _customStatusText!;
+  void triggerAirPodsSqueeze() {
+    if (!_isRecording && !_isLoading) {
+      _startRecording(playDing: false);
+    } else if (_isRecording) {
+      _stopAndSendRecording();
     }
-    if (_isRecording) {
-      return '${t('listening')} (${_secondsRemaining}s)';
-    }
-    return t(_statusTextKey);
   }
+  Future<void> _startRecording({bool playDing = true}) async {
+    if (_isRecording || _isLoading) return;
 
+    if (playDing) {
+      _playSingleDing();
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+
+    setState(() {
+      _isRecording = true;
+      _secondsRemaining = _selectedMode.duration;
+      _songTitle = null;
+      _artist = null;
+      _customStatusText = null;
+    });
+
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining > 0) {
+        setState(() {
+          _secondsRemaining--;
+        });
+      }
+      if (_secondsRemaining == 0) {
+        timer.cancel();
+        _stopAndSendRecording();
+      }
+    });
+
+    try {
+      String filePath = '';
+      if (!kIsWeb) {
+        final directory = await getTemporaryDirectory();
+        filePath = '${directory.path}/recording.wav';
+      }
+
+      // ADDED: Hardware noise suppression, echo cancellation, and auto-gain
+      await _audioRecorder.start(
+        RecordConfig(
+          encoder: AudioEncoder.wav,
+          noiseSuppress: true,
+          echoCancel: true,
+          autoGain: true,
+        ),
+        path: filePath,
+      );
+    } catch (e) {
+      debugPrint('Error starting recording: $e');
+      setState(() {
+        _isRecording = false;
+      });
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1735,11 +1695,13 @@ class AirPodsAudioHandler extends BaseAudioHandler {
     return super.click(button);
   }
 }
-// ... all your existing main.dart code and classes end here ...
 
- // <-- Last closing bracket of your _AudioRecorderScreenState class
-
-// PASTE IT HERE (outside any class)
+// ----------------------------------------------------
+// LANGUAGE & STRICT METADATA MATCHING UTILITY
+// ----------------------------------------------------
+// ----------------------------------------------------
+// LANGUAGE, DYNAMIC SCORE, & STRICT METADATA MATCHING UTILITY
+// ----------------------------------------------------
 class LanguageMatcher {
   static String normalizeLanguage(String lang) {
     final cleaned = lang.toLowerCase().trim();
@@ -1750,7 +1712,7 @@ class LanguageMatcher {
     if (cleaned.startsWith('ja') || cleaned == 'japanese') return 'ja';
     if (cleaned.startsWith('ko') || cleaned == 'korean') return 'ko';
     return cleaned.length >= 2 ? cleaned.substring(0, 2) : cleaned;
-    }
+  }
 
   static bool isLanguageMatch({
     required String userLanguage,
@@ -1766,35 +1728,76 @@ class LanguageMatcher {
     return false;
   }
 
-static List<T> filterResultsByLanguage<T>({
+  /// ADDED: Calculates dynamic confidence threshold based on environment mode
+  static double getDynamicThreshold(EnvironmentMode mode) {
+    switch (mode) {
+      case EnvironmentMode.quiet:
+        return 75.0; // Quiet room requires clear, high match precision
+      case EnvironmentMode.loud:
+        return 45.0; // Lower raw match threshold due to background noise floor
+      case EnvironmentMode.Outdoors:
+        return 55.0; // Moderate threshold for ambient background noise
+    }
+  }
+
+  /// ADDED: Combines acoustic confidence (70%) and popularity score (30%)
+  static double calculateCompositeScore(int confidence, int popularity) {
+    return (confidence * 0.7) + (popularity * 0.3);
+  }
+
+  /// STRICT FILTER: Blocks covers, karaoke versions, tribute bands, and album-to-title duplicates
+  static bool isValidOriginalSong(Map<String, dynamic> trackData) {
+    final String title = (trackData['title'] ?? '').toString().toLowerCase();
+    final String artist = (trackData['artist'] ?? '').toString().toLowerCase();
+    final String album = (trackData['album'] ?? '').toString().toLowerCase();
+
+    final List<String> blockedKeywords = [
+      'cover',
+      'karaoke',
+      'tribute',
+      'remake',
+      'in the style of',
+      'instrumental version',
+      'tribute to'
+    ];
+
+    for (String word in blockedKeywords) {
+      if (title.contains(word) || artist.contains(word)) {
+        debugPrint("DEBUG: Rejected track due to blocked keyword '$word': $title by $artist");
+        return false;
+      }
+    }
+
+    if (album.isNotEmpty && album == title) {
+      debugPrint("DEBUG: Rejected track because album name equals track title: '$album'");
+      return false;
+    }
+
+    return true;
+  }
+
+  static List<T> filterResultsByLanguage<T extends Map<String, dynamic>>({
     required List<T> results,
     required String selectedLanguage,
     required String Function(T) getLanguage,
-    required int confidenceScore, // You require it here...
+    required EnvironmentMode mode,
   }) {
+    final double requiredThreshold = getDynamicThreshold(mode);
+
     final matchedResults = results.where((item) {
-      final trackLang = getLanguage(item); // Use the function passed in
-      return isLanguageMatch(
-        userLanguage: selectedLanguage, // Match the parameter name
+      final trackLang = getLanguage(item);
+      final int confidence = (item['confidence'] as num?)?.toInt() ?? 0;
+
+      final bool langOk = isLanguageMatch(
+        userLanguage: selectedLanguage,
         trackLanguage: trackLang,
-        allowUnknown: true, // Assuming you want this true based on your previous code
+        allowUnknown: true,
       );
+
+      // ADDED: Filters out results below the dynamic environment threshold
+      return langOk && confidence >= requiredThreshold;
     }).toList();
 
-    if (matchedResults.isEmpty) {
-      print('DEBUG: No matches found for selected language (${selectedLanguage.toLowerCase()}).');
-      
-      // ...so you DO NOT need to declare it again here! Just use it.
-      
-      // Apply the strict 80+ filter
-      if (confidenceScore >= 80) {
-        print('DEBUG: High confidence match ($confidenceScore%). Accepting fail-safe.');
-        return results; 
-      } else {
-        print('DEBUG: Confidence too low ($confidenceScore%). Rejecting fail-safe to prevent wild guesses.');
-        return []; // Return an empty list so the app correctly says "Song Not Found"
-      }
-    }
     return matchedResults;
-   }
-  } //hrlllooo
+  }
+}
