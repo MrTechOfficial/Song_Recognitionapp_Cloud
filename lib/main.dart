@@ -1732,17 +1732,17 @@ class LanguageMatcher {
   static double getDynamicThreshold(EnvironmentMode mode) {
     switch (mode) {
       case EnvironmentMode.quiet:
-        return 75.0; // Quiet room requires clear, high match precision
+        return 25.0; // Quiet room requires clear, high match precision
       case EnvironmentMode.loud:
-        return 45.0; // Lower raw match threshold due to background noise floor
+        return 15.0; // Lower raw match threshold due to background noise floor
       case EnvironmentMode.Outdoors:
-        return 55.0; // Moderate threshold for ambient background noise
+        return 20.0; // Moderate threshold for ambient background noise
     }
   }
 
   /// ADDED: Combines acoustic confidence (70%) and popularity score (30%)
   static double calculateCompositeScore(int confidence, int popularity) {
-    return (confidence * 0.7) + (popularity * 0.3);
+    return (confidence * 0.9) + (popularity * 0.1);
   }
 
   /// STRICT FILTER: Blocks covers, karaoke versions, tribute bands, and album-to-title duplicates
