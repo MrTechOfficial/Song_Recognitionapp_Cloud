@@ -10,6 +10,13 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 
+# Optional: pydub for audio trimming (falls back gracefully if ffmpeg is missing)
+try:
+    from pydub import AudioSegment
+    PYDUB_AVAILABLE = True
+except ImportError:
+    PYDUB_AVAILABLE = False
+
 # =====================================================================
 # 🔑 CONFIGURATION
 # =====================================================================
@@ -74,6 +81,29 @@ def is_cover_version(title: str, artist: str) -> bool:
     text = f"{title} {artist}".lower()
     return any(keyword in text for keyword in COVER_KEYWORDS)
 
+def trim_silence_if_possible(input_path: str, output_path: str):
+    """Trims leading silence from the audio file to help Whisper start processing immediately."""
+    if not PYDUB_AVAILABLE:
+        shutil.copy(input_path, output_path)
+        return
+    try:
+        audio = AudioSegment.from_file(input_path)
+        def detect_leading_silence(sound, silence_threshold=-40.0, chunk_size=10):
+            trim_ms = 0
+            while trim_ms < len(sound) and sound[trim_ms:trim_ms+chunk_size].dBFS < silence_threshold:
+                trim_ms += chunk_size
+            return trim_ms
+
+        start_trim = detect_leading_silence(audio)
+        end_trim = detect_leading_silence(audio.reverse())
+        duration = len(audio)
+        
+        trimmed_audio = audio[start_trim:max(duration - end_trim, start_trim + 1000)]
+        trimmed_audio.export(output_path, format="wav")
+    except Exception as e:
+        print(f"[SILENCE TRIM WARNING]: {e}. Using original audio.")
+        shutil.copy(input_path, output_path)
+
 def get_spotify_access_token():
     if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
         return None
@@ -88,24 +118,42 @@ def get_spotify_access_token():
     return None
 
 def resolve_lyrics_to_song_with_genius(lyrics: str):
-    """Uses Genius API to translate transcribed lyrics into the true Title & Artist."""
+    """UPGRADED: Multi-Snippet Fallback. Tries multiple phrase slices to maximize Genius match rates."""
     if not GENIUS_ACCESS_TOKEN:
         return None
     
-    url = f"https://api.genius.com/search?q={requests.utils.quote(lyrics)}"
+    words = lyrics.strip().split()
+    if not words:
+        return None
+    
+    # Generate multi-snippet fallback query options
+    queries = []
+    if len(words) >= 6:
+        queries.append(" ".join(words[:6]))       # First 6 words
+        if len(words) >= 12:
+            queries.append(" ".join(words[6:12]))  # Next chunk of 6 words
+        else:
+            queries.append(" ".join(words[3:9]))   # Overlapping middle chunk
+    else:
+        queries.append(lyrics)
+
     headers = {"Authorization": f"Bearer {GENIUS_ACCESS_TOKEN}"}
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            hits = res.json().get('response', {}).get('hits', [])
-            if hits:
-                top = hits[0]['result']
-                title = top.get('title')
-                artist = top.get('primary_artist', {}).get('name')
-                print(f"[GENIUS LYRIC MATCH]: '{title}' by {artist}")
-                return {"title": title, "artist": artist}
-    except Exception as e:
-        print(f"[GENIUS API ERROR]: {e}")
+    
+    for query in queries:
+        url = f"https://api.genius.com/search?q={requests.utils.quote(query)}"
+        try:
+            res = requests.get(url, headers=headers, timeout=5)
+            if res.status_code == 200:
+                hits = res.json().get('response', {}).get('hits', [])
+                if hits:
+                    top = hits[0]['result']
+                    title = top.get('title')
+                    artist = top.get('primary_artist', {}).get('name')
+                    print(f"[GENIUS MATCH via query '{query}']: '{title}' by {artist}")
+                    return {"title": title, "artist": artist}
+        except Exception as e:
+            print(f"[GENIUS API ERROR for query '{query}']: {e}")
+            
     return None
 
 def get_apple_music_url(title: str, artist: str, language: str = "en") -> str:
@@ -126,7 +174,6 @@ def get_apple_music_url(title: str, artist: str, language: str = "en") -> str:
             results = res.json().get('results', [])
             if results:
                 apple_url = results[0].get('trackViewUrl')
-                print(f"[APPLE MUSIC WINNER ({country_code.upper()})]: {apple_url}")
                 return apple_url or ""
     except Exception as e:
         print(f"[APPLE MUSIC SEARCH ERROR]: {e}")
@@ -175,8 +222,6 @@ def get_official_spotify_track(title: str, artist: str, language: str = "en"):
                 a_name = top_hit['artists'][0]['name']
                 track_id = top_hit.get('id')
 
-                print(f"[SPOTIFY WINNER ({market})]: '{t_name}' by {a_name} (Popularity Score: {top_hit.get('popularity')})")
-
                 return {
                     "title": t_name,
                     "artist": a_name,
@@ -192,9 +237,9 @@ def transcribe_audio_with_groq(audio_file_path: str, language: str = "en") -> st
         return ""
     try:
         with open(audio_file_path, "rb") as audio_file:
-            prompt_text = "Transcribe lyrics sung in audio clip."
+            prompt_text = "The user is singing popular song lyrics. Transcribe accurately, ignoring background noise and accounting for slightly mispronounced words."
             if language != "en":
-                prompt_text = f"Transcribe lyrics sung in language {language}."
+                prompt_text = f"The user is singing popular song lyrics in language {language}. Transcribe accurately."
 
             kwargs = {
                 "model": "whisper-large-v3-turbo",
@@ -212,7 +257,7 @@ def transcribe_audio_with_groq(audio_file_path: str, language: str = "en") -> st
 
 @app.get("/")
 def read_root():
-    return {"status": "ACRCloud + Groq Whisper + Spotify + Apple Music + Genius Active"}
+    return {"status": "ACRCloud + Groq Whisper + Spotify + Apple Music + Genius Fully Optimized"}
 
 @app.get("/health")
 def health_check():
@@ -223,12 +268,16 @@ async def recognize_audio(
     file: UploadFile = File(...),
     language: str = Form("en")
 ):
-    file_ext = os.path.splitext(file.filename)[1] or ".wav"
-    temp_filename = f"temp_recording{file_ext}"
+    raw_filename = f"raw_{file.filename or 'audio.wav'}"
+    processed_filename = f"processed_{file.filename or 'audio.wav'}"
 
     try:
-        with open(temp_filename, "wb") as buffer:
+        # Save raw upload
+        with open(raw_filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+
+        # Trim leading/trailing dead air silence for better audio processing
+        trim_silence_if_possible(raw_filename, processed_filename)
 
         # -------------------------------------------------------------
         # STAGE 1: ACRCLOUD (Exact Fingerprint Match)
@@ -236,7 +285,7 @@ async def recognize_audio(
         sign_data = generate_acr_signature(ACR_CONFIG['host'], ACR_CONFIG['access_key'], ACR_CONFIG['access_secret'])
         url = f"https://{ACR_CONFIG['host']}/v1/identify"
 
-        with open(temp_filename, "rb") as audio_file:
+        with open(processed_filename, "rb") as audio_file:
             response = requests.post(url, data=sign_data, files={'sample': audio_file}, timeout=ACR_CONFIG['timeout'])
             acr_result = response.json()
 
@@ -263,9 +312,9 @@ async def recognize_audio(
                 }
 
         # -------------------------------------------------------------
-        # STAGE 2: GROQ WHISPER + GENIUS LYRIC RESOLVER
+        # STAGE 2: GROQ WHISPER + GENIUS MULTI-SNIPPET FALLBACK
         # -------------------------------------------------------------
-        lyrics = transcribe_audio_with_groq(temp_filename, language=language)
+        lyrics = transcribe_audio_with_groq(processed_filename, language=language)
 
         if lyrics and len(lyrics) > 3:
             genius_match = resolve_lyrics_to_song_with_genius(lyrics)
@@ -291,5 +340,7 @@ async def recognize_audio(
         return {"success": False, "message": f"Server error: {e}"}
 
     finally:
-        if os.path.exists(temp_filename):
-            os.remove(temp_filename)
+        # Cleanup temporary files
+        for fname in [raw_filename, processed_filename]:
+            if os.path.exists(fname):
+                os.remove(fname)
