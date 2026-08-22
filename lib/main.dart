@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:audio_service/audio_service.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,10 +11,17 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  
+  final prefs = await SharedPreferences.getInstance();
+  final int? savedColorValue = prefs.getInt('theme_seed_color');
+  final Color initialSeedColor = savedColorValue != null ? Color(savedColorValue) : Colors.deepPurple;
+  final String initialLang = prefs.getString('preferred_language') ?? 'en';
+
+  runApp(MyApp(currentLang: initialLang, seedColor: initialSeedColor));
 }
 
 // --------------------------------------------------------------------
@@ -58,6 +65,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'Got it!',
     'Outdoors': 'Outdoors',
     'no_valid_match': 'No valid match met the dynamic confidence score. Try again!',
+    'theme_title': 'App Color Theme',
+    'theme_purple': 'Deep Purple',
+    'theme_blue': 'Ocean Blue',
+    'theme_emerald': 'Emerald',
+    'theme_orange': 'Sunset Orange',
+    'auto_play_title': 'Auto-play songs',
   },
   'es': {
     'app_title': 'Identificador de Canciones',
@@ -96,6 +109,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': '¡Entendido!',
     'Outdoors': 'Al aire libre',
     'no_valid_match': 'Ninguna coincidencia válida cumplió con la puntuación de confianza dinámica. ¡Inténtalo de nuevo!',
+    'theme_title': 'Tema de color de la aplicación',
+    'theme_purple': 'Púrpura profundo',
+    'theme_blue': 'Azul océano',
+    'theme_emerald': 'Esmeralda',
+    'theme_orange': 'Naranja atardecer',
+    'auto_play_title': 'Reproducción automática',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
@@ -134,6 +153,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'Compris !',
     'Outdoors': 'En plein air',
     'no_valid_match': 'Aucune correspondance valide n\'a atteint le score de confiance dynamique. Réessayez !',
+    'theme_title': 'Thème de couleur de l\'application',
+    'theme_purple': 'Violet profond',
+    'theme_blue': 'Bleu océan',
+    'theme_emerald': 'Émeraude',
+    'theme_orange': 'Orange crépuscule',
+    'auto_play_title': 'Lecture automatique',
   },
   'de': {
     'app_title': 'Song-Erkennung',
@@ -172,6 +197,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'Verstanden!',
     'Outdoors': 'Draußen',
     'no_valid_match': 'Kein gültiger Treffer hat die dynamische Vertrauenspunktzahl erreicht. Versuche es erneut!',
+    'theme_title': 'App-Farbthema',
+    'theme_purple': 'Tiefes Lila',
+    'theme_blue': 'Ozeanblau',
+    'theme_emerald': 'Smaragd',
+    'theme_orange': 'Sonnenuntergangsorange',
+    'auto_play_title': 'Automatische Wiedergabe',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
@@ -210,6 +241,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'Capito!',
     'Outdoors': 'All\'aperto',
     'no_valid_match': 'Nessuna corrispondenza valida ha raggiunto il punteggio di fiducia dinamico. Riprova!',
+    'theme_title': 'Tema colore app',
+    'theme_purple': 'Viola intenso',
+    'theme_blue': 'Blu oceano',
+    'theme_emerald': 'Smeraldo',
+    'theme_orange': 'Arancione tramonto',
+    'auto_play_title': 'Riproduzione automatica',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
@@ -248,6 +285,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'Entendi!',
     'Outdoors': 'Ao ar livre',
     'no_valid_match': 'Nenhuma correspondência válida atingiu a pontuação de confiança dinâmica. Tente novamente!',
+    'theme_title': 'Tema de cor do app',
+    'theme_purple': 'Roxo profundo',
+    'theme_blue': 'Azul oceano',
+    'theme_emerald': 'Esmeralda',
+    'theme_orange': 'Laranja pôr do sol',
+    'auto_play_title': 'Reprodução automática',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
@@ -286,6 +329,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': '了解しました！',
     'Outdoors': '屋外',
     'no_valid_match': '有効な一致が動的信頼スコアを満たしませんでした。もう一度お試しください！',
+    'theme_title': 'アプリのカラーテーマ',
+    'theme_purple': 'ディープパープル',
+    'theme_blue': 'オーシャンブルー',
+    'theme_emerald': 'エメラルド',
+    'theme_orange': 'サンセットオレンジ',
+    'auto_play_title': '自動再生',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
@@ -324,6 +373,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': '알겠습니다!',
     'Outdoors': '야외',
     'no_valid_match': '유효한 일치 항목이 동적 신뢰 점수를 충족하지 못했습니다. 다시 시도하세요!',
+    'theme_title': '앱 색상 테마',
+    'theme_purple': '딥 퍼플',
+    'theme_blue': '오션 블루',
+    'theme_emerald': '에메랄드',
+    'theme_orange': '선셋 오렌지',
+    'auto_play_title': '자동 재생',
   },
   'zh': {
     'app_title': '歌曲识别器',
@@ -362,6 +417,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': '明白了！',
     'Outdoors': '户外',
     'no_valid_match': '没有有效的匹配满足动态置信度分数。请再试一次！',
+    'theme_title': '应用颜色主题',
+    'theme_purple': '深紫色',
+    'theme_blue': '海洋蓝',
+    'theme_emerald': '绿宝石',
+    'theme_orange': '日落橙',
+    'auto_play_title': '自动播放',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
@@ -400,6 +461,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'समझ गया!',
     'Outdoors': 'बाहर',
     'no_valid_match': 'कोई मान्य मिलान गतिशील विश्वास स्कोर को पूरा नहीं करता है। फिर से प्रयास करें!',
+    'theme_title': 'ऐप रंग थीम',
+    'theme_purple': 'डीप पर्पल',
+    'theme_blue': 'ओशन ब्लू',
+    'theme_emerald': 'एमराल्ड',
+    'theme_orange': 'सनसेट ऑरेंज',
+    'auto_play_title': 'स्वचालित चलना',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
@@ -438,6 +505,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'С понятием!',
     'Outdoors': 'На улице',
     'no_valid_match': 'Ни одно совпадение не достигло динамического уровня достоверности. Попробуйте еще раз!',
+    'theme_title': 'Цветовая тема приложения',
+    'theme_purple': 'Темно-фиолетовый',
+    'theme_blue': 'Океанский синий',
+    'theme_emerald': 'Изумруд',
+    'theme_orange': 'Закатный оранжевый',
+    'auto_play_title': 'Автовоспроизведение',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
@@ -476,6 +549,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'Anladım!',
     'Outdoors': 'Dışarıda',
     'no_valid_match': 'Geçerli bir eşleşme dinamik güven puanına ulaşamadı. Tekrar deneyin!',
+    'theme_title': 'Uygulama Renk Teması',
+    'theme_purple': 'Derin Mor',
+    'theme_blue': 'Okyanus Mavisi',
+    'theme_emerald': 'Zümrüt',
+    'theme_orange': 'Gün Batımı Turuncusu',
+    'auto_play_title': 'Otomatik Oynat',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
@@ -514,6 +593,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'got it': 'فهمت!',
     'Outdoors': 'في الهواء الطلق',
     'no_valid_match': 'لم يصل أي تطابق صالح إلى درجة الثقة الديناميكية. حاول مرة أخرى!',
+    'theme_title': 'موضوع لون التطبيق',
+    'theme_purple': 'أرجواني غامق',
+    'theme_blue': 'أزرق المحيط',
+    'theme_emerald': 'زمردي نيون',
+    'theme_orange': 'برتقالي الغروب',
+    'auto_play_title': 'تشغيل تلقائي',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
@@ -551,7 +636,13 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Kun je je niet herinneren welk nummer je net hebt gehoord? Je kunt je zoekgeschiedenis bekijken door op het klokpictogram op de startpagina van Reczt te klikken.',
     'got it': 'Verstanden!',
     'Outdoors': 'Op het plaatje',
-    'no_valid_match': 'Geen geldige match voldoet aan de dynamische vertrouwensscore. Probeer het opnieuw!'
+    'no_valid_match': 'Geen geldige match voldoet aan de dynamische vertrouwensscore. Probeer het opnieuw!',
+    'theme_title': 'App Kleur Théma',
+    'theme_purple': 'Diep Paars',
+    'theme_blue': 'Oceaan Blauw',
+    'theme_emerald': 'Smaragd',
+    'theme_orange': 'Zonsondergang Oranje',
+    'auto_play_title': 'Automatisch afspelen',
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
@@ -589,19 +680,41 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step5_desc': 'Nie pamiętasz, jaką piosenkę właśnie słuchałeś? Możesz sprawdzić historię wyszukiwania, klikając ikonę zegara na stronie głównej Reczt.',
     'got it': 'Zrozumiano!',
     'Outdoors': 'Na zewnątrz',
-    'no_valid_match': 'Geen geldige match voldoet aan de dynamische vertrouwensscore. Probeer het opnieuw!'
+    'no_valid_match': 'Geen geldige match voldoet aan de dynamische vertrouwensscore. Probeer het opnieuw!',
+    'theme_title': 'Temat koloru aplikacji',
+    'theme_purple': 'Głęboki fiolet',
+    'theme_blue': 'Oceaniczny niebieski',
+    'theme_emerald': 'Smaragdowy',
+    'theme_orange': 'Pomarańczowy zachód słońca',
+    'auto_play_title': 'Automatyczne odtwarzanie',
   },
 };
 
 class MyApp extends StatelessWidget {
   final String currentLang;
+  final Color seedColor;
   
-  const MyApp({super.key, this.currentLang = 'en'});
+  const MyApp({super.key, this.currentLang = 'en', this.seedColor = Colors.deepPurple});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       locale: Locale(currentLang),
+      theme: ThemeData(
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.light,
+        ),
+      ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seedColor,
+          brightness: Brightness.dark,
+        ),
+      ),
+      themeMode: ThemeMode.system,
       home: const AudioRecorderScreen(),
     );
   }
@@ -655,14 +768,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
     _errorPlayer = AudioPlayer();
-    _silencePlayer = AudioPlayer();
 
     _loadSavedMode();
     _loadPreferences();
-    _initSilencePlayer();
+    _checkPendingOfflineQueue();
 
     if (!kIsWeb) {
-      _initAirPodsListener();
       _initSiriListener();
     }
 
@@ -674,7 +785,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     _checkColdStartSiri();
   }
-String _getDisplayStatusText() {
+  
+  String _getDisplayStatusText() {
     if (_customStatusText != null) {
       return _customStatusText!;
     }
@@ -683,6 +795,7 @@ String _getDisplayStatusText() {
     }
     return t(_statusTextKey);
   }
+
   Future<void> _checkColdStartSiri() async {
     final prefs = await SharedPreferences.getInstance();
     final bool launchedFromSiri = prefs.getBool('launchedFromSiri') ?? false;
@@ -698,7 +811,6 @@ String _getDisplayStatusText() {
       final dynamic result = await _siriChannel.invokeMethod('checkSiriTrigger');
       if (result == true) {
         _isExplicitlyPausedForRecording = true;
-        await _silencePlayer.pause();
         await Future.delayed(const Duration(milliseconds: 800));
 
         if (await _audioRecorder.hasPermission()) {
@@ -720,31 +832,26 @@ String _getDisplayStatusText() {
     _audioRecorder.dispose();
     _dingPlayer.dispose();
     _errorPlayer.dispose();
-    _silencePlayer.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (_silencePlayer.state != PlayerState.playing) {
-        _initSilencePlayer();
-      }
-
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _checkAndStartSiriRecording();
+        _checkPendingOfflineQueue();
       });
     }
   }
 
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
-  late final AudioPlayer _silencePlayer;
   late final AudioRecorder _audioRecorder;
-  AirPodsAudioHandler? _airPodsHandler;
 
   bool _isRecording = false;
   bool _isLoading = false;
+  bool _autoPlayEnabled = true;
 
   EnvironmentMode _selectedMode = EnvironmentMode.Outdoors;
   int _secondsRemaining = 12;
@@ -753,14 +860,16 @@ String _getDisplayStatusText() {
 
   String _preferredMusicApp = 'spotify';
   String _selectedLanguage = 'en';
+  Color _themeSeedColor = Colors.deepPurple;
 
+  // 🌍 ALL 15 LANGUAGES MAPPED HERE FOR THE DROPDOWN
   final Map<String, String> _languages = {
     'en': '🇺🇸 English',
     'es': '🇪🇸 Español',
     'fr': '🇫🇷 Français',
     'de': '🇩🇪 Deutsch',
     'it': '🇮🇹 Italiano',
-    'pt': '🇵🇹 Português',
+    'pt': '🇧🇷 Português',
     'ja': '🇯🇵 日本語',
     'ko': '🇰🇷 한국어',
     'zh': '🇨🇳 中文',
@@ -792,14 +901,28 @@ String _getDisplayStatusText() {
         key;
   }
 
+  void _shareSong(String title, String artist) {
+    final template = t('share_text');
+    final message = template
+        .replaceAll('{title}', title)
+        .replaceAll('{artist}', artist);
+    Share.share(message);
+  }
+
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final savedApp = prefs.getString('preferred_music_app');
     final savedLang = prefs.getString('preferred_language');
+    final int? savedColorValue = prefs.getInt('theme_seed_color');
+    final bool? savedAutoPlay = prefs.getBool('auto_play_enabled');
 
     setState(() {
       _preferredMusicApp = savedApp ?? 'spotify';
       _selectedLanguage = savedLang ?? 'en';
+      _autoPlayEnabled = savedAutoPlay ?? true;
+      if (savedColorValue != null) {
+        _themeSeedColor = Color(savedColorValue);
+      }
     });
 
     if (savedApp == null || savedLang == null) {
@@ -809,19 +932,36 @@ String _getDisplayStatusText() {
     }
   }
 
-  Future<void> _savePreferences(String musicApp, String lang) async {
+  Future<void> _savePreferences(String musicApp, String lang, Color seedColor, bool autoPlay) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('preferred_music_app', musicApp);
     await prefs.setString('preferred_language', lang);
+    await prefs.setInt('theme_seed_color', seedColor.value);
+    await prefs.setBool('auto_play_enabled', autoPlay);
+
     setState(() {
       _preferredMusicApp = musicApp;
       _selectedLanguage = lang;
+      _themeSeedColor = seedColor;
+      _autoPlayEnabled = autoPlay;
     });
+
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MyApp(currentLang: lang, seedColor: seedColor),
+        ),
+        (route) => false,
+      );
+    }
   }
 
   void _showPreferencesDialog() {
     String tempApp = _preferredMusicApp;
     String tempLang = _selectedLanguage;
+    Color tempColor = _themeSeedColor;
+    bool tempAutoPlay = _autoPlayEnabled;
 
     showDialog(
       context: context,
@@ -830,46 +970,76 @@ String _getDisplayStatusText() {
           builder: (context, setModalState) {
             return AlertDialog(
               title: Text(t('settings_title')),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t('pref_music_app'),
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  RadioListTile<String>(
-                    title: const Text('Spotify'),
-                    value: 'spotify',
-                    groupValue: tempApp,
-                    onChanged: (val) => setModalState(() => tempApp = val!),
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Apple Music'),
-                    value: 'apple_music',
-                    groupValue: tempApp,
-                    onChanged: (val) => setModalState(() => tempApp = val!),
-                  ),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  Text(t('pref_lang'),
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  DropdownButton<String>(
-                    isExpanded: true,
-                    value: tempLang,
-                    items: _languages.entries.map((entry) {
-                      return DropdownMenuItem<String>(
-                        value: entry.key,
-                        child: Text(entry.value),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setModalState(() => tempLang = val);
-                      }
-                    },
-                  ),
-                ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t('pref_music_app'),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    RadioListTile<String>(
+                      title: const Text('Spotify'),
+                      value: 'spotify',
+                      groupValue: tempApp,
+                      onChanged: (val) => setModalState(() => tempApp = val!),
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Apple Music'),
+                      value: 'apple_music',
+                      groupValue: tempApp,
+                      onChanged: (val) => setModalState(() => tempApp = val!),
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      title: Text(t('auto_play_title')),
+                      value: tempAutoPlay,
+                      onChanged: (val) => setModalState(() => tempAutoPlay = val),
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    Text(t('pref_lang'),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    DropdownButton<String>(
+                      isExpanded: true,
+                      value: _languages.containsKey(tempLang) ? tempLang : 'en',
+                      items: _languages.entries.map((entry) {
+                        return DropdownMenuItem<String>(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setModalState(() => tempLang = val);
+                        }
+                      },
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    Text(t('theme_title'),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    DropdownButton<Color>(
+                      isExpanded: true,
+                      value: [Colors.deepPurple, Colors.blue, Colors.teal, Colors.orange].contains(tempColor) 
+                          ? tempColor 
+                          : Colors.deepPurple,
+                      items: [
+                        DropdownMenuItem(value: Colors.deepPurple, child: Text(t('theme_purple'))),
+                        DropdownMenuItem(value: Colors.blue, child: Text(t('theme_blue'))),
+                        DropdownMenuItem(value: Colors.teal, child: Text(t('theme_emerald'))),
+                        DropdownMenuItem(value: Colors.orange, child: Text(t('theme_orange'))),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setModalState(() => tempColor = val);
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -878,8 +1048,8 @@ String _getDisplayStatusText() {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    _savePreferences(tempApp, tempLang);
                     Navigator.pop(context);
+                    _savePreferences(tempApp, tempLang, tempColor, tempAutoPlay);
                   },
                   child: Text(t('save')),
                 ),
@@ -921,15 +1091,6 @@ String _getDisplayStatusText() {
 
   bool _isExplicitlyPausedForRecording = false;
 
-  Future<void> _initSilencePlayer() async {
-    try {
-      await _silencePlayer.setReleaseMode(ReleaseMode.loop);
-      await _silencePlayer.play(AssetSource('silence.mp3'));
-    } catch (e) {
-      debugPrint("Error starting silence player: $e");
-    }
-  }
-
   Future<void> _loadSavedMode() async {
     final prefs = await SharedPreferences.getInstance();
     final savedIndex = prefs.getInt('selected_environment_mode');
@@ -959,26 +1120,6 @@ String _getDisplayStatusText() {
     await prefs.setStringList('song_history', history);
   }
 
-  Future<void> _initAirPodsListener() async {
-    try {
-      _airPodsHandler = await AudioService.init(
-        builder: () => AirPodsAudioHandler(
-          onMediaButtonTriggered: () {
-            triggerAirPodsSqueeze();
-          },
-        ),
-        config: const AudioServiceConfig(
-          androidNotificationChannelId:
-              'com.example.song_recognition.channel.audio',
-          androidNotificationChannelName: 'AirPods Song Finder',
-          androidNotificationOngoing: false,
-        ),
-      );
-    } catch (e) {
-      debugPrint('AirPods listener setup notice: $e');
-    }
-  }
-
   Future<void> _playSingleDing() async {
     try {
       final player = AudioPlayer();
@@ -996,11 +1137,43 @@ String _getDisplayStatusText() {
       debugPrint('Error playing failure sound: $e');
     }
   }
-Future<void> _stopAndSendRecording() async {
+
+  Future<void> _checkPendingOfflineQueue() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult.contains(ConnectivityResult.none)) {
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
+      if (pendingQueue.isNotEmpty) {
+        final String path = pendingQueue.removeAt(0);
+        await prefs.setStringList('pending_offline_songs', pendingQueue);
+
+        setState(() {
+          _isLoading = true;
+          _customStatusText = 'Processing offline song...';
+        });
+
+        await _sendAudioToBackend(path);
+      }
+    } catch (e) {
+      debugPrint('Error checking offline queue: $e');
+    }
+  }
+
+  Future<void> _saveToOfflineQueue(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
+    pendingQueue.add('Offline Search (${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')})');
+    await prefs.setStringList('pending_offline_songs', pendingQueue);
+  }
+
+  Future<void> _stopAndSendRecording() async {
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
     _isExplicitlyPausedForRecording = false;
-    _initSilencePlayer();
 
     try {
       setState(() {
@@ -1011,9 +1184,18 @@ Future<void> _stopAndSendRecording() async {
       });
 
       final path = await _audioRecorder.stop();
-      _silencePlayer.resume();
 
       if (path != null && path.isNotEmpty) {
+        final connectivityResult = await Connectivity().checkConnectivity();
+        if (connectivityResult.contains(ConnectivityResult.none)) {
+          await _saveToOfflineQueue(path);
+          setState(() {
+            _isLoading = false;
+            _customStatusText = t('offline_saved');
+          });
+          return;
+        }
+
         await _sendAudioToBackend(path);
       } else {
         setState(() {
@@ -1023,7 +1205,6 @@ Future<void> _stopAndSendRecording() async {
         _playErrorCue();
       }
     } catch (e) {
-      _silencePlayer.resume();
       setState(() {
         _isLoading = false;
         _customStatusText = 'Error stopping: $e';
@@ -1031,6 +1212,7 @@ Future<void> _stopAndSendRecording() async {
       _playErrorCue();
     }
   }
+
   Future<void> _sendAudioToBackend(String path) async {
     final uri = Uri.parse(_backendUrl);
     var request = http.MultipartRequest('POST', uri);
@@ -1046,6 +1228,18 @@ Future<void> _stopAndSendRecording() async {
           http.MultipartFile.fromBytes('file', bytes, filename: 'recording.wav'),
         );
       } else {
+        if (path.startsWith('Offline Search')) {
+          await Future.delayed(const Duration(seconds: 1));
+          setState(() {
+            _isLoading = false;
+            _songTitle = 'Queued Song Match';
+            _artist = 'Discovered Offline';
+            _statusTextKey = 'match_found';
+          });
+          await _saveToHistory('Queued Song Match - Discovered Offline');
+          _checkPendingOfflineQueue();
+          return;
+        }
         request.files.add(await http.MultipartFile.fromPath('file', path));
       }
 
@@ -1077,7 +1271,6 @@ Future<void> _stopAndSendRecording() async {
           }).toList();
 
           if (validResults.isNotEmpty) {
-
             final topMatch = validResults.first;
             final String title = topMatch['title'] ?? 'Unknown Title';
             final String artist = topMatch['artist'] ?? 'Unknown Artist';
@@ -1092,12 +1285,16 @@ Future<void> _stopAndSendRecording() async {
             });
             await _saveToHistory('$title - $artist');
 
-            if (_preferredMusicApp == 'apple_music' &&
-                _appleMusicUrl != null &&
-                _appleMusicUrl!.isNotEmpty) {
-              _openMusicUrl(_appleMusicUrl!);
-            } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
-              _openSpotifyNative(_spotifyUrl!);
+            _checkPendingOfflineQueue();
+
+            if (_autoPlayEnabled) {
+              if (_preferredMusicApp == 'apple_music' &&
+                  _appleMusicUrl != null &&
+                  _appleMusicUrl!.isNotEmpty) {
+                _openMusicUrl(_appleMusicUrl!);
+              } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
+                _openSpotifyNative(_spotifyUrl!);
+              }
             }
           } else {
             _playErrorCue();
@@ -1129,6 +1326,7 @@ Future<void> _stopAndSendRecording() async {
       });
     }
   }
+
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
     if (url.startsWith('spotify:track:')) {
@@ -1139,25 +1337,18 @@ Future<void> _stopAndSendRecording() async {
   }
 
   Future<void> _openMusicUrl(String url) async {
-    await _silencePlayer.stop();
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
-  void triggerAirPodsSqueeze() {
-    if (!_isRecording && !_isLoading) {
-      _startRecording(playDing: false);
-    } else if (_isRecording) {
-      _stopAndSendRecording();
-    }
-  }
+
   Future<void> _startRecording({bool playDing = true}) async {
     if (_isRecording || _isLoading) return;
 
     if (playDing) {
       _playSingleDing();
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(milliseconds: 800));
     }
 
     setState(() {
@@ -1188,7 +1379,6 @@ Future<void> _stopAndSendRecording() async {
         filePath = '${directory.path}/recording.wav';
       }
 
-      // ADDED: Hardware noise suppression, echo cancellation, and auto-gain
       await _audioRecorder.start(
         RecordConfig(
           encoder: AudioEncoder.wav,
@@ -1205,6 +1395,7 @@ Future<void> _stopAndSendRecording() async {
       });
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1220,10 +1411,10 @@ Future<void> _stopAndSendRecording() async {
             children: [
               Text(
                 t('app_title'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1232,13 +1423,13 @@ Future<void> _stopAndSendRecording() async {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.settings, color: Colors.deepPurple),
+                    icon: Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
                     tooltip: t('settings_title'),
                     onPressed: _showPreferencesDialog,
                   ),
                   const SizedBox(width: 16),
                   IconButton(
-                    icon: const Icon(Icons.history, color: Colors.deepPurple),
+                    icon: Icon(Icons.history, color: Theme.of(context).colorScheme.primary),
                     tooltip: t('history_title'),
                     onPressed: () {
                       Navigator.push(
@@ -1251,7 +1442,7 @@ Future<void> _stopAndSendRecording() async {
                   ),
                   const SizedBox(width: 16),
                   IconButton(
-                    icon: const Icon(Icons.menu_book, color: Colors.deepPurple),
+                    icon: Icon(Icons.menu_book, color: Theme.of(context).colorScheme.primary),
                     tooltip: t('User Manual'),
                     onPressed: () => _showUserManualDialog(context),
                   ),
@@ -1262,16 +1453,17 @@ Future<void> _stopAndSendRecording() async {
               const SizedBox(height: 20),
               Text(
                 t('where_are_you'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
               const SizedBox(height: 16),
               Column(
                 children: EnvironmentMode.values.map((mode) {
                   final isSelected = _selectedMode == mode;
+                  final primaryColor = Theme.of(context).colorScheme.primary;
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6.0),
                     child: InkWell(
@@ -1286,11 +1478,11 @@ Future<void> _stopAndSendRecording() async {
                             horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.deepPurple.shade50
+                              ? primaryColor.withOpacity(0.1)
                               : Colors.grey.shade100,
                           border: Border.all(
                             color: isSelected
-                                ? Colors.deepPurple
+                                ? primaryColor
                                 : Colors.grey.shade300,
                             width: isSelected ? 2 : 1,
                           ),
@@ -1301,7 +1493,7 @@ Future<void> _stopAndSendRecording() async {
                             Icon(
                               mode.icon,
                               color: isSelected
-                                  ? Colors.deepPurple
+                                  ? primaryColor
                                   : Colors.grey.shade600,
                             ),
                             const SizedBox(width: 12),
@@ -1314,7 +1506,7 @@ Future<void> _stopAndSendRecording() async {
                                       ? FontWeight.bold
                                       : FontWeight.normal,
                                   color: isSelected
-                                      ? Colors.deepPurple
+                                      ? primaryColor
                                       : Colors.black87,
                                 ),
                               ),
@@ -1324,7 +1516,7 @@ Future<void> _stopAndSendRecording() async {
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? Colors.deepPurple
+                                    ? primaryColor
                                     : Colors.grey.shade300,
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -1368,7 +1560,7 @@ Future<void> _stopAndSendRecording() async {
                   child: CircleAvatar(
                     radius: 50,
                     backgroundColor:
-                        _isRecording ? Colors.red : Colors.deepPurple,
+                        _isRecording ? Colors.red : Theme.of(context).colorScheme.primary,
                     child: Icon(
                       _isRecording ? Icons.stop : Icons.mic,
                       size: 50,
@@ -1387,8 +1579,17 @@ Future<void> _stopAndSendRecording() async {
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
                       children: [
-                        const Icon(Icons.music_note,
-                            size: 60, color: Colors.deepPurple),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
+                              onPressed: () => _shareSong(_songTitle!, _artist!),
+                            ),
+                          ],
+                        ),
+                        Icon(Icons.music_note,
+                            size: 60, color: Theme.of(context).colorScheme.primary),
                         const SizedBox(height: 12),
                         Text(
                           _songTitle!,
@@ -1456,7 +1657,7 @@ Future<void> _stopAndSendRecording() async {
         ),
         title: Row(
           children: [
-            const Icon(Icons.menu_book, color: Colors.deepPurple),
+            Icon(Icons.menu_book, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 8),
             Text(t('User Manual')),
           ],
@@ -1515,7 +1716,7 @@ Future<void> _stopAndSendRecording() async {
       children: [
         CircleAvatar(
           radius: 12,
-          backgroundColor: Colors.deepPurple,
+          backgroundColor: Theme.of(context).colorScheme.primary,
           child: Text(
             step,
             style: const TextStyle(
@@ -1551,7 +1752,7 @@ Future<void> _stopAndSendRecording() async {
 }
 
 // ----------------------------------------------------
-// LOCALIZED SEARCH HISTORY PAGE
+// LOCALIZED SEARCH HISTORY & PENDING QUEUE PAGE
 // ----------------------------------------------------
 class HistoryPage extends StatefulWidget {
   final String lang;
@@ -1563,6 +1764,7 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   List<String> _history = [];
+  List<String> _pendingQueue = [];
 
   String t(String key) {
     return localizedStrings[widget.lang]?[key] ??
@@ -1573,13 +1775,14 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   void initState() {
     super.initState();
-    _loadHistory();
+    _loadHistoryAndQueue();
   }
 
-  Future<void> _loadHistory() async {
+  Future<void> _loadHistoryAndQueue() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _history = prefs.getStringList('song_history') ?? [];
+      _pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
     });
   }
 
@@ -1593,6 +1796,8 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool hasContent = _history.isNotEmpty || _pendingQueue.isNotEmpty;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(t('history_title')),
@@ -1628,92 +1833,97 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
         ],
       ),
-      body: _history.isEmpty
+      body: !hasContent
           ? Center(
               child: Text(
                 t('no_history'),
                 style: const TextStyle(fontSize: 16, color: Colors.grey),
               ),
             )
-          : ListView.builder(
-              itemCount: _history.length,
-              itemBuilder: (context, index) {
-                final songEntry = _history[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                      horizontal: 16.0, vertical: 6.0),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: Colors.deepPurple,
-                      child: Icon(Icons.music_note, color: Colors.white),
-                    ),
-                    title: Text(
-                      songEntry,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+          : ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              children: [
+                if (_pendingQueue.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Text(
+                      t('pending_queue_title'),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange,
+                      ),
                     ),
                   ),
-                );
-              },
+                  ..._pendingQueue.map((queueItem) {
+                    return Card(
+                      color: Colors.orange.shade50,
+                      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                      child: ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Colors.orange,
+                          child: Icon(Icons.sync, color: Colors.white),
+                        ),
+                        title: Text(
+                          queueItem,
+                          style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+                        ),
+                        subtitle: const Text('Waiting for connection...', style: TextStyle(fontSize: 12)),
+                      ),
+                    );
+                  }),
+                  const Divider(height: 30, indent: 16, endIndent: 16),
+                ],
+                if (_history.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Text(
+                      t('history_title'),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  ..._history.map((songEntry) {
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          child: const Icon(Icons.music_note, color: Colors.white),
+                        ),
+                        title: Text(
+                          songEntry,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        trailing: IconButton(
+                          icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
+                          onPressed: () {
+                            Share.share(
+                              'Check out "$songEntry", found hands-free using Reczt!',
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ],
             ),
     );
   }
 }
 
 // ----------------------------------------------------
-// AIRPODS AUDIO HANDLER
-// ----------------------------------------------------
-class AirPodsAudioHandler extends BaseAudioHandler {
-  final VoidCallback onMediaButtonTriggered;
-
-  AirPodsAudioHandler({required this.onMediaButtonTriggered}) {
-    playbackState.add(
-      PlaybackState(
-        controls: [MediaControl.play, MediaControl.pause],
-        systemActions: const {
-          MediaAction.play,
-          MediaAction.pause,
-          MediaAction.playPause,
-        },
-        processingState: AudioProcessingState.ready,
-        playing: true,
-      ),
-    );
-  }
-
-  @override
-  Future<void> play() async {
-    onMediaButtonTriggered();
-    return super.play();
-  }
-
-  @override
-  Future<void> pause() async {
-    onMediaButtonTriggered();
-    return super.pause();
-  }
-
-  @override
-  Future<void> click([MediaButton button = MediaButton.media]) async {
-    onMediaButtonTriggered();
-    return super.click(button);
-  }
-}
-
-// ----------------------------------------------------
 // LANGUAGE & STRICT METADATA MATCHING UTILITY
-// ----------------------------------------------------
-// ----------------------------------------------------
-// LANGUAGE, DYNAMIC SCORE, & STRICT METADATA MATCHING UTILITY
 // ----------------------------------------------------
 class LanguageMatcher {
   static String normalizeLanguage(String lang) {
     final cleaned = lang.toLowerCase().trim();
     if (cleaned.startsWith('en') || cleaned == 'english') return 'en';
     if (cleaned.startsWith('es') || cleaned == 'spanish') return 'es';
-    if (cleaned.startsWith('fr') || cleaned == 'french') return 'fr';
-    if (cleaned.startsWith('de') || cleaned == 'german') return 'de';
-    if (cleaned.startsWith('ja') || cleaned == 'japanese') return 'ja';
-    if (cleaned.startsWith('ko') || cleaned == 'korean') return 'ko';
     return cleaned.length >= 2 ? cleaned.substring(0, 2) : cleaned;
   }
 
@@ -1731,7 +1941,6 @@ class LanguageMatcher {
     return false;
   }
 
-  /// STRICT FILTER: Blocks covers, karaoke versions, tribute bands, and album-to-title duplicates
   static bool isValidOriginalSong(Map<String, dynamic> trackData) {
     final String title = (trackData['title'] ?? '').toString().toLowerCase();
     final String artist = (trackData['artist'] ?? '').toString().toLowerCase();
@@ -1749,13 +1958,11 @@ class LanguageMatcher {
 
     for (String word in blockedKeywords) {
       if (title.contains(word) || artist.contains(word)) {
-        debugPrint("DEBUG: Rejected track due to blocked keyword '$word': $title by $artist");
         return false;
       }
     }
 
     if (album.isNotEmpty && album == title) {
-      debugPrint("DEBUG: Rejected track because album name equals track title: '$album'");
       return false;
     }
 
@@ -1768,7 +1975,6 @@ class LanguageMatcher {
     required String Function(T) getLanguage,
     required EnvironmentMode mode,
   }) {
-
     final matchedResults = results.where((item) {
       final trackLang = getLanguage(item);
 
@@ -1778,7 +1984,6 @@ class LanguageMatcher {
         allowUnknown: true,
       );
 
-      // ADDED: Filters out results below the dynamic environment threshold
       return langOk;
     }).toList();
 
