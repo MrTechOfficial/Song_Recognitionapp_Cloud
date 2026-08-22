@@ -447,7 +447,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': '绿宝石',
     'theme_orange': '日落橙',
     'auto_play_title': '自动播放',
-    'share_text': '查看 "{title}" by {artist}，使用 Reczt 无需动手即可找到！',
+    'share_text': '查看 "{title}" by {artist}, 使用 Reczt 无需动手即可找到！',
     'pending_queue_title': '待处理的离线搜索',
     'offline_saved': '没有网络。已保存到离线队列！',
   },
@@ -635,7 +635,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'زمردي نيون',
     'theme_orange': 'برتقالي الغروب',
     'auto_play_title': 'تشغيل تلقائي',
-    'share_text': 'تحقق من "{title}" بواسطة {artist}، تم العثور عليه بدون استخدام اليدين باستخدام Reczt!',
+    'share_text': 'تحقق من "{title}" بواسطة {artist}, تم العثور عليه بدون استخدام اليدين باستخدام Reczt!',
     'pending_queue_title': 'عمليات البحث غير المتصلة بالإنترنت المعلقة',
     'offline_saved': 'لا يوجد اتصال بالإنترنت. تم الحفظ في قائمة الانتظار غير المتصلة بالإنترنت!',
   },
@@ -947,13 +947,20 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
 
   void _shareSong(String title, String artist) {
-    final template = t('share_text');
-    final message = template
-        .replaceAll('{title}', title)
-        .replaceAll('{artist}', artist);
-    Share.share(message);
-  }
+  final String appStoreLink = 'https://apps.apple.com/app/reczt/id123456789'; 
+  
+  final String shareMessage = '''
+🎵 *Reczt Song Discovery* 🎵
+━━━━━━━━━━━━━━━━━━
+🎶 *Track:* $title
+👤 *Artist:* $artist
+━━━━━━━━━━━━━━━━━━
+Found hands-free using Reczt. Check it out or get the app here:
+$appStoreLink
+''';
 
+  Share.share(shareMessage);
+}
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final savedApp = prefs.getString('preferred_music_app');
@@ -1187,35 +1194,29 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   Future<void> _saveToOfflineQueue(String path) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
-    pendingQueue.add(path); // Save the actual file path!
+    pendingQueue.add(path);
     await prefs.setStringList('pending_offline_songs', pendingQueue);
   }
 
   Future<void> _checkPendingOfflineQueue() async {
-    try {
-      final connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult.contains(ConnectivityResult.none)) {
-        return;
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
-      if (pendingQueue.isNotEmpty) {
-        final String path = pendingQueue.removeAt(0);
-        await prefs.setStringList('pending_offline_songs', pendingQueue);
-
-        setState(() {
-          _isLoading = true;
-          _customStatusText = 'Processing offline song...';
-        });
-
-        // Now actually send the real recorded audio file to the backend!
-        await _sendAudioToBackend(path);
-      }
-    } catch (e) {
-      debugPrint('Error checking offline queue: $e');
+  try {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult.contains(ConnectivityResult.none)) {
+      return;
     }
+
+    final prefs = await SharedPreferences.getInstance();
+    List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
+    if (pendingQueue.isNotEmpty) {
+      final String path = pendingQueue.removeAt(0);
+      await prefs.setStringList('pending_offline_songs', pendingQueue);
+
+      await _sendAudioToBackend(path);
+    }
+  } catch (e) {
+    debugPrint('Error checking offline queue: $e');
   }
+}
 
   Future<void> _stopAndSendRecording() async {
     _autoStopTimer?.cancel();
@@ -1275,7 +1276,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           http.MultipartFile.fromBytes('file', bytes, filename: 'recording.wav'),
         );
       } else {
-        // This processes the actual file path saved during offline mode
         request.files.add(await http.MultipartFile.fromPath('file', path));
         if (path.startsWith('Offline Search')) {
           await Future.delayed(const Duration(seconds: 1));
@@ -1790,7 +1790,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
               const SizedBox(height: 2),
               Text(
                 desc,
-                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                style: TextStyle(
+                  fontSize: 12,
+                  // Dynamic color check for dark mode vs light mode
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[300]
+                      : Colors.grey[700],
+                ),
               ),
             ],
           ),
@@ -1892,7 +1898,7 @@ class _HistoryPageState extends State<HistoryPage> {
           : ListView(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               children: [
-if (_pendingQueue.isNotEmpty) ...[
+                if (_pendingQueue.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     child: Text(
@@ -1908,16 +1914,15 @@ if (_pendingQueue.isNotEmpty) ...[
                     return Card(
                       color: Colors.orange.shade50,
                       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                      child: ListTile(
-                        leading: const CircleAvatar(
+                      child: const ListTile(
+                        leading: CircleAvatar(
                           backgroundColor: Colors.orange,
                           child: Icon(Icons.sync, color: Colors.white),
                         ),
-                        title: const Text(
-                          'Saved Recording (Pending Upload)',
+                        title: Text(
+                          'Processing Saved Recording...',
                           style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
                         ),
-                        subtitle: Text(queueItem, style: const TextStyle(fontSize: 10)),
                       ),
                     );
                   }),
@@ -2038,4 +2043,4 @@ class LanguageMatcher {
 
     return matchedResults;
   }
-}
+} // helllloooooo
