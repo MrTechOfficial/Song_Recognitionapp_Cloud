@@ -71,6 +71,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Emerald',
     'theme_orange': 'Sunset Orange',
     'auto_play_title': 'Auto-play songs',
+    'share_text': 'Check out "{title}" by {artist}, found hands-free using Reczt!',
+    'pending_queue_title': 'Pending Offline Searches',
+    'offline_saved': 'No internet. Saved to offline queue!',
   },
   'es': {
     'app_title': 'Identificador de Canciones',
@@ -115,6 +118,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Esmeralda',
     'theme_orange': 'Naranja atardecer',
     'auto_play_title': 'Reproducción automática',
+    'share_text': '¡Mira "{title}" de {artist}, encontrado sin manos usando Reczt!',
+    'pending_queue_title': 'Búsquedas pendientes sin conexión',
+    'offline_saved': '¡Sin internet! Guardado en la cola sin conexión.',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
@@ -159,6 +165,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Émeraude',
     'theme_orange': 'Orange crépuscule',
     'auto_play_title': 'Lecture automatique',
+    'share_text': 'Découvrez "{title}" de {artist}, trouvé sans les mains grâce à Reczt !',
+    'pending_queue_title': 'Recherches hors ligne en attente',
+    'offline_saved': 'Pas d\'internet. Enregistré dans la file d\'attente hors ligne !',
   },
   'de': {
     'app_title': 'Song-Erkennung',
@@ -203,6 +212,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Smaragd',
     'theme_orange': 'Sonnenuntergangsorange',
     'auto_play_title': 'Automatische Wiedergabe',
+    'share_text': 'Schau dir "{title}" von {artist} an, gefunden freihändig mit Reczt!',
+    'pending_queue_title': 'Ausstehende Offline-Suchen',
+    'offline_saved': 'Keine Internetverbindung. In die Offline-Warteschlange gespeichert!',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
@@ -247,6 +259,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Smeraldo',
     'theme_orange': 'Arancione tramonto',
     'auto_play_title': 'Riproduzione automatica',
+    'share_text': 'Controlla "{title}" di {artist}, trovata senza mani usando Reczt!',
+    'pending_queue_title': 'Ricerche in attesa offline',
+    'offline_saved': 'Nessuna connessione. Salvato nella coda offline!',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
@@ -291,6 +306,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Esmeralda',
     'theme_orange': 'Laranja pôr do sol',
     'auto_play_title': 'Reprodução automática',
+    'share_text': 'Confira "{title}" de {artist}, encontrado sem usar as mãos com o Reczt!',
+    'pending_queue_title': 'Pesquisas pendentes offline',
+    'offline_saved': 'Sem internet. Salvo na fila offline!',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
@@ -335,6 +353,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'エメラルド',
     'theme_orange': 'サンセットオレンジ',
     'auto_play_title': '自動再生',
+    'share_text': 'Recztを使ってハンズフリーで見つけた「{title}」by {artist}をチェックしてください！',
+    'pending_queue_title': '保留中のオフライン検索',
+    'offline_saved': 'インターネットがありません。オフラインキューに保存されました！',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
@@ -379,6 +400,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': '에메랄드',
     'theme_orange': '선셋 오렌지',
     'auto_play_title': '자동 재생',
+    'share_text': 'Reczt를 사용하여 핸즈프리로 찾은 "{title}" by {artist}를 확인하세요!',
+    'pending_queue_title': '보류 중인 오프라인 검색',
+    'offline_saved': '인터넷 없음. 오프라인 대기열에 저장됨!',
   },
   'zh': {
     'app_title': '歌曲识别器',
@@ -423,6 +447,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': '绿宝石',
     'theme_orange': '日落橙',
     'auto_play_title': '自动播放',
+    'share_text': '查看 "{title}" by {artist}，使用 Reczt 无需动手即可找到！',
+    'pending_queue_title': '待处理的离线搜索',
+    'offline_saved': '没有网络。已保存到离线队列！',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
@@ -467,6 +494,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'एमराल्ड',
     'theme_orange': 'सनसेट ऑरेंज',
     'auto_play_title': 'स्वचालित चलना',
+    'share_text': 'Reczt का उपयोग करके हाथों से मुक्त रूप से पाया गया "{title}" by {artist} देखें!',
+    'pending_queue_title': 'लंबित ऑफ़लाइन खोज',
+    'offline_saved': 'कोई इंटरनेट नहीं। ऑफ़लाइन कतार में सहेजा गया!',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
@@ -511,6 +541,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Изумруд',
     'theme_orange': 'Закатный оранжевый',
     'auto_play_title': 'Автовоспроизведение',
+    'share_text': 'Посмотрите "{title}" от {artist}, найденный без рук с помощью Reczt!',
+    'pending_queue_title': 'Ожидающие оффлайн-поиски',
+    'offline_saved': 'Нет интернета. Сохранено в оффлайн-очереди!',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
@@ -555,6 +588,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Zümrüt',
     'theme_orange': 'Gün Batımı Turuncusu',
     'auto_play_title': 'Otomatik Oynat',
+    'share_text': 'Reczt ile eller serbest olarak bulunan "{title}" by {artist}\'i kontrol edin!',
+    'pending_queue_title': 'Bekleyen Çevrimdışı Aramalar',
+    'offline_saved': 'İnternet yok. Çevrimdışı kuyruğa kaydedildi!',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
@@ -599,6 +635,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'زمردي نيون',
     'theme_orange': 'برتقالي الغروب',
     'auto_play_title': 'تشغيل تلقائي',
+    'share_text': 'تحقق من "{title}" بواسطة {artist}، تم العثور عليه بدون استخدام اليدين باستخدام Reczt!',
+    'pending_queue_title': 'عمليات البحث غير المتصلة بالإنترنت المعلقة',
+    'offline_saved': 'لا يوجد اتصال بالإنترنت. تم الحفظ في قائمة الانتظار غير المتصلة بالإنترنت!',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
@@ -643,6 +682,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Smaragd',
     'theme_orange': 'Zonsondergang Oranje',
     'auto_play_title': 'Automatisch afspelen',
+    'share_text': 'Bekijk "{title}" van {artist}, gevonden zonder handen met Reczt!',
+    'pending_queue_title': 'In afwachting van offline zoekopdrachten',
+    'offline_saved': 'Geen internet. Opgeslagen in de offline wachtrij!',
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
@@ -687,6 +729,9 @@ final Map<String, Map<String, String>> localizedStrings = {
     'theme_emerald': 'Smaragdowy',
     'theme_orange': 'Pomarańczowy zachód słońca',
     'auto_play_title': 'Automatyczne odtwarzanie',
+    'share_text': 'Sprawdź "{title}" by {artist}, znaleziony bez użycia rąk za pomocą Reczt!',
+    'pending_queue_title': 'Oczekujące wyszukiwania offline',
+    'offline_saved': 'Brak internetu. Zapisano w kolejce offline!',
   },
 };
 
@@ -1138,6 +1183,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     }
   }
 
+
+  Future<void> _saveToOfflineQueue(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
+    pendingQueue.add(path); // Save the actual file path!
+    await prefs.setStringList('pending_offline_songs', pendingQueue);
+  }
+
   Future<void> _checkPendingOfflineQueue() async {
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
@@ -1156,18 +1209,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           _customStatusText = 'Processing offline song...';
         });
 
+        // Now actually send the real recorded audio file to the backend!
         await _sendAudioToBackend(path);
       }
     } catch (e) {
       debugPrint('Error checking offline queue: $e');
     }
-  }
-
-  Future<void> _saveToOfflineQueue(String path) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
-    pendingQueue.add('Offline Search (${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')})');
-    await prefs.setStringList('pending_offline_songs', pendingQueue);
   }
 
   Future<void> _stopAndSendRecording() async {
@@ -1228,6 +1275,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           http.MultipartFile.fromBytes('file', bytes, filename: 'recording.wav'),
         );
       } else {
+        // This processes the actual file path saved during offline mode
+        request.files.add(await http.MultipartFile.fromPath('file', path));
         if (path.startsWith('Offline Search')) {
           await Future.delayed(const Duration(seconds: 1));
           setState(() {
@@ -1843,7 +1892,7 @@ class _HistoryPageState extends State<HistoryPage> {
           : ListView(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               children: [
-                if (_pendingQueue.isNotEmpty) ...[
+if (_pendingQueue.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     child: Text(
@@ -1864,11 +1913,11 @@ class _HistoryPageState extends State<HistoryPage> {
                           backgroundColor: Colors.orange,
                           child: Icon(Icons.sync, color: Colors.white),
                         ),
-                        title: Text(
-                          queueItem,
-                          style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+                        title: const Text(
+                          'Saved Recording (Pending Upload)',
+                          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
                         ),
-                        subtitle: const Text('Waiting for connection...', style: TextStyle(fontSize: 12)),
+                        subtitle: Text(queueItem, style: const TextStyle(fontSize: 10)),
                       ),
                     );
                   }),
