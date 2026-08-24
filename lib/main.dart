@@ -12,6 +12,14 @@ import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:fl_chart/fl_chart.dart';
+
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,6 +82,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Check out "{title}" by {artist}, found hands-free using Reczt!',
     'pending_queue_title': 'Pending Offline Searches',
     'offline_saved': 'No internet. Saved to offline queue!',
+     'analytics_title': 'Reczt Analytics',
+      'streak_title': 'Singing Streak',
+      'days_active_suffix': 'Days Active',
+      'top_artist': 'Top Artist',
+      'most_sung_genres': 'Most Sung Genres',
+      'acoustic_map': 'Acoustic Memory Map',
+      'acoustic_map_desc': '🗺️ Pins placed for recognized song locations',
+      'vibe_match_playlist': 'Bi-Weekly Vibe Match Playlist',
+      'playlist_countdown': 'Next auto-update in 4 days',
+      'no_artist_data': 'Sing more songs to track your top artist!',
+      'analyzing': 'Analyzing Mood...',
+      'next_drop': 'Next Drop',
+      'refreshing_soon': 'Refreshing soon!',
+      'open_in': 'Open in',
+      'none': 'None',
+      'error_no_lyrics': 'Could not recognize lyrics. Try singing clearer!',
+      'sad': 'Sad',
+      'happy': 'Happy',
+      'hype': 'Hype',
+      'romantic': 'Romantic',
+      'rock': 'Rock',
+    'jazz': 'Jazz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Classical',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'open_in_platform': 'Open in {platform}',
+    'songs': 'songs',
   },
   'es': {
     'app_title': 'Identificador de Canciones',
@@ -121,6 +159,35 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': '¡Mira "{title}" de {artist}, encontrado sin manos usando Reczt!',
     'pending_queue_title': 'Búsquedas pendientes sin conexión',
     'offline_saved': '¡Sin internet! Guardado en la cola sin conexión.',
+    'analytics_title': 'Reczt Analytics',
+      'streak_title': 'Racha de canto',
+      'days_active_suffix': 'Días activas',
+      'top_artist': 'Principales artistas',
+      'most_sung_genres': 'Géneros más cantados',
+      'acoustic_map': 'Mapa de memoria acústica',
+      'vibe_match_playlist': 'Lista de reproducción de coincidencias de vibe cada dos semanas',
+      'playlist_countdown': 'Próxima actualización automática en 4 días',
+      'no_artist_data': 'Canta más canciones para rastrear a las mejores artistas.',
+      'analyzing': 'Analizando estado de ánimo...',
+      'next_drop': 'Próxima actualización',
+      'refreshing_soon': '¡Actualizando pronto!',
+      'open_in': 'Abrir en',
+      'none': 'Nada',
+      'sad': 'Triste',
+    'happy': 'Feliz',
+    'hype': 'Animado',
+    'romantic': 'Romántico',
+    'rock': 'Rock',
+    'jazz': 'Jazz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Clásica',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'error_no_lyrics': 'No se pudieron reconocer las letras. ¡Intenta cantar más claro!',
+    'open_in_platform': 'Abrir en {platform}',
+    'songs': 'canciones',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
@@ -168,6 +235,35 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Découvrez "{title}" de {artist}, trouvé sans les mains grâce à Reczt !',
     'pending_queue_title': 'Recherches hors ligne en attente',
     'offline_saved': 'Pas d\'internet. Enregistré dans la file d\'attente hors ligne !',
+    'analytics_title': 'Reczt Analytics',
+      'streak_title': 'Série de chants',
+      'days_active_suffix': 'Jours actifs',
+      'top_artist': 'Meilleurs Artistes',
+      'most_sung_genres': 'Genres les plus chantés',
+      'acoustic_map': 'Carte de mémoire acoustique',
+      'vibe_match_playlist': 'Playlist Vibe Match bi-hebdomadaire',
+      'playlist_countdown': 'Prochaine mise à jour auto dans 4 jours',
+      'no_artist_data': 'Chantez plus de chansons pour suivre vos artistes !',
+      'analyzing': 'Analyse de l’humeur...',
+      'next_drop': 'Prochaine mise à jour',
+      'refreshing_soon': 'Mise à jour prochaine !',
+      'open_in': 'Ouvrir dans',
+      'none': 'Aucune',
+      'sad': 'Triste',
+    'happy': 'Heureux',
+    'hype': 'Survolté',
+    'romantic': 'Romantique',
+    'rock': 'Rock',
+    'jazz': 'Jazz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Classique',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'error_no_lyrics': 'Impossible de reconnaître les paroles. Essayez de chanter plus clairement !',
+    'open_in_platform': 'Ouvrir dans {platform}',
+    'songs': 'chansons',
   },
   'de': {
     'app_title': 'Song-Erkennung',
@@ -215,6 +311,35 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Schau dir "{title}" von {artist} an, gefunden freihändig mit Reczt!',
     'pending_queue_title': 'Ausstehende Offline-Suchen',
     'offline_saved': 'Keine Internetverbindung. In die Offline-Warteschlange gespeichert!',
+    'analytics_title': 'Reczt Analytics',
+      'streak_title': 'Gesangsserie',
+      'days_active_suffix': 'Tage aktiv',
+      'top_artist': 'Top-Künstler',
+      'most_sung_genres': 'Meist gesungene Genres',
+      'acoustic_map': 'Akustische Erinnerungslandkarte',
+      'vibe_match_playlist': 'Zweiwöchentliche Vibe-Match-Playlist',
+      'playlist_countdown': 'Nächste automatische Aktualisierung in 4 Tagen',
+      'no_artist_data': 'Singe mehr Songs, um Top-Künstler zu verfolgen!',
+      'analyzing': 'Stimmung wird analysiert...',
+      'next_drop': 'Nächster Drop',
+      'refreshing_soon': 'Wird bald aktualisiert!',
+      'open_in': 'Öffnen in',
+      'none': 'Keiner',
+      'sad': 'Traurig',
+    'happy': 'Glücklich',
+    'hype': 'Begeistert',
+    'romantic': 'Romantisch',
+    'rock': 'Rock',
+    'jazz': 'Jazz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Klassik',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'error_no_lyrics': 'Songtext konnte nicht erkannt werden. Versuche, deutlicher zu singen!',
+    'open_in_platform': 'In {platform} öffnen',
+    'songs': 'Songs',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
@@ -262,6 +387,35 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Controlla "{title}" di {artist}, trovata senza mani usando Reczt!',
     'pending_queue_title': 'Ricerche in attesa offline',
     'offline_saved': 'Nessuna connessione. Salvato nella coda offline!',
+'analytics_title': 'Analisi Reczt',
+      'streak_title': 'Serie di canti',
+      'days_active_suffix': 'Giorni attivi',
+      'top_artist': 'Artisti principali',
+      'most_sung_genres': 'Generi più cantati',
+      'acoustic_map': 'Carta della memoria acustica',
+      'vibe_match_playlist': 'Playlist di corrispondenza Vibe bisettimanale',
+      'playlist_countdown': 'Prossimo aggiornamento automatico tra 4 giorni',
+      'no_artist_data': 'Canta più brani per tracciare i tuoi artisti!',
+      'analyzing': 'Analisi umore...',
+      'next_drop': 'Prossimo aggiornamento',
+      'refreshing_soon': 'Aggiornamento imminente!',
+      'open_in': 'Apri in',
+      'none': 'Nessuno',
+      'sad': 'Triste',
+    'happy': 'Felice',
+    'hype': 'Esaltato',
+    'romantic': 'Romantico',
+    'rock': 'Rock',
+    'jazz': 'Jazz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Classica',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'error_no_lyrics': 'Impossibile riconoscere il testo. Prova a cantare più chiaramente!',
+    'open_in_platform': 'Apri in {platform}',
+    'songs': 'canzoni',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
@@ -309,6 +463,35 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Confira "{title}" de {artist}, encontrado sem usar as mãos com o Reczt!',
     'pending_queue_title': 'Pesquisas pendentes offline',
     'offline_saved': 'Sem internet. Salvo na fila offline!',
+'analytics_title': 'Reczt Analytics',
+      'streak_title': 'Sequência de canto',
+      'days_active_suffix': 'Dias ativos',
+      'top_artist': 'Principais artistas',
+      'most_sung_genres': 'Gêneros mais cantados',
+      'acoustic_map': 'Mapa de memória acústica',
+      'vibe_match_playlist': 'Playlist de correspondência de vibe quinzenal',
+      'playlist_countdown': 'Próxima atualização automática em 4 dias',
+      'no_artist_data': 'Cante mais músicas para acompanhar os artistas!',
+      'analyzing': 'Analisando humor...',
+      'next_drop': 'Próxima atualização',
+      'refreshing_soon': 'Atualizando em breve!',
+      'open_in': 'Abrir no',
+      'none': 'Nenhum',
+      'sad': 'Triste',
+    'happy': 'Feliz',
+    'hype': 'Empolgado',
+    'romantic': 'Romântico',
+    'rock': 'Rock',
+    'jazz': 'Jazz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Clássica',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'error_no_lyrics': 'Não foi possível reconhecer a letra. Tente cantar mais claramente!',
+    'open_in_platform': 'Abrir no {platform}',
+    'songs': 'músicas',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
@@ -356,6 +539,35 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Recztを使ってハンズフリーで見つけた「{title}」by {artist}をチェックしてください！',
     'pending_queue_title': '保留中のオフライン検索',
     'offline_saved': 'インターネットがありません。オフラインキューに保存されました！',
+    'analytics_title': 'レックツ・アナリティクス',
+      'streak_title': '歌唱連続記録',
+      'days_active_suffix': 'アクティブ日数',
+      'top_artist': 'トップアーティスト',
+      'most_sung_genres': '最も歌われたジャンル',
+      'acoustic_map': '音響メモリーマップ',
+      'vibe_match_playlist': '隔週のバイブマッチプレイリスト',
+      'playlist_countdown': '4日後に次の自動更新',
+      'no_artist_data': 'もっと歌ってトップアーティストを表示しよう！',
+      'analyzing': '気分を分析中...',
+      'next_drop': '次の更新',
+      'refreshing_soon': 'もうすぐ更新！',
+      'open_in': 'で開く',
+      'none': 'なし',
+      'sad': '悲しい',
+    'happy': '嬉しい',
+    'hype': 'ハイテンション',
+    'romantic': 'ロマンチック',
+    'rock': 'ロック',
+    'jazz': 'ジャズ',
+    'indie': 'インディー',
+    'rap': 'ラップ',
+    'classical': 'クラシック',
+    'reggae': 'レゲエ',
+    'r&b': 'R&B',
+    'pop': 'ポップ',
+    'error_no_lyrics': '歌詞を認識できませんでした。もう少しはっきりと歌ってみてください！',
+    'open_in_platform': '{platform} で開く',
+    'songs': '曲',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
@@ -403,6 +615,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Reczt를 사용하여 핸즈프리로 찾은 "{title}" by {artist}를 확인하세요!',
     'pending_queue_title': '보류 중인 오프라인 검색',
     'offline_saved': '인터넷 없음. 오프라인 대기열에 저장됨!',
+'analytics_title': 'Reczt 분석 및 분위기',
+      'streak_title': '노래 연속 기록',
+      'days_active_suffix': '활동 일수',
+      'top_artist': '최고 아티스트',
+      'most_sung_genres': '가장 많이 부른 장르',
+      'acoustic_map': '음향 메모리 맵',
+      'acoustic_map_desc': '🗺️ 인식된 노래 위치에 핀이 배치되었습니다',
+      'vibe_match_playlist': '격주 분위기 매치 재생목록',
+      'playlist_countdown': '4일 후 자동 업데이트',
+      'no_artist_data': '더 많은 노래를 불러 아티스트를 추적하세요!',
+      'analyzing': '분위기 분석 중...',
+      'next_drop': '다음 업데이트',
+      'refreshing_soon': '곧 갱신됩니다!',
+      'open_in': '열기:',
+      'none': '없음',
+      'sad': '슬픈',
+    'happy': '행복한',
+    'hype': '신나는',
+    'romantic': '로맨틱한',
+    'rock': '록',
+    'jazz': '재즈',
+    'indie': '인디',
+    'rap': '랩',
+    'classical': '클래식',
+    'reggae': '레게',
+    'r&b': 'R&B',
+    'pop': '팝',
+    'error_no_lyrics': '가사를 인식할 수 없습니다. 더 명확하게 불러보세요!',
+    'open_in_platform': '{platform}에서 열기',
+    'songs': '곡',
   },
   'zh': {
     'app_title': '歌曲识别器',
@@ -450,6 +692,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': '查看 "{title}" by {artist}, 使用 Reczt 无需动手即可找到！',
     'pending_queue_title': '待处理的离线搜索',
     'offline_saved': '没有网络。已保存到离线队列！',
+'analytics_title': 'Reczt 分析与氛围',
+      'streak_title': '歌唱连续记录',
+      'days_active_suffix': '活跃天数',
+      'top_artist': '顶尖歌手',
+      'most_sung_genres': '最常唱的流派',
+      'acoustic_map': '音响内存地图',
+      'acoustic_map_desc': '🗺️ 为已识别的歌曲位置放置图钉',
+      'vibe_match_playlist': '双周氛围匹配播放列表',
+      'playlist_countdown': '4天后自动更新',
+      'no_artist_data': '多唱几首歌来追踪热门艺人！',
+      'analyzing': '正在分析心情...',
+      'next_drop': '下次更新',
+      'refreshing_soon': '即将刷新！',
+      'open_in': '在以下打开',
+      'none': '没有任何',
+      'sad': '悲伤',
+    'happy': '快乐',
+    'hype': '嗨',
+    'romantic': '浪漫',
+    'rock': '摇滚',
+    'jazz': '爵士',
+    'indie': '独立',
+    'rap': '说唱',
+    'classical': '古典',
+    'reggae': '雷鬼',
+    'r&b': 'R&B',
+    'pop': '流行',
+    'error_no_lyrics': '无法识别歌词。尝试唱得更清晰一些！',
+    'open_in_platform': '在以下打开 {platform}',
+    'songs': '首歌',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
@@ -497,6 +769,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Reczt का उपयोग करके हाथों से मुक्त रूप से पाया गया "{title}" by {artist} देखें!',
     'pending_queue_title': 'लंबित ऑफ़लाइन खोज',
     'offline_saved': 'कोई इंटरनेट नहीं। ऑफ़लाइन कतार में सहेजा गया!',
+'analytics_title': 'Reczt एनालिटिक्स',
+      'streak_title': 'लगातार गाने का सिलसिला',
+      'days_active_suffix': 'सक्रिय दिन',
+      'top_artist': 'टॉप आर्टिस्ट',
+      'most_sung_genres': 'सबसे ज़्यादा गाई जाने वाली शैलियाँ',
+      'acoustic_map': 'ध्वनि-संबंधी स्मृति मानचित्र',
+      'acoustic_map_desc': '🗺️ पहचाने गए गाने के स्थानों के लिए पिन लगाए गए',
+      'vibe_match_playlist': 'हर दो हफ़्ते में आने वाली वाइब मैच प्लेलिस्ट',
+      'playlist_countdown': '4 दिनों में अगला ऑटो-अपडेट',
+      'no_artist_data': 'शीर्ष कलाकारों को ट्रैक करने के लिए और गाने गाएं!',
+      'analyzing': 'मूड का विश्लेषण हो रहा है...',
+      'next_drop': 'अगला अपडेट',
+      'refreshing_soon': 'जल्द रीफ्रेश हो रहा है!',
+      'open_in': 'में खोलें',
+      'none': 'कोई नहीं',
+      'sad': 'उदास',
+    'happy': 'खुश',
+    'hype': 'उत्साहित',
+    'romantic': 'रोमान्टिक',
+    'rock': 'रॉक',
+    'jazz': 'जैज़',
+    'indie': 'इंडी',
+    'rap': 'रैप',
+    'classical': 'क्लासिकल',
+    'reggae': 'रेगे',
+    'r&b': 'आर एंड बी',
+    'pop': 'पॉप',
+    'error_no_lyrics': 'बोल पहचाने नहीं जा सके। और स्पष्ट गाने का प्रयास करें!',
+    'open_in_platform': '{platform} में खोलें',
+    'songs': 'गाने',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
@@ -544,6 +846,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Посмотрите "{title}" от {artist}, найденный без рук с помощью Reczt!',
     'pending_queue_title': 'Ожидающие оффлайн-поиски',
     'offline_saved': 'Нет интернета. Сохранено в оффлайн-очереди!',
+'analytics_title': 'Reczt Аналитика',
+      'streak_title': 'Стикер пения',
+      'days_active_suffix': 'Дней активности',
+      'top_artist': 'Лучшие исполнители',
+      'most_sung_genres': 'Наиболее популярные жанры',
+      'acoustic_map': 'Карта звуковой памяти',
+      'acoustic_map_desc': '🗺️ Метки для распознанных мест песен',
+      'vibe_match_playlist': 'Би-недельный плейлист вибров совпадений',
+      'playlist_countdown': 'Следующее автообновление через 4 дня',
+      'no_artist_data': 'Пойте больше песен, чтобы отслеживать артистов!',
+      'analyzing': 'Анализ настроения...',
+      'next_drop': 'Следующий выпуск',
+      'refreshing_soon': 'Скоро обновление!',
+      'open_in': 'Открыть в',
+      'none': 'Никто',
+      'sad': 'Грустный',
+    'happy': 'Счастливый',
+    'hype': 'Взволнованный',
+    'romantic': 'Романтичный',
+    'rock': 'Рок',
+    'jazz': 'Джаз',
+    'indie': 'Инди',
+    'rap': 'Рэп',
+    'classical': 'Классика',
+    'reggae': 'Регги',
+    'r&b': 'R&B',
+    'pop': 'Поп',
+    'error_no_lyrics': 'Не удалось распознать текст песни. Попробуйте петь четче!',
+    'open_in_platform': 'Открыть в {platform}',
+    'songs': 'песен',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
@@ -591,6 +923,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Reczt ile eller serbest olarak bulunan "{title}" by {artist}\'i kontrol edin!',
     'pending_queue_title': 'Bekleyen Çevrimdışı Aramalar',
     'offline_saved': 'İnternet yok. Çevrimdışı kuyruğa kaydedildi!',
+'analytics_title': 'Reczt Analitik',
+      'streak_title': 'Şarkı Söyleme Serisi',
+      'days_active_suffix': 'Aktif Gün',
+      'top_artist': 'En İyi Sanatçılar',
+      'most_sung_genres': 'En Çok Seslendirilen Müzik Türleri',
+      'acoustic_map': 'Akustik Bellek Haritası',
+      'acoustic_map_desc': '🗺️ Tanınan şarkı konumu için iğneler yerleştirildi',
+      'vibe_match_playlist': 'İki Haftalık Ruh Hali Uyumu Çalma Listesi',
+      'playlist_countdown': '4 gün içinde otomatik güncelleme',
+      'no_artist_data': 'En iyi sanatçıları takip etmek için daha fazla şarkı söyleyin!',
+      'analyzing': 'Mod Analiz Ediliyor...',
+      'next_drop': 'Sonraki Güncelleme',
+      'refreshing_soon': 'Çok yakında yenileniyor!',
+      'open_in': 'Şurada aç',
+      'none': 'Hiçbiri',
+      'sad': 'Üzgün',
+    'happy': 'Mutlu',
+    'hype': 'Heyecanlı',
+    'romantic': 'Romantik',
+    'rock': 'Rock',
+    'jazz': 'Caz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Klasik',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'error_no_lyrics': 'Şarkı sözleri algılanamadı. Daha net söylemeyi deneyin!',
+    'open_in_platform': "{platform}'da aç",
+    'songs': 'şarkı',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
@@ -638,6 +1000,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'تحقق من "{title}" بواسطة {artist}, تم العثور عليه بدون استخدام اليدين باستخدام Reczt!',
     'pending_queue_title': 'عمليات البحث غير المتصلة بالإنترنت المعلقة',
     'offline_saved': 'لا يوجد اتصال بالإنترنت. تم الحفظ في قائمة الانتظار غير المتصلة بالإنترنت!',
+'analytics_title': 'تحليلات Reczt',
+      'streak_title': 'سلسلة الغناء المتواصلة',
+      'days_active_suffix': 'أيام نشطة',
+      'top_artist': 'أبرز الفنانين',
+      'most_sung_genres': 'أنواع الأغاني الأكثر أداءً',
+      'acoustic_map': 'خريطة الذاكرة الصوتية',
+      'acoustic_map_desc': '🗺️ تم وضع دبابيس لمواقع الأغاني التعرف عليها',
+      'vibe_match_playlist': 'قائمة تشغيل توافق المزاج',
+      'playlist_countdown': 'التحديث التلقائي القادم خلال 4 أيام',
+      'no_artist_data': 'غنّ المزيد من الأغاني لتتبع أفضل الفنانين!',
+      'analyzing': 'جاري تحليل الحالة المزاجية...',
+      'next_drop': 'التحديث القادم',
+      'refreshing_soon': 'سيتم التحديث قريباً!',
+      'open_in': 'فتح في',
+      'none': 'لا أحد',
+      'sad': 'حزين',
+    'happy': 'سعيد',
+    'hype': 'حماسي',
+    'romantic': 'رومانسي',
+    'rock': 'روك',
+    'jazz': 'جاز',
+    'indie': 'إيندي',
+    'rap': 'راب',
+    'classical': 'كلاسيكي',
+    'reggae': 'ريغي',
+    'r&b': 'آر أند بي',
+    'pop': 'بوب',
+    'error_no_lyrics': 'تعذر التعرف على الكلمات. حاول الغناء بشكل أوضح!',
+    'open_in_platform': 'الفتح في {platform}',
+    'songs': 'أغاني',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
@@ -685,6 +1077,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Bekijk "{title}" van {artist}, gevonden zonder handen met Reczt!',
     'pending_queue_title': 'In afwachting van offline zoekopdrachten',
     'offline_saved': 'Geen internet. Opgeslagen in de offline wachtrij!',
+'analytics_title': 'Reczt-analyse',
+      'streak_title': 'Zangreeks',
+      'days_active_suffix': 'Actieve dagen',
+      'top_artist': 'Topartiesten',
+      'most_sung_genres': 'Meest gezongen genres',
+      'acoustic_map': 'Akoestische geheugenkaart',
+      'acoustic_map_desc': '🗺️ Pinnen geplaatst voor herkende nummerlocaties',
+      'vibe_match_playlist': 'Tweewekelijkse Vibe Match-playlist',
+      'playlist_countdown': 'Volgende auto-update over 4 dagen',
+      'no_artist_data': 'Zing meer nummers om topartiesten te volgen!',
+      'analyzing': 'Stemming analyseren...',
+      'next_drop': 'Volgende drop',
+      'refreshing_soon': 'Binnenkort vernieuwd!',
+      'open_in': 'Openen in',
+      'none': 'Geen',
+      'sad': 'Verdrietig',
+    'happy': 'Blij',
+    'hype': 'Enthousiast',
+    'romantic': 'Romantisch',
+    'rock': 'Rock',
+    'jazz': 'Jazz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Klassiek',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'error_no_lyrics': 'Kon de songtekst niet herkennen. Probeer duidelijker te zingen!',
+    'open_in_platform': 'Openen in {platform}',
+    'songs': 'nummers',
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
@@ -732,6 +1154,36 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_text': 'Sprawdź "{title}" by {artist}, znaleziony bez użycia rąk za pomocą Reczt!',
     'pending_queue_title': 'Oczekujące wyszukiwania offline',
     'offline_saved': 'Brak internetu. Zapisano w kolejce offline!',
+'analytics_title': 'Reczt Analytics',
+      'streak_title': 'Seria dni śpiewania',
+      'days_active_suffix': 'Aktywnych dni',
+      'top_artist': 'Najpopularniejsi artyści',
+      'most_sung_genres': 'Najczęściej wykonywane gatunki',
+      'acoustic_map': 'Akustyczna mapa pamięci',
+      'acoustic_map_desc': '🗺️ Przypięte znaczniki dla rozpoznanych lokalizacji piosenek',
+      'vibe_match_playlist': 'Playlista Vibe Match – co dwa tygodnie',
+      'playlist_countdown': 'Kolejna automatyczna aktualizacja za 4 dni',
+      'no_artist_data': 'Zaśpiewaj więcej utworów, aby śledzić ulubionych artystów!',
+      'analyzing': 'Analizowanie nastroju...',
+      'next_drop': 'Kolejna aktualizacja',
+      'refreshing_soon': 'Wkrótce odświeżenie!',
+      'open_in': 'Otwórz w',
+      'none': 'Nic',
+      'sad': 'Smutny',
+    'happy': 'Szczęśliwy',
+    'hype': 'Podekscytowany',
+    'romantic': 'Romantyczny',
+    'rock': 'Rock',
+    'jazz': 'Jazz',
+    'indie': 'Indie',
+    'rap': 'Rap',
+    'classical': 'Klasyczna',
+    'reggae': 'Reggae',
+    'r&b': 'R&B',
+    'pop': 'Pop',
+    'error_no_lyrics': 'Nie udało się rozpoznać tekstu. Spróbuj śpiewać wyraźniej!',
+    'open_in_platform': 'Otwórz w {platform}',
+    'songs': 'piosenek',
   },
 };
 
@@ -792,6 +1244,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
   static const MethodChannel _siriChannel =
       MethodChannel('com.handsfreefinder/siri');
+
+  final GlobalKey _shareCardKey = GlobalKey();
 
   @override
   void initState() {
@@ -907,7 +1361,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   String _selectedLanguage = 'en';
   Color _themeSeedColor = Colors.deepPurple;
 
-  // 🌍 ALL 15 LANGUAGES MAPPED HERE FOR THE DROPDOWN
   final Map<String, String> _languages = {
     'en': '🇺🇸 English',
     'es': '🇪🇸 Español',
@@ -946,21 +1399,32 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         key;
   }
 
-  void _shareSong(String title, String artist) {
-  final String appStoreLink = 'https://apps.apple.com/app/reczt/id123456789'; 
-  
-  final String shareMessage = '''
-🎵 *Reczt Song Discovery* 🎵
-━━━━━━━━━━━━━━━━━━
-🎶 *Track:* $title
-👤 *Artist:* $artist
-━━━━━━━━━━━━━━━━━━
-Found hands-free using Reczt. Check it out or get the app here:
-$appStoreLink
-''';
+  Future<void> _shareSongCard(String title, String artist, bool isSpotify) async {
+    try {
+      RenderRepaintBoundary boundary = _shareCardKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      Uint8List? imageBytes = byteData?.buffer.asUint8List();
 
-  Share.share(shareMessage);
-}
+      if (imageBytes == null) return;
+
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/reczt_song.png');
+      await file.writeAsBytes(imageBytes);
+
+      String platformName = isSpotify ? "Spotify" : "Apple Music";
+      String shareText = "I found '$title' by $artist on $platformName via Reczt! Check it out: https://reczt.com";
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: shareText,
+      );
+    } catch (e) {
+      debugPrint("Error sharing visual card: $e");
+      Share.share('Check out "$title" by $artist, found hands-free using Reczt! https://reczt.com');
+    }
+  }
+
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final savedApp = prefs.getString('preferred_music_app');
@@ -1165,10 +1629,29 @@ $appStoreLink
     await prefs.setInt('selected_environment_mode', mode.index);
   }
 
-  Future<void> _saveToHistory(String songEntry) async {
+  Future<String?> _preserveAudioClip(String tempPath) async {
+    if (kIsWeb) return null;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final String fileName = 'clip_${DateTime.now().millisecondsSinceEpoch}.wav';
+      final File savedFile = await File(tempPath).copy('${appDir.path}/$fileName');
+      return savedFile.path;
+    } catch (e) {
+      debugPrint('Error preserving audio clip: $e');
+      return null;
+    }
+  }
+
+  Future<void> _saveToHistory(String songEntry, {String? audioPath}) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> history = prefs.getStringList('song_history') ?? [];
-    history.insert(0, songEntry);
+    
+    final Map<String, dynamic> historyObj = {
+      'song': songEntry,
+      'audioPath': audioPath ?? '',
+    };
+    
+    history.insert(0, jsonEncode(historyObj));
     await prefs.setStringList('song_history', history);
   }
 
@@ -1190,7 +1673,6 @@ $appStoreLink
     }
   }
 
-
   Future<void> _saveToOfflineQueue(String path) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
@@ -1199,24 +1681,24 @@ $appStoreLink
   }
 
   Future<void> _checkPendingOfflineQueue() async {
-  try {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    if (connectivityResult.contains(ConnectivityResult.none)) {
-      return;
-    }
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult.contains(ConnectivityResult.none)) {
+        return;
+      }
 
-    final prefs = await SharedPreferences.getInstance();
-    List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
-    if (pendingQueue.isNotEmpty) {
-      final String path = pendingQueue.removeAt(0);
-      await prefs.setStringList('pending_offline_songs', pendingQueue);
+      final prefs = await SharedPreferences.getInstance();
+      List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
+      if (pendingQueue.isNotEmpty) {
+        final String path = pendingQueue.removeAt(0);
+        await prefs.setStringList('pending_offline_songs', pendingQueue);
 
-      await _sendAudioToBackend(path);
+        await _sendAudioToBackend(path);
+      }
+    } catch (e) {
+      debugPrint('Error checking offline queue: $e');
     }
-  } catch (e) {
-    debugPrint('Error checking offline queue: $e');
   }
-}
 
   Future<void> _stopAndSendRecording() async {
     _autoStopTimer?.cancel();
@@ -1262,119 +1744,122 @@ $appStoreLink
   }
 
   Future<void> _sendAudioToBackend(String path) async {
-    final uri = Uri.parse(_backendUrl);
-    var request = http.MultipartRequest('POST', uri);
-    request.fields['language'] = _selectedLanguage;
-    request.fields['vocal_isolation'] = 'true'; 
-    request.fields['environment'] = _selectedMode.name; 
+  final uri = Uri.parse(_backendUrl);
+  var request = http.MultipartRequest('POST', uri);
+  request.fields['language'] = _selectedLanguage;
+  request.fields['vocal_isolation'] = 'true'; 
+  request.fields['environment'] = _selectedMode.name; 
 
-    try {
-      if (kIsWeb) {
-        final response = await http.get(Uri.parse(path));
-        final bytes = response.bodyBytes;
-        request.files.add(
-          http.MultipartFile.fromBytes('file', bytes, filename: 'recording.wav'),
-        );
-      } else {
-        request.files.add(await http.MultipartFile.fromPath('file', path));
-        if (path.startsWith('Offline Search')) {
-          await Future.delayed(const Duration(seconds: 1));
-          setState(() {
-            _isLoading = false;
-            _songTitle = 'Queued Song Match';
-            _artist = 'Discovered Offline';
-            _statusTextKey = 'match_found';
-          });
-          await _saveToHistory('Queued Song Match - Discovered Offline');
-          _checkPendingOfflineQueue();
-          return;
-        }
-        request.files.add(await http.MultipartFile.fromPath('file', path));
+  try {
+    if (kIsWeb) {
+      final response = await http.get(Uri.parse(path));
+      final bytes = response.bodyBytes;
+      request.files.add(
+        http.MultipartFile.fromBytes('file', bytes, filename: 'recording.wav'),
+      );
+    } else {
+      request.files.add(await http.MultipartFile.fromPath('file', path));
+      if (path.startsWith('Offline Search')) {
+        await Future.delayed(const Duration(seconds: 1));
+        setState(() {
+          _isLoading = false;
+          _songTitle = 'Queued Song Match';
+          _artist = 'Discovered Offline';
+          _statusTextKey = 'match_found';
+        });
+        await _saveToHistory('Queued Song Match - Discovered Offline');
+        _checkPendingOfflineQueue();
+        return;
       }
+    }
 
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
+    var streamedResponse = await request.send();
+    var response = await http.Response.fromStream(streamedResponse);
 
-      setState(() {
-        _isLoading = false;
-      });
+    setState(() {
+      _isLoading = false;
+    });
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
 
-        if (data['success'] == true) {
-          final List<Map<String, dynamic>> rawResults = data['results'] != null
-              ? List<Map<String, dynamic>>.from(data['results'])
-              : [data];
+      if (data['success'] == true) {
+        final List<Map<String, dynamic>> rawResults = data['results'] != null
+            ? List<Map<String, dynamic>>.from(data['results'])
+            : [data];
 
-          final filteredResults =
-              LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
-            results: rawResults,
-            selectedLanguage: _selectedLanguage,
-            getLanguage: (item) => item['language']?.toString() ?? 'en',
-            mode: _selectedMode,
-          );
+        final filteredResults =
+            LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
+          results: rawResults,
+          selectedLanguage: _selectedLanguage,
+          getLanguage: (item) => item['language']?.toString() ?? 'en',
+          mode: _selectedMode,
+        );
 
-          final validResults = filteredResults.where((item) {
-            return LanguageMatcher.isValidOriginalSong(item);
-          }).toList();
+        final validResults = filteredResults.where((item) {
+          return LanguageMatcher.isValidOriginalSong(item);
+        }).toList();
 
-          if (validResults.isNotEmpty) {
-            final topMatch = validResults.first;
-            final String title = topMatch['title'] ?? 'Unknown Title';
-            final String artist = topMatch['artist'] ?? 'Unknown Artist';
+        if (validResults.isNotEmpty) {
+          final topMatch = validResults.first;
+          final String title = topMatch['title'] ?? 'Unknown Title';
+          final String artist = topMatch['artist'] ?? 'Unknown Artist';
 
-            setState(() {
-              _songTitle = title;
-              _artist = artist;
-              _spotifyUrl = topMatch['spotify_url'];
-              _appleMusicUrl = topMatch['apple_music_url'];
-              _statusTextKey = 'match_found';
-              _customStatusText = null;
-            });
-            await _saveToHistory('$title - $artist');
+          setState(() {
+            _songTitle = title;
+            _artist = artist;
+            _spotifyUrl = topMatch['spotify_url'];
+            _appleMusicUrl = topMatch['apple_music_url'];
+            _statusTextKey = 'match_found';
+            _customStatusText = null;
+          });
+          
+          final preservedClipPath = await _preserveAudioClip(path);
+          await _saveToHistory('$title - $artist', audioPath: preservedClipPath);
 
-            _checkPendingOfflineQueue();
+          _checkPendingOfflineQueue();
 
-            if (_autoPlayEnabled) {
-              if (_preferredMusicApp == 'apple_music' &&
-                  _appleMusicUrl != null &&
-                  _appleMusicUrl!.isNotEmpty) {
-                _openMusicUrl(_appleMusicUrl!);
-              } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
-                _openSpotifyNative(_spotifyUrl!);
-              }
+          if (_autoPlayEnabled) {
+            if (_preferredMusicApp == 'apple_music' &&
+                _appleMusicUrl != null &&
+                _appleMusicUrl!.isNotEmpty) {
+              _openMusicUrl(_appleMusicUrl!);
+            } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
+              _openSpotifyNative(_spotifyUrl!);
             }
-          } else {
-            _playErrorCue();
-            setState(() {
-              _songTitle = null;
-              _artist = null;
-              _spotifyUrl = null;
-              _appleMusicUrl = null;
-              _customStatusText = t('no_valid_match');
-            });
           }
         } else {
           _playErrorCue();
           setState(() {
-            _customStatusText = data['message'] ?? 'No match found.';
+            _songTitle = null;
+            _artist = null;
+            _spotifyUrl = null;
+            _appleMusicUrl = null;
+            _customStatusText = t('error_no_lyrics'); // <-- Localized error
           });
         }
       } else {
         _playErrorCue();
         setState(() {
-          _customStatusText = 'Server Error: ${response.statusCode}';
+          // Bypasses raw backend English strings and enforces localized string
+          _customStatusText = t('error_no_lyrics'); 
         });
       }
-    } catch (e) {
+    } else {
       _playErrorCue();
       setState(() {
-        _isLoading = false;
-        _customStatusText = 'Failed to connect: $e';
+        _customStatusText = 'Server Error: ${response.statusCode}';
       });
     }
+  } catch (e) {
+    _playErrorCue();
+    setState(() {
+      _isLoading = false;
+      _customStatusText = 'Failed to connect: $e';
+    });
   }
+}
+ 
 
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
@@ -1447,252 +1932,331 @@ $appStoreLink
 
   @override
   Widget build(BuildContext context) {
+    final bool isSpotifyPlatform = _preferredMusicApp == 'spotify';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reczt'),
         centerTitle: true,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                t('app_title'),
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+      body: Stack(
+        children: [
+          Offstage(
+            offstage: true,
+            child: RepaintBoundary(
+              key: _shareCardKey,
+              child: Container(
+                width: 300,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 260,
+                      width: 260,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[900],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.music_note, color: Colors.white, size: 80),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _songTitle ?? 'Track Title',
+                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      _artist ?? 'Artist Name',
+                      style: const TextStyle(color: Colors.grey, fontSize: 16),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isSpotifyPlatform ? "Found via Spotify" : "Found via Apple Music",
+                          style: TextStyle(
+                            color: isSpotifyPlatform ? Colors.greenAccent : Colors.pinkAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Text(
+                          "Reczt",
+                          style: TextStyle(color: Colors.white70, fontSize: 12, fontStyle: FontStyle.italic),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              Row(
+            ),
+          ),
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  IconButton(
-                    icon: Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
-                    tooltip: t('settings_title'),
-                    onPressed: _showPreferencesDialog,
+                  Text(
+                    t('app_title'),
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(width: 16),
-                  IconButton(
-                    icon: Icon(Icons.history, color: Theme.of(context).colorScheme.primary),
-                    tooltip: t('history_title'),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => HistoryPage(lang: _selectedLanguage),
-                        ),
-                      );
-                    },
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.bar_chart, color: Theme.of(context).colorScheme.primary),
+                        tooltip: t('analytics_title'),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AnalyticsPage(lang: _selectedLanguage),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: Icon(Icons.settings, color: Theme.of(context).colorScheme.primary),
+                        tooltip: t('settings_title'),
+                        onPressed: _showPreferencesDialog,
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: Icon(Icons.history, color: Theme.of(context).colorScheme.primary),
+                        tooltip: t('history_title'),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => HistoryPage(lang: _selectedLanguage),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: Icon(Icons.menu_book, color: Theme.of(context).colorScheme.primary),
+                        tooltip: t('User Manual'),
+                        onPressed: () => _showUserManualDialog(context),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  IconButton(
-                    icon: Icon(Icons.menu_book, color: Theme.of(context).colorScheme.primary),
-                    tooltip: t('User Manual'),
-                    onPressed: () => _showUserManualDialog(context),
+                  const SizedBox(height: 20),
+                  const Divider(),
+                  const SizedBox(height: 20),
+                  Text(
+                    t('where_are_you'),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 20),
-              Text(
-                t('where_are_you'),
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Column(
-                children: EnvironmentMode.values.map((mode) {
-                  final isSelected = _selectedMode == mode;
-                  final primaryColor = Theme.of(context).colorScheme.primary;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6.0),
-                    child: InkWell(
-                      onTap: _isRecording || _isLoading
-                          ? null
-                          : () {
-                              _saveMode(mode);
-                            },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? primaryColor.withOpacity(0.1)
-                              : Colors.grey.shade100,
-                          border: Border.all(
-                            color: isSelected
-                                ? primaryColor
-                                : Colors.grey.shade300,
-                            width: isSelected ? 2 : 1,
-                          ),
+                  const SizedBox(height: 16),
+                  Column(
+                    children: EnvironmentMode.values.map((mode) {
+                      final isSelected = _selectedMode == mode;
+                      final primaryColor = Theme.of(context).colorScheme.primary;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: InkWell(
+                          onTap: _isRecording || _isLoading
+                              ? null
+                              : () {
+                                  _saveMode(mode);
+                                },
                           borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              mode.icon,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
                               color: isSelected
-                                  ? primaryColor
-                                  : Colors.grey.shade600,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                t(mode.key),
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  color: isSelected
-                                      ? primaryColor
-                                      : Colors.black87,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
+                                  ? primaryColor.withOpacity(0.1)
+                                  : Colors.grey.shade100,
+                              border: Border.all(
                                 color: isSelected
                                     ? primaryColor
                                     : Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(8),
+                                width: isSelected ? 2 : 1,
                               ),
-                              child: Text(
-                                '${mode.duration}s',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : Colors.black87,
-                                ),
-                              ),
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  mode.icon,
+                                  color: isSelected
+                                      ? primaryColor
+                                      : Colors.grey.shade600,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    t(mode.key),
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? primaryColor
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? primaryColor
+                                        : Colors.grey.shade300,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '${mode.duration}s',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
+                    _getDisplayStatusText(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 30),
+                  if (_isLoading)
+                    const CircularProgressIndicator()
+                  else
+                    GestureDetector(
+                      onTap: () {
+                        if (_isRecording) {
+                          _stopAndSendRecording();
+                        } else {
+                          _startRecording(playDing: true);
+                        }
+                      },
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundColor:
+                            _isRecording ? Colors.red : Theme.of(context).colorScheme.primary,
+                        child: Icon(
+                          _isRecording ? Icons.stop : Icons.mic,
+                          size: 50,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 30),
+                  if (_songTitle != null && _artist != null) ...[
+                    Card(
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
+                                  onPressed: () => _shareSongCard(_songTitle!, _artist!, isSpotifyPlatform),
+                                ),
+                              ],
+                            ),
+                            Icon(Icons.music_note,
+                                size: 60, color: Theme.of(context).colorScheme.primary),
+                            const SizedBox(height: 12),
+                            Text(
+                              _songTitle!,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${t('by')} $_artist',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey.shade700,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 20),
+                            if (_preferredMusicApp == 'apple_music' &&
+                                _appleMusicUrl != null &&
+                                _appleMusicUrl!.isNotEmpty)
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFA243C),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 12),
+                                ),
+                                onPressed: () => _openMusicUrl(_appleMusicUrl!),
+                                icon: const Icon(Icons.play_arrow),
+                                label: Text(t('open_apple')),
+                              )
+                            else if (_spotifyUrl != null &&
+                                _spotifyUrl!.isNotEmpty)
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1DB954),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 12),
+                                ),
+                                onPressed: () => _openSpotifyNative(_spotifyUrl!),
+                                icon: const Icon(Icons.play_arrow),
+                                label: Text(t('open_spotify')),
+                              ),
                           ],
                         ),
                       ),
                     ),
-                  );
-                }).toList(),
+                  ],
+                ],
               ),
-              const SizedBox(height: 32),
-              Text(
-                _getDisplayStatusText(),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 30),
-              if (_isLoading)
-                const CircularProgressIndicator()
-              else
-                GestureDetector(
-                  onTap: () {
-                    if (_isRecording) {
-                      _stopAndSendRecording();
-                    } else {
-                      _startRecording(playDing: true);
-                    }
-                  },
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundColor:
-                        _isRecording ? Colors.red : Theme.of(context).colorScheme.primary,
-                    child: Icon(
-                      _isRecording ? Icons.stop : Icons.mic,
-                      size: 50,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 30),
-              if (_songTitle != null && _artist != null) ...[
-                Card(
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            IconButton(
-                              icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
-                              onPressed: () => _shareSong(_songTitle!, _artist!),
-                            ),
-                          ],
-                        ),
-                        Icon(Icons.music_note,
-                            size: 60, color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(height: 12),
-                        Text(
-                          _songTitle!,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${t('by')} $_artist',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade700,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 20),
-                        if (_preferredMusicApp == 'apple_music' &&
-                            _appleMusicUrl != null &&
-                            _appleMusicUrl!.isNotEmpty)
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFA243C),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 12),
-                            ),
-                            onPressed: () => _openMusicUrl(_appleMusicUrl!),
-                            icon: const Icon(Icons.play_arrow),
-                            label: Text(t('open_apple')),
-                          )
-                        else if (_spotifyUrl != null &&
-                            _spotifyUrl!.isNotEmpty)
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF1DB954),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 12),
-                            ),
-                            onPressed: () => _openSpotifyNative(_spotifyUrl!),
-                            icon: const Icon(Icons.play_arrow),
-                            label: Text(t('open_spotify')),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1792,7 +2356,6 @@ $appStoreLink
                 desc,
                 style: TextStyle(
                   fontSize: 12,
-                  // Dynamic color check for dark mode vs light mode
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.grey[300]
                       : Colors.grey[700],
@@ -1807,7 +2370,730 @@ $appStoreLink
 }
 
 // ----------------------------------------------------
-// LOCALIZED SEARCH HISTORY & PENDING QUEUE PAGE
+// 📊 COMPACT ANALYTICS & STATISTICS PAGE (GRID & LOCALIZED)
+// ----------------------------------------------------
+class AnalyticsPage extends StatefulWidget {
+  final String lang;
+  const AnalyticsPage({super.key, required this.lang});
+
+  @override
+  State<AnalyticsPage> createState() => _AnalyticsPageState();
+}
+
+class _AnalyticsPageState extends State<AnalyticsPage> {
+  int _singingStreak = 0;
+  List<String> _topArtists = [];
+  late Map<String, int> _genreCounts;
+  Map<String, int> _emotionCounts = {};
+
+  // Active Singing State & Multiple Dynamic Map Pin Locations
+  bool _isCurrentlySinging = false;
+  List<Offset> _livePinLocations = [];
+
+  // Dynamic Playlist state & Bi-Weekly Countdown
+  String _curatedPlaylistTitle = "";
+  String _streamingUrl = "";
+  String _majorityEmotion = "Balanced";
+  String _countdownText = "";
+  String _preferredApp = 'spotify';
+    // Define the active platform from the selected app.
+    String get preferredPlatform =>
+        _preferredApp == 'apple_music' ? 'Apple Music' : 'Spotify';
+
+  String t(String key) {
+    return localizedStrings[widget.lang]?[key] ??
+        localizedStrings['en']?[key] ??
+        key;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize fallback dynamic keys
+    _genreCounts = {
+      'pop': 0,
+      'rock': 0,
+      'indie': 0,
+      'jazz': 0,
+    };
+    _curatedPlaylistTitle = t('analyzing_mood');
+    _countdownText = t('calculating');
+    _computeAnalytics();
+  }
+
+  // Converts Latitude [-90 to 90] and Longitude [-180 to 180] to relative map offset [0.0 to 1.0]
+  Offset _latLngToMapOffset(double lat, double lng) {
+    double dx = ((lng + 180) / 360).clamp(0.0, 1.0);
+    double dy = ((90 - lat) / 180).clamp(0.0, 1.0);
+    return Offset(dx, dy);
+  }
+
+  Future<void> _launchStreamingLink() async {
+    final playlistData = _curatePlaylistByMajorityEmotion(_majorityEmotion);
+    final targetUrl = playlistData['url'] ?? _streamingUrl;
+
+    if (targetUrl.isEmpty) return;
+
+    final uri = Uri.parse(targetUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _computeAnalytics() async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> history = prefs.getStringList('song_history') ?? [];
+
+    _preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
+    
+    // Check if singing recognition audio is actively active
+    bool activeSinging = prefs.getBool('is_currently_singing') ?? false;
+
+    // Load multiple active recording coordinates (Format: JSON string list of {"lat": ..., "lng": ...})
+    List<String> rawCoordinates = prefs.getStringList('active_singing_locations') ?? [];
+    List<Offset> calculatedOffsets = [];
+
+    for (String rawCoord in rawCoordinates) {
+      try {
+        final data = jsonDecode(rawCoord);
+        double lat = (data['lat'] as num).toDouble();
+        double lng = (data['lng'] as num).toDouble();
+        calculatedOffsets.add(_latLngToMapOffset(lat, lng));
+      } catch (_) {}
+    }
+
+    // Fallback default pins for live demonstration if active list is empty
+    if (calculatedOffsets.isEmpty && activeSinging) {
+      calculatedOffsets = [
+        _latLngToMapOffset(40.7128, -74.0060), // New York
+        _latLngToMapOffset(51.5074, -0.1278),  // London
+        _latLngToMapOffset(35.6762, 139.6503), // Tokyo
+      ];
+    }
+
+    Map<String, int> artistMap = {};
+    Map<String, int> rawGenreMap = {};
+    Map<String, int> emotionMap = {'happy': 0, 'sad': 0, 'hype': 0, 'romantic': 0};
+    List<DateTime> sessionDates = [];
+
+    for (String rawItem in history) {
+      String songTitle = rawItem;
+      DateTime? itemDate;
+      String emotion = "happy";
+      String? extractedGenre;
+
+      try {
+        if (rawItem.startsWith('{')) {
+          final data = jsonDecode(rawItem);
+          songTitle = data['song'] ?? rawItem;
+          if (data['date'] != null) {
+            itemDate = DateTime.tryParse(data['date']);
+          }
+          if (data['emotion'] != null) {
+            emotion = data['emotion'].toString().toLowerCase();
+          } else if (data['mood'] != null) {
+            emotion = data['mood'].toString().toLowerCase();
+          }
+          if (data['genre'] != null) {
+            extractedGenre = data['genre'].toString().toLowerCase().trim();
+          }
+        }
+      } catch (_) {}
+
+      final lowerTitle = songTitle.toLowerCase();
+      if (lowerTitle.contains('sad') || lowerTitle.contains('blue') || lowerTitle.contains('alone')) {
+        emotion = 'sad';
+      } else if (lowerTitle.contains('party') || lowerTitle.contains('dance') || lowerTitle.contains('hype')) {
+        emotion = 'hype';
+      } else if (lowerTitle.contains('love') || lowerTitle.contains('heart')) {
+        emotion = 'romantic';
+      }
+
+      emotionMap[emotion] = (emotionMap[emotion] ?? 0) + 1;
+
+      itemDate ??= DateTime.now();
+      sessionDates.add(itemDate);
+
+      if (songTitle.contains(' - ')) {
+        final parts = songTitle.split(' - ');
+        if (parts.length > 1) {
+          final artist = parts[1].trim();
+          artistMap[artist] = (artistMap[artist] ?? 0) + 1;
+        }
+      }
+
+      // Dynamic Genre Extraction & Title Keyword Fallbacks
+      if (extractedGenre == null || extractedGenre.isEmpty) {
+        if (lowerTitle.contains('rock') || lowerTitle.contains('band')) {
+          extractedGenre = 'rock';
+        } else if (lowerTitle.contains('jazz') || lowerTitle.contains('blues')) {
+          extractedGenre = 'jazz';
+        } else if (lowerTitle.contains('indie') || lowerTitle.contains('acoustic')) {
+          extractedGenre = 'indie';
+        } else if (lowerTitle.contains('rap') || lowerTitle.contains('hip hop')) {
+          extractedGenre = 'rap';
+        } else if (lowerTitle.contains('classical') || lowerTitle.contains('orchestra')) {
+          extractedGenre = 'classical';
+        } else if (lowerTitle.contains('reggae')) {
+          extractedGenre = 'reggae';
+        } else if (lowerTitle.contains('r&b') || lowerTitle.contains('rnb')) {
+          extractedGenre = 'r&b';
+        } else {
+          extractedGenre = 'pop';
+        }
+      }
+
+      rawGenreMap[extractedGenre] = (rawGenreMap[extractedGenre] ?? 0) + 1;
+    }
+
+    // Default fallbacks to guarantee 4 entries if user history has fewer
+    final defaultFallbacks = ['pop', 'rock', 'indie', 'jazz'];
+    for (String fallback in defaultFallbacks) {
+      rawGenreMap.putIfAbsent(fallback, () => 0);
+    }
+
+    // Sort genres by occurrence frequency and select top 4
+    var sortedRawGenres = rawGenreMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    var top4Genres = sortedRawGenres.take(4);
+
+    // Store raw genre keys without t()
+    Map<String, int> top4GenreCounts = {};
+    for (var entry in top4Genres) {
+      top4GenreCounts[entry.key] = entry.value;
+    }
+
+    var sortedArtists = artistMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    List<String> topArtistsList = sortedArtists.map((e) => e.key).take(3).toList();
+
+    String calculatedMajority = 'happy';
+    if (emotionMap.isNotEmpty) {
+      var dominant = emotionMap.entries.reduce((a, b) => a.value > b.value ? a : b);
+      if (dominant.value <= 1 && topArtistsList.isNotEmpty) {
+        calculatedMajority = 'fallback';
+      } else {
+        calculatedMajority = dominant.key;
+      }
+    } else {
+      calculatedMajority = 'fallback';
+    }
+
+    int calculatedStreak = _calculateStreak(sessionDates);
+
+    setState(() {
+      _singingStreak = calculatedStreak;
+      _topArtists = topArtistsList;
+      _emotionCounts = emotionMap;
+      _genreCounts = top4GenreCounts; // Updated to store raw keys
+      _isCurrentlySinging = activeSinging;
+      _livePinLocations = calculatedOffsets;
+      _majorityEmotion = calculatedMajority;
+    });
+
+    await _handleBiWeeklyPlaylistRotation(prefs);
+  }
+
+  Future<void> _handleBiWeeklyPlaylistRotation(SharedPreferences prefs) async {
+    final int fourteenDaysInMs = 14 * 24 * 60 * 60 * 1000;
+    int now = DateTime.now().millisecondsSinceEpoch;
+
+    int? lastGeneratedTime = prefs.getInt('playlist_timestamp');
+    String? savedPlaylist = prefs.getString('saved_curated_playlist');
+
+    var freshPlaylistData = _curatePlaylistByMajorityEmotion(_majorityEmotion);
+
+    String selectedTitle = freshPlaylistData['title']!;
+    if (lastGeneratedTime == null || savedPlaylist == null || (now - lastGeneratedTime > fourteenDaysInMs)) {
+      await prefs.setInt('playlist_timestamp', now);
+      await prefs.setString('saved_curated_playlist', selectedTitle);
+      lastGeneratedTime = now;
+    } else {
+      selectedTitle = savedPlaylist;
+    }
+
+    int timeLeft = fourteenDaysInMs - (now - lastGeneratedTime);
+    int daysLeft = timeLeft ~/ (24 * 60 * 60 * 1000);
+    int hoursLeft = (timeLeft % (24 * 60 * 60 * 1000)) ~/ (60 * 60 * 1000);
+
+    setState(() {
+      _curatedPlaylistTitle = selectedTitle;
+      _streamingUrl = freshPlaylistData['url']!;
+      _countdownText = daysLeft > 0
+          ? "${t('next_drop')}: ${daysLeft}d ${hoursLeft}h"
+          : t('refreshing_soon');
+    });
+  }
+
+  int _calculateStreak(List<DateTime> dates) {
+    if (dates.isEmpty) return 0;
+
+    List<DateTime> normalizedDates = dates
+        .map((d) => DateTime(d.year, d.month, d.day))
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    DateTime today = DateTime.now();
+    DateTime normalizedToday = DateTime(today.year, today.month, today.day);
+
+    if (normalizedToday.difference(normalizedDates.first).inDays > 1) return 0;
+
+    int streak = 0;
+    DateTime expectedDate = normalizedDates.first;
+
+    for (var date in normalizedDates) {
+      if (date == expectedDate) {
+        streak++;
+        expectedDate = expectedDate.subtract(const Duration(days: 1));
+      } else if (date.isBefore(expectedDate)) {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  Map<String, String> _curatePlaylistByMajorityEmotion(String emotion) {
+    final Map<String, Map<String, String>> emotionPlaylists = {
+      'sad': {
+        'title': 'Sad Indie & Melancholy Mix',
+        'query': 'Sad Indie',
+      },
+      'hype': {
+        'title': 'Hype Workout & Energy Boost',
+        'query': 'Workout Hits',
+      },
+      'romantic': {
+        'title': 'Love Songs & Romance Essentials',
+        'query': 'Love Songs Essentials',
+      },
+      'happy': {
+        'title': 'Feel-Good Happy Hits Mix',
+        'query': 'Happy Hits',
+      },
+    };
+
+    String title = emotionPlaylists[emotion]?['title'] ?? 'Feel-Good Happy Hits Mix';
+    String query = emotionPlaylists[emotion]?['query'] ?? 'Happy Hits';
+
+    if (emotion == 'balanced' || emotion.isEmpty || (_topArtists.isNotEmpty && emotion == 'fallback')) {
+      String topArtistName = _topArtists.isNotEmpty ? _topArtists.first.trim() : "Your Favorite";
+      title = "Best of $topArtistName Essentials Mix";
+      query = "$topArtistName Essentials";
+    }
+
+    String encodedQuery = Uri.encodeComponent(query);
+
+    // Directs browsers and apps to top curated editorial playlists without hardcoded IDs
+    String url = (_preferredApp == 'applemusic')
+        ? "https://music.apple.com/us/search?term=$encodedQuery"
+        : "https://open.spotify.com/search/$encodedQuery/playlists";
+
+    return {"title": title, "url": url};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeColor = Theme.of(context).colorScheme.primary;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    final sortedGenres = _genreCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    int maxGenreCount = sortedGenres.isNotEmpty ? sortedGenres.first.value : 1;
+    if (maxGenreCount == 0) maxGenreCount = 1;
+
+    int totalEmotions = _emotionCounts.values.fold(0, (sum, count) => sum + count);
+
+    double getEmotionPct(String key) {
+      if (totalEmotions == 0) return 0;
+      return ((_emotionCounts[key] ?? 0) / totalEmotions) * 100;
+    }
+
+    final Map<String, Color> emotionColors = {
+      t('happy'): Colors.redAccent,
+      t('sad'): Colors.blueAccent,
+      t('hype'): Colors.orangeAccent,
+      t('romantic'): Colors.purpleAccent,
+    };
+
+    List<PieChartSectionData> emotionSections = [t('happy'), t('sad'), t('hype'), t('romantic')].map((key) {
+      final count = (_emotionCounts[key] ?? 0).toDouble();
+      return PieChartSectionData(
+        color: emotionColors[key],
+        value: count == 0 ? 1 : count,
+        title: '',
+        radius: 18,
+      );
+    }).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          t('analytics_title'),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: themeColor),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1050),
+            child: Column(
+              children: [
+                // --- ROW 1: Top Cards ---
+                SizedBox(
+                  height: 145,
+                  child: Row(
+                    children: [
+                      // 1. Streak Box
+                      Expanded(
+                        flex: 2,
+                        child: _buildThemedCard(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 30),
+                              const SizedBox(height: 6),
+                              Text(
+                                "$_singingStreak",
+                                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: themeColor),
+                              ),
+                              Text(
+                                t('streak_title'),
+                                style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // 2. Top Artist
+                      Expanded(
+                        flex: 2,
+                        child: _buildThemedCard(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.star, color: Colors.amber, size: 30),
+                              const SizedBox(height: 6),
+                              Text(
+                                _topArtists.isNotEmpty ? _topArtists.first : t('none'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: themeColor),
+                              ),
+                              Text(
+                                t('top_artist'),
+                                style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // 3. Mood Donut Chart with Legend
+                      Expanded(
+                        flex: 4,
+                        child: _buildThemedCard(
+                          child: Row(
+                            children: [
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                 _buildLegendRow("${getEmotionPct('happy').toStringAsFixed(0)}% ${t('happy')}", Colors.redAccent),
+_buildLegendRow("${getEmotionPct('sad').toStringAsFixed(0)}% ${t('sad')}", Colors.blueAccent),
+_buildLegendRow("${getEmotionPct('hype').toStringAsFixed(0)}% ${t('hype')}", Colors.orangeAccent),
+_buildLegendRow("${getEmotionPct('romantic').toStringAsFixed(0)}% ${t('romantic')}", Colors.purpleAccent),
+                                ],
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: PieChart(
+                                  PieChartData(
+                                    sectionsSpace: 3,
+                                    centerSpaceRadius: 26,
+                                    sections: emotionSections,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // --- ROW 2 & 3: Split Section ---
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left Column: Genre Bar Graph & Vibes Playlist Box
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            height: 185,
+                            child: _buildThemedCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    t('most_sung_genres').toUpperCase(),
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeColor),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  if (sortedGenres.isEmpty)
+                                    Text(t('none'), style: const TextStyle(fontSize: 12, color: Colors.grey))
+                                  else ...[
+                                    for (int i = 0; i < 4; i++) ...[
+                                      if (i < sortedGenres.length) ...[
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              t(sortedGenres[i].key), // <-- Wrapped raw key with t() here
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                            ),
+                                            Text(
+                                              "${sortedGenres[i].value} ${t('songs')}",
+                                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 3),
+                                        LinearProgressIndicator(
+                                          value: sortedGenres[i].value / maxGenreCount,
+                                          color: _getBarColor(i, themeColor),
+                                          backgroundColor: Colors.grey.withOpacity(0.15),
+                                          minHeight: 7,
+                                        ),
+                                        if (i < 3) const SizedBox(height: 6),
+                                      ],
+                                    ],
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Centered Vibes Playlist Box
+                          SizedBox(
+                            height: 155,
+                            child: _buildThemedCard(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _countdownText.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: themeColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  InkWell(
+                                    onTap: _launchStreamingLink,
+                                    child: Text(
+                                      _curatedPlaylistTitle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: themeColor,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Inside your Vibes Playlist Column children:
+Text(
+  t('open_in_platform').replaceAll('{platform}', preferredPlatform),
+  style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
+),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+
+                    // Right Column: Multi-Pin High-Contrast Acoustic World Map
+                    Expanded(
+                      flex: 6,
+                      child: SizedBox(
+                        height: 356,
+                        child: _buildThemedCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                t('acoustic_map').toUpperCase(),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeColor),
+                              ),
+                              const SizedBox(height: 10),
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Stack(
+                                    children: [
+                                      // World Vector Map Background
+                                      Positioned.fill(
+                                        child: Container(
+                                          color: isDarkMode ? const Color(0xFF1E2638) : const Color(0xFFE8F0FE),
+                                          child: Image.asset(
+                                            'assets/world_map.png',
+                                            fit: BoxFit.contain,
+                                            color: isDarkMode ? Colors.white70 : themeColor.withOpacity(0.75),
+                                            colorBlendMode: BlendMode.modulate,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              color: isDarkMode ? Colors.grey.shade900 : Colors.blueGrey.shade100,
+                                              child: Center(
+                                                child: Icon(Icons.public, size: 100, color: themeColor.withOpacity(0.4)),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+
+                                      // Dynamically render MULTIPLE live pins simultaneously when singing
+                                      if (_isCurrentlySinging && _livePinLocations.isNotEmpty)
+                                        ..._livePinLocations.map((pinOffset) {
+                                          return Align(
+                                            alignment: FractionalOffset(
+                                              pinOffset.dx,
+                                              pinOffset.dy,
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.redAccent,
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    boxShadow: const [
+                                                      BoxShadow(
+                                                        color: Colors.black38,
+                                                        blurRadius: 4,
+                                                        offset: Offset(0, 2),
+                                                      )
+                                                    ],
+                                                  ),
+                                                  child: const Text(
+                                                    "LIVE",
+                                                    style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 1),
+                                                Container(
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.red.withOpacity(0.4),
+                                                        blurRadius: 10,
+                                                        spreadRadius: 4,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.location_on,
+                                                    color: Colors.redAccent,
+                                                    size: 46,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemedCard({required Widget child}) {
+    final themeColor = Theme.of(context).colorScheme.primary;
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: themeColor.withOpacity(0.55), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: child,
+    );
+  }
+
+  Widget _buildLegendRow(String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Container(width: 12, height: 12, color: color),
+        ],
+      ),
+    );
+  }
+
+  Color _getBarColor(int index, Color themePrimary) {
+    switch (index) {
+      case 0:
+        return themePrimary;
+      case 1:
+        return Colors.pinkAccent;
+      case 2:
+        return Colors.orangeAccent;
+      case 3:
+        return Colors.tealAccent;
+      default:
+        return themePrimary;
+    }
+  }
+}
+// LOCALIZED SEARCH HISTORY & PLAYBACK PAGE
 // ----------------------------------------------------
 class HistoryPage extends StatefulWidget {
   final String lang;
@@ -1821,16 +3107,37 @@ class _HistoryPageState extends State<HistoryPage> {
   List<String> _history = [];
   List<String> _pendingQueue = [];
 
+  late final AudioPlayer _clipPlayer;
+  String? _currentlyPlayingPath;
+  bool _isPlayingClip = false;
+
   String t(String key) {
     return localizedStrings[widget.lang]?[key] ??
-        localizedStrings['en']![key] ??
+        localizedStrings['en']?[key] ??
         key;
   }
 
   @override
   void initState() {
     super.initState();
+    _clipPlayer = AudioPlayer();
+
+    _clipPlayer.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() {
+          _isPlayingClip = false;
+          _currentlyPlayingPath = null;
+        });
+      }
+    });
+
     _loadHistoryAndQueue();
+  }
+
+  @override
+  void dispose() {
+    _clipPlayer.dispose();
+    super.dispose();
   }
 
   Future<void> _loadHistoryAndQueue() async {
@@ -1843,15 +3150,85 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _clearHistory() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Delete physical voice recording snippet files from the device disk
+    for (String rawItem in _history) {
+      try {
+        if (rawItem.startsWith('{')) {
+          final parsed = jsonDecode(rawItem);
+          final String? clipPath = parsed['audioPath'];
+          if (clipPath != null && clipPath.isNotEmpty) {
+            final file = File(clipPath);
+            if (await file.exists()) {
+              await file.delete();
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint("Error deleting recorded audio file: $e");
+      }
+    }
+
+    await _clipPlayer.stop();
     await prefs.remove('song_history');
+
     setState(() {
       _history = [];
+      _currentlyPlayingPath = null;
+      _isPlayingClip = false;
     });
+  }
+
+  Future<void> _togglePlayClip(String path) async {
+    try {
+      if (_currentlyPlayingPath == path && _isPlayingClip) {
+        await _clipPlayer.pause();
+        setState(() {
+          _isPlayingClip = false;
+        });
+      } else {
+        await _clipPlayer.stop();
+        await _clipPlayer.play(DeviceFileSource(path));
+        setState(() {
+          _currentlyPlayingPath = path;
+          _isPlayingClip = true;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error playing audio clip: $e");
+    }
+  }
+
+  Future<void> _exportToSpotify() async {
+    if (_history.isEmpty) return;
+    final Uri spotifyUrl = Uri.parse("https://open.spotify.com/");
+    if (await canLaunchUrl(spotifyUrl)) {
+      await launchUrl(spotifyUrl, mode: LaunchMode.externalApplication);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Opening Spotify to generate your Reczt Playlist!')),
+      );
+    }
+  }
+
+  Future<void> _exportToAppleMusic() async {
+    if (_history.isEmpty) return;
+    final Uri appleUrl = Uri.parse("https://music.apple.com/");
+    if (await canLaunchUrl(appleUrl)) {
+      await launchUrl(appleUrl, mode: LaunchMode.externalApplication);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Opening Apple Music to generate your Reczt Playlist!')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final bool hasContent = _history.isNotEmpty || _pendingQueue.isNotEmpty;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -1878,8 +3255,10 @@ class _HistoryPageState extends State<HistoryPage> {
                           Navigator.pop(context);
                           _clearHistory();
                         },
-                        child: Text(t('clear'),
-                            style: const TextStyle(color: Colors.red)),
+                        child: Text(
+                          t('clear'),
+                          style: const TextStyle(color: Colors.red),
+                        ),
                       ),
                     ],
                   ),
@@ -1903,25 +3282,28 @@ class _HistoryPageState extends State<HistoryPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     child: Text(
                       t('pending_queue_title'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.orange,
+                        color: isDark ? Colors.orangeAccent : Colors.orange,
                       ),
                     ),
                   ),
                   ..._pendingQueue.map((queueItem) {
                     return Card(
-                      color: Colors.orange.shade50,
+                      color: isDark ? Colors.grey[850] : Colors.orange.shade50,
                       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                      child: const ListTile(
-                        leading: CircleAvatar(
+                      child: ListTile(
+                        leading: const CircleAvatar(
                           backgroundColor: Colors.orange,
                           child: Icon(Icons.sync, color: Colors.white),
                         ),
                         title: Text(
                           'Processing Saved Recording...',
-                          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                         ),
                       ),
                     );
@@ -1940,7 +3322,23 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     ),
                   ),
-                  ..._history.map((songEntry) {
+                  ..._history.map((rawItem) {
+                    String songTitle = rawItem;
+                    String? audioClipPath;
+
+                    // Parse JSON entry if it contains an audio path
+                    try {
+                      if (rawItem.startsWith('{')) {
+                        final parsed = jsonDecode(rawItem);
+                        songTitle = parsed['song'] ?? rawItem;
+                        audioClipPath = parsed['audioPath'];
+                      }
+                    } catch (_) {}
+
+                    final bool clipExists = audioClipPath != null &&
+                        audioClipPath.isNotEmpty &&
+                        File(audioClipPath).existsSync();
+
                     return Card(
                       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                       child: ListTile(
@@ -1949,22 +3347,73 @@ class _HistoryPageState extends State<HistoryPage> {
                           child: const Icon(Icons.music_note, color: Colors.white),
                         ),
                         title: Text(
-                          songEntry,
+                          songTitle,
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        trailing: IconButton(
-                          icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
-                          onPressed: () {
-                            Share.share(
-                              'Check out "$songEntry", found hands-free using Reczt!',
-                            );
-                          },
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // 🎵 REPLAY USER SINGING RECORDING BUTTON
+                            if (clipExists)
+                              IconButton(
+                                icon: Icon(
+                                  (_currentlyPlayingPath == audioClipPath && _isPlayingClip)
+                                      ? Icons.pause_circle_filled
+                                      : Icons.play_circle_fill,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: 28,
+                                ),
+                                tooltip: "Play singing sample",
+                                onPressed: () => _togglePlayClip(audioClipPath!),
+                              ),
+                            IconButton(
+                              icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
+                              onPressed: () {
+                                Share.share(
+                                  'Check out "$songTitle", found hands-free using Reczt! https://reczt.com',
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     );
                   }),
                 ],
               ],
+            ),
+      bottomNavigationBar: _history.isEmpty
+          ? null
+          : Container(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1DB954),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _exportToSpotify,
+                    icon: const Icon(Icons.playlist_add),
+                    label: Text(t('create_spotify_playlist')),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFA243C),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _exportToAppleMusic,
+                    icon: const Icon(Icons.playlist_add),
+                    label: Text(t('create_apple_playlist')),
+                  ),
+                ],
+              ),
             ),
     );
   }
@@ -2043,4 +3492,4 @@ class LanguageMatcher {
 
     return matchedResults;
   }
-} // helllloooooo
+}
