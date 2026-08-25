@@ -18,6 +18,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
 
 
@@ -47,7 +48,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Match Found!',
     'mic_denied': 'Microphone permission denied.',
     'settings_title': 'App Preferences',
-    'pref_music_app': 'Preferred Music App',
+    'pref_music_app': 'Preferred Music App (Please note: choosing Spotify will give you access to more in-depth recommendations of Spotify songs and playlists)',
     'pref_lang': 'Preferred Language',
     'open_spotify': 'Open in Spotify App',
     'open_apple': 'Open in Apple Music',
@@ -112,6 +113,18 @@ final Map<String, Map<String, String>> localizedStrings = {
     'pop': 'Pop',
     'open_in_platform': 'Open in {platform}',
     'songs': 'songs',
+    'playlist_desc': 'Created automatically via Reczt App',
+    'auth_spotify': 'Authenticating with Spotify...',
+    'auth_failed': 'Spotify authorization canceled or failed.',
+    'creating_playlist': 'Creating playlist and searching tracks...',
+    'playlist_success': 'Success! Playlist created in Spotify.',
+    'playlist_error': 'Could not create playlist. Make sure Spotify is connected.',
+    'tap_to_play_preferred': 'Tap to play in your preferred app',
+    'play_singing_sample': 'Play singing sample',
+    'share_card': 'Share Card',
+    'create_spotify_playlist': 'Create Spotify Playlist',
+    'create_apple_playlist': 'Create Apple Music Playlist',
+    
   },
   'es': {
     'app_title': 'Identificador de Canciones',
@@ -124,8 +137,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': '¡Coincidencia encontrada!',
     'mic_denied': 'Permiso de micrófono denegado.',
     'settings_title': 'Preferencias de la aplicación',
-    'pref_music_app': 'Aplicación de música preferida',
-    'pref_lang': 'Idioma preferido',
+    'pref_music_app': 'Aplicación de música preferida (Nota: elegir Spotify te dará acceso a recomendaciones más detalladas de canciones y listas de reproducción de Spotify)',    'pref_lang': 'Idioma preferido',
     'open_spotify': 'Abrir en Spotify',
     'open_apple': 'Abrir en Apple Music',
     'history_title': 'Historial de búsqueda',
@@ -188,6 +200,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'No se pudieron reconocer las letras. ¡Intenta cantar más claro!',
     'open_in_platform': 'Abrir en {platform}',
     'songs': 'canciones',
+    'playlist_desc': 'Creado automáticamente mediante la aplicación Reczt',
+    'auth_spotify': 'Autenticando con Spotify...',
+    'auth_failed': 'Autorización de Spotify cancelada o fallida.',
+    'creating_playlist': 'Creando lista de reproducción y buscando canciones...',
+    'playlist_success': '¡Éxito! Lista de reproducción creada en Spotify.',
+    'playlist_error': 'No se pudo crear la lista. Asegúrate de conectar Spotify.',
+    'tap_to_play_preferred': 'Toca para reproducir en tu aplicación preferida',
+    'play_singing_sample': 'Reproducir muestra de canto',
+    'share_card': 'Tarjeta de compartir',
+    'create_spotify_playlist': 'Crear lista en Spotify',
+    'create_apple_playlist': 'Crear lista en Apple Music',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
@@ -200,8 +223,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Correspondance trouvée !',
     'mic_denied': 'Autorisation du microphone refusée.',
     'settings_title': 'Préférences de l\'application',
-    'pref_music_app': 'Application musicale préférée',
-    'pref_lang': 'Langue préférée',
+    'pref_music_app': 'Application de musique préférée (Remarque : choisir Spotify vous donnera accès à des recommandations plus détaillées de morceaux et playlists Spotify)',    'pref_lang': 'Langue préférée',
     'open_spotify': 'Ouvrir dans Spotify',
     'open_apple': 'Ouvrir dans Apple Music',
     'history_title': 'Historique des recherches',
@@ -264,6 +286,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'Impossible de reconnaître les paroles. Essayez de chanter plus clairement !',
     'open_in_platform': 'Ouvrir dans {platform}',
     'songs': 'chansons',
+    'playlist_desc': 'Créé automatiquement via l\'application Reczt',
+    'auth_spotify': 'Authentification avec Spotify...',
+    'auth_failed': 'Autorisation Spotify annulée ou échouée.',
+    'creating_playlist': 'Création de la playlist et recherche des morceaux...',
+    'playlist_success': 'Succès ! Playlist créée sur Spotify.',
+    'playlist_error': 'Impossible de créer la playlist. Vérifiez que Spotify est connecté.',
+    'tap_to_play_preferred': 'Appuyez pour lire dans votre application préférée',
+    'play_singing_sample': 'Écouter un extrait chanté',
+    'share_card': 'Carte de partage',
+    'create_spotify_playlist': 'Créer une playlist Spotify',
+    'create_apple_playlist': 'Créer une playlist Apple Music',
   },
   'de': {
     'app_title': 'Song-Erkennung',
@@ -276,8 +309,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Treffer gefunden!',
     'mic_denied': 'Mikrofonberechtigung verweigert.',
     'settings_title': 'App-Einstellungen',
-    'pref_music_app': 'Bevorzugte Musik-App',
-    'pref_lang': 'Bevorzugte Sprache',
+    'pref_music_app': 'Bevorzugte Musik-App (Hinweis: Wenn Sie Spotify wählen, erhalten Sie ausführlichere Empfehlungen für Spotify-Titel und -Playlists)',    'pref_lang': 'Bevorzugte Sprache',
     'open_spotify': 'In Spotify öffnen',
     'open_apple': 'In Apple Music öffnen',
     'history_title': 'Suchverlauf',
@@ -340,6 +372,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'Songtext konnte nicht erkannt werden. Versuche, deutlicher zu singen!',
     'open_in_platform': 'In {platform} öffnen',
     'songs': 'Songs',
+    'playlist_desc': 'Automatisch erstellt über die Reczt-App',
+    'auth_spotify': 'Authentifizierung mit Spotify...',
+    'auth_failed': 'Spotify-Autorisierung abgebrochen oder fehlgeschlagen.',
+    'creating_playlist': 'Playlist wird erstellt und Titel werden gesucht...',
+    'playlist_success': 'Erfolg! Playlist auf Spotify erstellt.',
+    'playlist_error': 'Playlist konnte nicht erstellt werden. Prüfe die Verbindung.',
+    'tap_to_play_preferred': 'Tippen zum Abspielen in bevorzugter App',
+    'play_singing_sample': 'Gesangsprobe abspielen',
+    'share_card': 'Teilen-Karte',
+    'create_spotify_playlist': 'Spotify-Playlist erstellen',
+    'create_apple_playlist': 'Apple Music-Playlist erstellen',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
@@ -352,8 +395,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Brano trovato!',
     'mic_denied': 'Autorizzazione microfono negata.',
     'settings_title': 'Preferenze App',
-    'pref_music_app': 'App musicale preferita',
-    'pref_lang': 'Lingua preferita',
+    'pref_music_app': 'App musicale preferita (Nota: scegliendo Spotify avrai accesso a consigli più approfonditi su brani e playlist di Spotify)',    'pref_lang': 'Lingua preferita',
     'open_spotify': 'Apri su Spotify',
     'open_apple': 'Apri su Apple Music',
     'history_title': 'Cronologia ricerche',
@@ -416,6 +458,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'Impossibile riconoscere il testo. Prova a cantare più chiaramente!',
     'open_in_platform': 'Apri in {platform}',
     'songs': 'canzoni',
+    'playlist_desc': 'Creato automaticamente tramite l\'app Reczt',
+    'auth_spotify': 'Autenticazione con Spotify...',
+    'auth_failed': 'Autorizzazione Spotify annullata o non riuscita.',
+    'creating_playlist': 'Creazione playlist e ricerca brani in corso...',
+    'playlist_success': 'Operazione completata! Playlist creata su Spotify.',
+    'playlist_error': 'Impossibile creare la playlist. Assicurati che Spotify sia connesso.',
+    'tap_to_play_preferred': 'Tocca per riprodurre nell\'app preferita',
+    'play_singing_sample': 'Riproduci campione di canto',
+    'share_card': 'Scheda di condivisione',
+    'create_spotify_playlist': 'Crea playlist Spotify',
+    'create_apple_playlist': 'Crea playlist Apple Music',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
@@ -428,8 +481,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Música encontrada!',
     'mic_denied': 'Permissão do microfone negada.',
     'settings_title': 'Preferências do App',
-    'pref_music_app': 'App de música preferido',
-    'pref_lang': 'Idioma preferido',
+    'pref_music_app': 'Aplicativo de música preferido (Nota: escolher o Spotify dará acesso a recomendações mais detalhadas de músicas e playlists do Spotify)',    'pref_lang': 'Idioma preferido',
     'open_spotify': 'Abrir no Spotify',
     'open_apple': 'Abrir no Apple Music',
     'history_title': 'Histórico de busca',
@@ -492,6 +544,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'Não foi possível reconhecer a letra. Tente cantar mais claramente!',
     'open_in_platform': 'Abrir no {platform}',
     'songs': 'músicas',
+    'playlist_desc': 'Criado automaticamente via aplicativo Reczt',
+    'auth_spotify': 'Autenticando com o Spotify...',
+    'auth_failed': 'Autorização do Spotify cancelada ou falhou.',
+    'creating_playlist': 'Criando playlist e buscando faixas...',
+    'playlist_success': 'Sucesso! Playlist criada no Spotify.',
+    'playlist_error': 'Não foi possível criar a playlist. Verifique a conexão com o Spotify.',
+    'tap_to_play_preferred': 'Toque para reproduzir no seu aplicativo preferido',
+    'play_singing_sample': 'Tocar amostra de canto',
+    'share_card': 'Cartão de compartilhamento',
+    'create_spotify_playlist': 'Criar playlist no Spotify',
+    'create_apple_playlist': 'Criar playlist no Apple Music',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
@@ -504,8 +567,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': '曲が見つかりました！',
     'mic_denied': 'マイクのアクセス許可が拒否されました。',
     'settings_title': 'アプリ設定',
-    'pref_music_app': '優先音楽アプリ',
-    'pref_lang': '優先言語',
+    'pref_music_app': 'お気に入りの音楽アプリ（注：Spotifyを選択すると、Spotifyの曲やプレイリストのより詳細なおすすめ機能を利用できます）',    'pref_lang': '優先言語',
     'open_spotify': 'Spotifyで開く',
     'open_apple': 'Apple Musicで開く',
     'history_title': '検索履歴',
@@ -568,6 +630,18 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': '歌詞を認識できませんでした。もう少しはっきりと歌ってみてください！',
     'open_in_platform': '{platform} で開く',
     'songs': '曲',
+    'playlist_desc': 'Recztアプリで自動作成',
+    'auth_spotify': 'Spotifyで認証中...',
+    'auth_failed': 'Spotifyの認証がキャンセルまたは失敗しました。',
+    'creating_playlist': 'プレイリストを作成して曲を検索中...',
+    'playlist_success': '成功！Spotifyにプレイリストを作成しました。',
+    'playlist_error': 'プレイリストを作成できませんでした。Spotifyが接続されているか確認してください。',
+    'tap_to_play_preferred': 'タップしてお気に入りのアプリで再生',
+    'play_singing_sample': '歌唱サンプルを再生',
+    'quickshare': 'クイックシェア',
+    'share_card': 'シェアカード',
+    'create_spotify_playlist': 'Spotifyプレイリストを作成',
+    'create_apple_playlist': 'Apple Musicプレイリストを作成',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
@@ -580,8 +654,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': '곡을 찾았습니다!',
     'mic_denied': '마이크 권한이 거부되었습니다.',
     'settings_title': '앱 설정',
-    'pref_music_app': '선호하는 음악 앱',
-    'pref_lang': '선호하는 언어',
+    'pref_music_app': '선호하는 음악 앱 (참고: Spotify를 선택하면 Spotify 노래 및 재생목록에 대한 더 심도 있는 추천을 받을 수 있습니다)',    'pref_lang': '선호하는 언어',
     'open_spotify': 'Spotify에서 열기',
     'open_apple': 'Apple Music에서 열기',
     'history_title': '검색 기록',
@@ -645,6 +718,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': '가사를 인식할 수 없습니다. 더 명확하게 불러보세요!',
     'open_in_platform': '{platform}에서 열기',
     'songs': '곡',
+    'playlist_desc': 'Reczt 앱에서 자동으로 생성됨',
+    'auth_spotify': 'Spotify 인증 중...',
+    'auth_failed': 'Spotify 인증이 취소되었거나 실패했습니다.',
+    'creating_playlist': '재생목록 생성 및 트랙 검색 중...',
+    'playlist_success': '성공! Spotify에 재생목록이 생성되었습니다.',
+    'playlist_error': '재생목록을 생성할 수 없습니다. Spotify가 연결되어 있는지 확인하세요.',
+    'tap_to_play_preferred': '선호하는 앱에서 재생하려면 탭하세요',
+    'play_singing_sample': '노래 샘플 재생',
+    'share_card': '공유 카드',
+    'create_spotify_playlist': 'Spotify 재생목록 만들기',
+    'create_apple_playlist': 'Apple Music 재생목록 만들기',
   },
   'zh': {
     'app_title': '歌曲识别器',
@@ -657,8 +741,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': '找到歌曲！',
     'mic_denied': '麦克风权限被拒绝。',
     'settings_title': '应用设置',
-    'pref_music_app': '首选音乐应用',
-    'pref_lang': '首选语言',
+    'pref_music_app': '首选音乐应用（注：选择 Spotify 将为您提供关于 Spotify 歌曲和歌单的更深入推荐）',    'pref_lang': '首选语言',
     'open_spotify': '在 Spotify 中打开',
     'open_apple': '在 Apple Music 中打开',
     'history_title': '搜索历史',
@@ -722,6 +805,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': '无法识别歌词。尝试唱得更清晰一些！',
     'open_in_platform': '在以下打开 {platform}',
     'songs': '首歌',
+    'playlist_desc': '通过 Reczt 应用自动创建',
+    'auth_spotify': '正在通过 Spotify 验证...',
+    'auth_failed': 'Spotify 授权已取消或失败。',
+    'creating_playlist': '正在创建歌单并搜索歌曲...',
+    'playlist_success': '成功！已在 Spotify 中创建歌单。',
+    'playlist_error': '无法创建歌单。请确保已连接 Spotify。',
+    'tap_to_play_preferred': '轻触在偏好应用中播放',
+    'play_singing_sample': '播放演唱片段',
+    'share_card': '分享卡片',
+    'create_spotify_playlist': '创建 Spotify 歌单',
+    'create_apple_playlist': '创建 Apple Music 歌单',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
@@ -734,8 +828,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'गाना मिल गया!',
     'mic_denied': 'माइक अनुमति अस्वीकृत।',
     'settings_title': 'ऐप प्राथमिकताएं',
-    'pref_music_app': 'पसंदीदा म्यूजिक ऐप',
-    'pref_lang': 'पसंदीदा भाषा',
+    'pref_music_app': 'पसंदीदा संगीत ऐप (कृपया ध्यान दें: Spotify चुनने से आपको Spotify गानों और प्लेलिस्ट की अधिक विस्तृत सिफारिशें मिलेंगी)',    'pref_lang': 'पसंदीदा भाषा',
     'open_spotify': 'Spotify में खोलें',
     'open_apple': 'Apple Music में खोलें',
     'history_title': 'खोज इतिहास',
@@ -799,6 +892,18 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'बोल पहचाने नहीं जा सके। और स्पष्ट गाने का प्रयास करें!',
     'open_in_platform': '{platform} में खोलें',
     'songs': 'गाने',
+    'playlist_name': 'Reczt संगीत इतिहास',
+    'playlist_desc': 'Reczt ऐप के माध्यम से स्वचालित रूप से बनाया गया',
+    'auth_spotify': 'Spotify के साथ प्रमाणीकरण हो रहा है...',
+    'auth_failed': 'Spotify प्रमाणीकरण रद्द कर दिया गया या विफल रहा।',
+    'creating_playlist': 'प्लेलिस्ट बनाई जा रही है और गाने खोजे जा रहे हैं...',
+    'playlist_success': 'सफलता! Spotify में प्लेलिस्ट बनाई गई।',
+    'playlist_error': 'प्लेलिस्ट नहीं बन सकी। सुनिश्चित करें कि Spotify कनेक्ट है।',
+    'tap_to_play_preferred': 'अपने पसंदीदा ऐप में चलाने के लिए टैप करें',
+    'play_singing_sample': 'गायन नमूना चलाएं',
+    'share_card': 'शेयर कार्ड',
+    'create_spotify_playlist': 'Spotify प्लेलिस्ट बनाएं',
+    'create_apple_playlist': 'Apple Music प्लेलिस्ट बनाएं',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
@@ -811,8 +916,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Песня найдена!',
     'mic_denied': 'Доступ к микрофону запрещен.',
     'settings_title': 'Настройки приложения',
-    'pref_music_app': 'Предпочитаемый плеер',
-    'pref_lang': 'Предпочитаемый язык',
+    'pref_music_app': 'Предпочитаемое музыкальное приложение (Примечание: выбор Spotify даст доступ к более подробным рекомендациям треков и плейлистов Spotify)',    'pref_lang': 'Предпочитаемый язык',
     'open_spotify': 'Открыть в Spotify',
     'open_apple': 'Открыть в Apple Music',
     'history_title': 'История поиска',
@@ -876,6 +980,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'Не удалось распознать текст песни. Попробуйте петь четче!',
     'open_in_platform': 'Открыть в {platform}',
     'songs': 'песен',
+    'playlist_desc': 'Создано автоматически через приложение Reczt',
+    'auth_spotify': 'Авторизация в Spotify...',
+    'auth_failed': 'Авторизация Spotify отменена или не удалась.',
+    'creating_playlist': 'Создание плейлиста и поиск треков...',
+    'playlist_success': 'Успех! Плейлист создан в Spotify.',
+    'playlist_error': 'Не удалось создать плейлист. Убедитесь, что Spotify подключен.',
+    'tap_to_play_preferred': 'Нажмите для воспроизведения в предпочитаемом приложении',
+    'play_singing_sample': 'Воспроизвести образец пения',
+    'share_card': 'Карточка шеринга',
+    'create_spotify_playlist': 'Создать плейлист Spotify',
+    'create_apple_playlist': 'Создать плейлист Apple Music',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
@@ -888,8 +1003,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Eşleşme Bulundu!',
     'mic_denied': 'Mikrofon izni reddedildi.',
     'settings_title': 'Uygulama Tercihleri',
-    'pref_music_app': 'Tercih Edilen Müzik Uygulaması',
-    'pref_lang': 'Tercih Edilen Dil',
+    'pref_music_app': 'Tercih Edilen Müzik Uygulaması (Lütfen unutmayın: Spotify\'ı seçmek, Spotify şarkıları ve çalma listeleri hakkında daha ayrıntılı önerilere erişmenizi sağlar)',    'pref_lang': 'Tercih Edilen Dil',
     'open_spotify': 'Spotify\'da Aç',
     'open_apple': 'Apple Music\'te Aç',
     'history_title': 'Arama Geçmişi',
@@ -953,6 +1067,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'Şarkı sözleri algılanamadı. Daha net söylemeyi deneyin!',
     'open_in_platform': "{platform}'da aç",
     'songs': 'şarkı',
+    'playlist_desc': 'Reczt uygulaması aracılığıyla otomatik oluşturuldu',
+    'auth_spotify': 'Spotify ile kimlik doğrulaması yapılıyor...',
+    'auth_failed': 'Spotify yetkilendirmesi iptal edildi veya başarısız oldu.',
+    'creating_playlist': 'Çalma listesi oluşturuluyor ve şarkılar aranıyor...',
+    'playlist_success': 'Başarılı! Çalma listesi Spotify\'da oluşturuldu.',
+    'playlist_error': 'Çalma listesi oluşturulamadı. Spotify\'ın bağlı olduğundan emin olun.',
+    'tap_to_play_preferred': 'Tercih edilen uygulamada çalmak için dokunun',
+    'play_singing_sample': 'Ses örneğini çal',
+    'share_card': 'Paylaşım Kartı',
+    'create_spotify_playlist': 'Spotify Çalma Listesi Oluştur',
+    'create_apple_playlist': 'Apple Music Çalma Listesi Oluştur',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
@@ -965,8 +1090,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'تم العثور على الأغنية!',
     'mic_denied': 'تم رفض إذن الميكروفون.',
     'settings_title': 'تفضيلات التطبيق',
-    'pref_music_app': 'تطبيق الموسيقى المفضل',
-    'pref_lang': 'اللغة المفضلة',
+    'pref_music_app': 'تطبيق الموسيقى المفضل (يرجى الملاحظة: اختيار Spotify سيمنحك إمكانية الوصول إلى توصيات أكثر تعمقًا لأغاني وقوائم تشغيل Spotify)',    'pref_lang': 'اللغة المفضلة',
     'open_spotify': 'فتح في Spotify',
     'open_apple': 'فتح في Apple Music',
     'history_title': 'سجل البحث',
@@ -1030,6 +1154,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'تعذر التعرف على الكلمات. حاول الغناء بشكل أوضح!',
     'open_in_platform': 'الفتح في {platform}',
     'songs': 'أغاني',
+    'playlist_desc': 'تم إنشاؤه تلقائيًا عبر تطبيق Reczt',
+    'auth_spotify': 'جاري المصادقة مع Spotify...',
+    'auth_failed': 'تم إلغاء تفويض Spotify أو فشله.',
+    'creating_playlist': 'جاري إنشاء قائمة التشغيل والبحث عن الأغاني...',
+    'playlist_success': 'نجاح! تم إنشاء قائمة التشغيل في Spotify.',
+    'playlist_error': 'تعذر إنشاء قائمة التشغيل. تأكد من اتصال Spotify.',
+    'tap_to_play_preferred': 'انقر للتشغيل في تطبيقك المفضل',
+    'play_singing_sample': 'تشغيل عينة الغناء',
+    'share_card': 'بطاقة المشاركة',
+    'create_spotify_playlist': 'إنشاء قائمة تشغيل Spotify',
+    'create_apple_playlist': 'إنشاء قائمة تشغيل Apple Music',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
@@ -1042,8 +1177,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Nummer Gevonden!',
     'mic_denied': 'Microfoontoegang geweigerd.',
     'settings_title': 'App Voorkeuren',
-    'pref_music_app': 'Voorkeurs Muziek App',
-    'pref_lang': 'Voorkeurstaal',
+    'pref_music_app': 'Voorkeursmuziek-app (Let op: het kiezen van Spotify geeft je toegang tot diepgaandere aanbevelingen voor Spotify-nummers en -afspeellijsten)',    'pref_lang': 'Voorkeurstaal',
     'open_spotify': 'Openen in Spotify',
     'open_apple': 'Openen in Apple Music',
     'history_title': 'Zoekgeschiedenis',
@@ -1107,6 +1241,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'Kon de songtekst niet herkennen. Probeer duidelijker te zingen!',
     'open_in_platform': 'Openen in {platform}',
     'songs': 'nummers',
+    'playlist_desc': 'Automatisch gemaakt via de Reczt-app',
+    'auth_spotify': 'Authenticeren met Spotify...',
+    'auth_failed': 'Spotify-autorisatie geannuleerd of mislukt.',
+    'creating_playlist': 'Afspeellijst maken en nummers zoeken...',
+    'playlist_success': 'Succes! Afspeellijst gemaakt in Spotify.',
+    'playlist_error': 'Kan afspeellijst niet maken. Zorg ervoor dat Spotify is verbonden.',
+    'tap_to_play_preferred': 'Tik om af te spelen in je voorkeursapp',
+    'play_singing_sample': 'Zangvoorbeeld afspelen',
+    'share_card': 'Deelkaart',
+    'create_spotify_playlist': 'Spotify-afspeellijst maken',
+    'create_apple_playlist': 'Apple Music-afspeellijst maken',
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
@@ -1119,8 +1264,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Znaleziono utwór!',
     'mic_denied': 'Odmowa dostępu do mikrofonu.',
     'settings_title': 'Preferencje Aplikacji',
-    'pref_music_app': 'Preferowana aplikacja muzyczna',
-    'pref_lang': 'Preferowany język',
+    'pref_music_app': 'Preferowana aplikacja muzyczna (Uwaga: wybór Spotify zapewni dostęp do bardziej szczegółowych rekomendacji utworów i playlist Spotify)',    'pref_lang': 'Preferowany język',
     'open_spotify': 'Otwórz w Spotify',
     'open_apple': 'Otwórz w Apple Music',
     'history_title': 'Historia wyszukiwania',
@@ -1184,6 +1328,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'Nie udało się rozpoznać tekstu. Spróbuj śpiewać wyraźniej!',
     'open_in_platform': 'Otwórz w {platform}',
     'songs': 'piosenek',
+    'playlist_desc': 'Utworzono automatycznie za pomocą aplikacji Reczt',
+    'auth_spotify': 'Uwierzytelnianie w Spotify...',
+    'auth_failed': 'Autoryzacja Spotify została anulowana lub nie powiodła się.',
+    'creating_playlist': 'Tworzenie playlisty i wyszukiwanie utworów...',
+    'playlist_success': 'Sukces! Utworzono playlistę w Spotify.',
+    'playlist_error': 'Nie można utworzyć playlisty. Upewnij się, że Spotify jest połączone.',
+    'tap_to_play_preferred': 'Dotknij, aby odtworzyć w preferowanej aplikacji',
+    'play_singing_sample': 'Odtwórz próbkę śpiewu',
+    'share_card': 'Karta udostępniania',
+    'create_spotify_playlist': 'Utwórz playlistę Spotify',
+    'create_apple_playlist': 'Utwórz playlistę Apple Music',
   },
 };
 
@@ -2386,19 +2541,17 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   late Map<String, int> _genreCounts;
   Map<String, int> _emotionCounts = {};
 
-  // Active Singing State & Multiple Dynamic Map Pin Locations
   bool _isCurrentlySinging = false;
   List<Offset> _livePinLocations = [];
 
-  // Dynamic Playlist state & Bi-Weekly Countdown
   String _curatedPlaylistTitle = "";
   String _streamingUrl = "";
   String _majorityEmotion = "Balanced";
   String _countdownText = "";
   String _preferredApp = 'spotify';
-    // Define the active platform from the selected app.
-    String get preferredPlatform =>
-        _preferredApp == 'apple_music' ? 'Apple Music' : 'Spotify';
+
+  String get preferredPlatform =>
+      _preferredApp == 'apple_music' ? 'Apple Music' : 'Spotify';
 
   String t(String key) {
     return localizedStrings[widget.lang]?[key] ??
@@ -2409,7 +2562,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   @override
   void initState() {
     super.initState();
-    // Initialize fallback dynamic keys
     _genreCounts = {
       'pop': 0,
       'rock': 0,
@@ -2421,7 +2573,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     _computeAnalytics();
   }
 
-  // Converts Latitude [-90 to 90] and Longitude [-180 to 180] to relative map offset [0.0 to 1.0]
   Offset _latLngToMapOffset(double lat, double lng) {
     double dx = ((lng + 180) / 360).clamp(0.0, 1.0);
     double dy = ((90 - lat) / 180).clamp(0.0, 1.0);
@@ -2445,11 +2596,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     List<String> history = prefs.getStringList('song_history') ?? [];
 
     _preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
-    
-    // Check if singing recognition audio is actively active
     bool activeSinging = prefs.getBool('is_currently_singing') ?? false;
 
-    // Load multiple active recording coordinates (Format: JSON string list of {"lat": ..., "lng": ...})
     List<String> rawCoordinates = prefs.getStringList('active_singing_locations') ?? [];
     List<Offset> calculatedOffsets = [];
 
@@ -2462,12 +2610,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       } catch (_) {}
     }
 
-    // Fallback default pins for live demonstration if active list is empty
     if (calculatedOffsets.isEmpty && activeSinging) {
       calculatedOffsets = [
-        _latLngToMapOffset(40.7128, -74.0060), // New York
-        _latLngToMapOffset(51.5074, -0.1278),  // London
-        _latLngToMapOffset(35.6762, 139.6503), // Tokyo
+        _latLngToMapOffset(40.7128, -74.0060),
+        _latLngToMapOffset(51.5074, -0.1278),
+        _latLngToMapOffset(35.6762, 139.6503),
       ];
     }
 
@@ -2522,7 +2669,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         }
       }
 
-      // Dynamic Genre Extraction & Title Keyword Fallbacks
       if (extractedGenre == null || extractedGenre.isEmpty) {
         if (lowerTitle.contains('rock') || lowerTitle.contains('band')) {
           extractedGenre = 'rock';
@@ -2546,18 +2692,15 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       rawGenreMap[extractedGenre] = (rawGenreMap[extractedGenre] ?? 0) + 1;
     }
 
-    // Default fallbacks to guarantee 4 entries if user history has fewer
     final defaultFallbacks = ['pop', 'rock', 'indie', 'jazz'];
     for (String fallback in defaultFallbacks) {
       rawGenreMap.putIfAbsent(fallback, () => 0);
     }
 
-    // Sort genres by occurrence frequency and select top 4
     var sortedRawGenres = rawGenreMap.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     var top4Genres = sortedRawGenres.take(4);
 
-    // Store raw genre keys without t()
     Map<String, int> top4GenreCounts = {};
     for (var entry in top4Genres) {
       top4GenreCounts[entry.key] = entry.value;
@@ -2586,7 +2729,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       _singingStreak = calculatedStreak;
       _topArtists = topArtistsList;
       _emotionCounts = emotionMap;
-      _genreCounts = top4GenreCounts; // Updated to store raw keys
+      _genreCounts = top4GenreCounts;
       _isCurrentlySinging = activeSinging;
       _livePinLocations = calculatedOffsets;
       _majorityEmotion = calculatedMajority;
@@ -2655,48 +2798,226 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Map<String, String> _curatePlaylistByMajorityEmotion(String emotion) {
-    final Map<String, Map<String, String>> emotionPlaylists = {
-      'sad': {
-        'title': 'Sad Indie & Melancholy Mix',
-        'query': 'Sad Indie',
-      },
-      'hype': {
-        'title': 'Hype Workout & Energy Boost',
-        'query': 'Workout Hits',
-      },
-      'romantic': {
-        'title': 'Love Songs & Romance Essentials',
-        'query': 'Love Songs Essentials',
-      },
-      'happy': {
-        'title': 'Feel-Good Happy Hits Mix',
-        'query': 'Happy Hits',
-      },
-    };
+  final normalizedEmotion = emotion.toLowerCase().trim();
 
-    String title = emotionPlaylists[emotion]?['title'] ?? 'Feel-Good Happy Hits Mix';
-    String query = emotionPlaylists[emotion]?['query'] ?? 'Happy Hits';
+  final Map<String, Map<String, String>> emotionPlaylists = {
+    'sad': {
+      'title': 'Sad Indie & Melancholy Mix',
+      'query': 'Sad Indie',
+    },
+    'hype': {
+      'title': 'Hype Workout & Energy Boost',
+      'query': 'Workout Hits',
+    },
+    'romantic': {
+      'title': 'Love Songs & Romance Essentials',
+      'query': 'Love Songs Essentials',
+    },
+    'happy': {
+      'title': 'Feel-Good Happy Hits Mix',
+      'query': 'Happy Hits',
+    },
+  };
 
-    if (emotion == 'balanced' || emotion.isEmpty || (_topArtists.isNotEmpty && emotion == 'fallback')) {
-      String topArtistName = _topArtists.isNotEmpty ? _topArtists.first.trim() : "Your Favorite";
+  String title = emotionPlaylists[normalizedEmotion]?['title'] ?? 'Feel-Good Happy Hits Mix';
+  String query = emotionPlaylists[normalizedEmotion]?['query'] ?? 'Happy Hits';
+
+  // Handle fallback, balanced, empty, or unmapped mood states dynamically
+  if (normalizedEmotion == 'balanced' ||
+      normalizedEmotion.isEmpty ||
+      normalizedEmotion == 'fallback' ||
+      !emotionPlaylists.containsKey(normalizedEmotion)) {
+    if (_topArtists.isNotEmpty) {
+      final topArtistName = _topArtists.first.trim();
       title = "Best of $topArtistName Essentials Mix";
       query = "$topArtistName Essentials";
     }
-
-    String encodedQuery = Uri.encodeComponent(query);
-
-    // Directs browsers and apps to top curated editorial playlists without hardcoded IDs
-    String url = (_preferredApp == 'applemusic')
-        ? "https://music.apple.com/us/search?term=$encodedQuery"
-        : "https://open.spotify.com/search/$encodedQuery/playlists";
-
-    return {"title": title, "url": url};
   }
 
+  final encodedQuery = Uri.encodeComponent(query);
+
+  final url = (_preferredApp == 'apple_music')
+      ? "https://music.apple.com/us/search?term=$encodedQuery"
+      : "https://open.spotify.com/search/$encodedQuery/playlists";
+
+  return {"title": title, "url": url};
+}
+
+void _showShareCardModal(BuildContext context) {
+  final themeColor = Theme.of(context).colorScheme.primary;
+  
+  // Dynamic fallbacks based on class state
+  final currentArtist = _topArtists.isNotEmpty ? _topArtists.first : "Featured Artist";
+  final currentSongTitle = _curatedPlaylistTitle.isNotEmpty ? _curatedPlaylistTitle : "Daily Track";
+  const albumCoverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500"; 
+  const appStoreUrl = "https://apps.apple.com/app/id123456789"; // Replace with your actual App Store link
+
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (modalContext) {
+      return Container(
+        padding: const EdgeInsets.all(24.0),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Modal Handle Bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // GRAPHICS CARD PREVIEW
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    themeColor.withOpacity(0.85),
+                    const Color(0xFF121212),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: themeColor.withOpacity(0.5), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: themeColor.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Album Cover
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      albumCoverUrl,
+                      height: 180,
+                      width: 180,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        height: 180,
+                        width: 180,
+                        color: Colors.black38,
+                        child: const Icon(Icons.music_note, size: 64, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Song Title
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      currentSongTitle,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Artist Name
+                  Text(
+                    currentArtist,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Clickable "Reczt" App Store Link Badge
+                  InkWell(
+                    onTap: () async {
+                      final uri = Uri.parse(appStoreUrl);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white30, width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.open_in_new_rounded, size: 14, color: Colors.white70),
+                          SizedBox(width: 6),
+                          Text(
+                            "Reczt",
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.8,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Modal Bottom Button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: themeColor,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onPressed: () => Navigator.pop(modalContext),
+                icon: const Icon(Icons.share, color: Colors.white),
+                label: const Text(
+                  "Share",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
   @override
   Widget build(BuildContext context) {
     final themeColor = Theme.of(context).colorScheme.primary;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    // Screen size dynamic height calculations for precise device responsiveness
+    final screenSize = MediaQuery.of(context).size;
+    final double topRowHeight = (screenSize.height * 0.16).clamp(120.0, 150.0);
+    final double mapHeight = (screenSize.height * 0.26).clamp(180.0, 260.0);
 
     final sortedGenres = _genreCounts.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -2706,22 +3027,23 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
     int totalEmotions = _emotionCounts.values.fold(0, (sum, count) => sum + count);
 
-    double getEmotionPct(String key) {
+    double getEmotionPct(String rawKey) {
       if (totalEmotions == 0) return 0;
-      return ((_emotionCounts[key] ?? 0) / totalEmotions) * 100;
+      return ((_emotionCounts[rawKey] ?? 0) / totalEmotions) * 100;
     }
 
+    final rawEmotionKeys = ['happy', 'sad', 'hype', 'romantic'];
     final Map<String, Color> emotionColors = {
-      t('happy'): Colors.redAccent,
-      t('sad'): Colors.blueAccent,
-      t('hype'): Colors.orangeAccent,
-      t('romantic'): Colors.purpleAccent,
+      'happy': Colors.redAccent,
+      'sad': Colors.blueAccent,
+      'hype': Colors.orangeAccent,
+      'romantic': Colors.purpleAccent,
     };
 
-    List<PieChartSectionData> emotionSections = [t('happy'), t('sad'), t('hype'), t('romantic')].map((key) {
-      final count = (_emotionCounts[key] ?? 0).toDouble();
+    List<PieChartSectionData> emotionSections = rawEmotionKeys.map((rawKey) {
+      final count = (_emotionCounts[rawKey] ?? 0).toDouble();
       return PieChartSectionData(
-        color: emotionColors[key],
+        color: emotionColors[rawKey],
         value: count == 0 ? 1 : count,
         title: '',
         radius: 18,
@@ -2730,96 +3052,125 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          t('analytics_title'),
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: themeColor),
-        ),
-        centerTitle: true,
-      ),
+  title: Text(
+    t('analytics_title'),
+    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: themeColor),
+  ),
+  centerTitle: true,
+  actions: [
+    IconButton(
+      icon: const Icon(Icons.ios_share_rounded),
+      tooltip: 'QuickShare',
+      onPressed: () => _showShareCardModal(context),
+    ),
+  ],
+),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1050),
+            constraints: const BoxConstraints(maxWidth: 600),
             child: Column(
               children: [
-                // --- ROW 1: Top Cards ---
+                // ROW 1: 3 EVENLY SPACED TOP CARDS (RESPONSIVE HEIGHT & AUTO-SCALED TEXT)
                 SizedBox(
-                  height: 145,
+                  height: topRowHeight,
                   child: Row(
                     children: [
-                      // 1. Streak Box
+                      // Card 1: Streak
                       Expanded(
-                        flex: 2,
                         child: _buildThemedCard(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 30),
-                              const SizedBox(height: 6),
-                              Text(
-                                "$_singingStreak",
-                                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: themeColor),
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 26),
+                              const SizedBox(height: 4),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  "$_singingStreak",
+                                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: themeColor),
+                                ),
                               ),
-                              Text(
-                                t('streak_title'),
-                                style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  t('streak_title'),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-
-                      // 2. Top Artist
+                      const SizedBox(width: 8),
+                      // Card 2: Top Artist
                       Expanded(
-                        flex: 2,
                         child: _buildThemedCard(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.star, color: Colors.amber, size: 30),
-                              const SizedBox(height: 6),
-                              Text(
-                                _topArtists.isNotEmpty ? _topArtists.first : t('none'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: themeColor),
+                              const Icon(Icons.star, color: Colors.amber, size: 26),
+                              const SizedBox(height: 4),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _topArtists.isNotEmpty ? _topArtists.first : t('none'),
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: themeColor),
+                                ),
                               ),
-                              Text(
-                                t('top_artist'),
-                                style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  t('top_artist'),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-
-                      // 3. Mood Donut Chart with Legend
+                      const SizedBox(width: 8),
+                      // Card 3: Recommended Vibes Playlist
                       Expanded(
-                        flex: 4,
                         child: _buildThemedCard(
-                          child: Row(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                 _buildLegendRow("${getEmotionPct('happy').toStringAsFixed(0)}% ${t('happy')}", Colors.redAccent),
-_buildLegendRow("${getEmotionPct('sad').toStringAsFixed(0)}% ${t('sad')}", Colors.blueAccent),
-_buildLegendRow("${getEmotionPct('hype').toStringAsFixed(0)}% ${t('hype')}", Colors.orangeAccent),
-_buildLegendRow("${getEmotionPct('romantic').toStringAsFixed(0)}% ${t('romantic')}", Colors.purpleAccent),
-                                ],
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _countdownText.toUpperCase(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: themeColor),
+                                ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: PieChart(
-                                  PieChartData(
-                                    sectionsSpace: 3,
-                                    centerSpaceRadius: 26,
-                                    sections: emotionSections,
+                              const SizedBox(height: 4),
+                              InkWell(
+                                onTap: _launchStreamingLink,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    _curatedPlaylistTitle,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: themeColor,
+                                      decoration: TextDecoration.underline,
+                                    ),
                                   ),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  preferredPlatform,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.w600),
                                 ),
                               ),
                             ],
@@ -2829,211 +3180,160 @@ _buildLegendRow("${getEmotionPct('romantic').toStringAsFixed(0)}% ${t('romantic'
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // --- ROW 2 & 3: Split Section ---
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left Column: Genre Bar Graph & Vibes Playlist Box
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            height: 185,
-                            child: _buildThemedCard(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    t('most_sung_genres').toUpperCase(),
-                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeColor),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  if (sortedGenres.isEmpty)
-                                    Text(t('none'), style: const TextStyle(fontSize: 12, color: Colors.grey))
-                                  else ...[
-                                    for (int i = 0; i < 4; i++) ...[
-                                      if (i < sortedGenres.length) ...[
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              t(sortedGenres[i].key), // <-- Wrapped raw key with t() here
-                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                            ),
-                                            Text(
-                                              "${sortedGenres[i].value} ${t('songs')}",
-                                              style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 3),
-                                        LinearProgressIndicator(
-                                          value: sortedGenres[i].value / maxGenreCount,
-                                          color: _getBarColor(i, themeColor),
-                                          backgroundColor: Colors.grey.withOpacity(0.15),
-                                          minHeight: 7,
-                                        ),
-                                        if (i < 3) const SizedBox(height: 6),
-                                      ],
-                                    ],
-                                  ],
-                                ],
-                              ),
-                            ),
+                // ROW 2: FULL-WIDTH ACOUSTIC MAP (DYNAMICALLY PROPORTIONED HEIGHT)
+                SizedBox(
+                  height: mapHeight,
+                  child: _buildThemedCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            t('acoustic_map').toUpperCase(),
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeColor),
                           ),
-                          const SizedBox(height: 16),
-
-                          // Centered Vibes Playlist Box
-                          SizedBox(
-                            height: 155,
-                            child: _buildThemedCard(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _countdownText.toUpperCase(),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: themeColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  InkWell(
-                                    onTap: _launchStreamingLink,
-                                    child: Text(
-                                      _curatedPlaylistTitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: themeColor,
-                                        decoration: TextDecoration.underline,
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: Container(
+                                    color: isDarkMode ? const Color(0xFF1E2638) : const Color(0xFFE8F0FE),
+                                    child: Image.asset(
+                                      'assets/world_map.png',
+                                      fit: BoxFit.cover,
+                                      color: isDarkMode ? Colors.white70 : themeColor.withOpacity(0.75),
+                                      colorBlendMode: BlendMode.modulate,
+                                      errorBuilder: (context, error, stackTrace) => Container(
+                                        color: isDarkMode ? Colors.grey.shade900 : Colors.blueGrey.shade100,
+                                        child: Center(
+                                          child: Icon(Icons.public, size: 80, color: themeColor.withOpacity(0.4)),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  // Inside your Vibes Playlist Column children:
-Text(
-  t('open_in_platform').replaceAll('{platform}', preferredPlatform),
-  style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
-),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-
-                    // Right Column: Multi-Pin High-Contrast Acoustic World Map
-                    Expanded(
-                      flex: 6,
-                      child: SizedBox(
-                        height: 356,
-                        child: _buildThemedCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t('acoustic_map').toUpperCase(),
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeColor),
-                              ),
-                              const SizedBox(height: 10),
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Stack(
-                                    children: [
-                                      // World Vector Map Background
-                                      Positioned.fill(
-                                        child: Container(
-                                          color: isDarkMode ? const Color(0xFF1E2638) : const Color(0xFFE8F0FE),
-                                          child: Image.asset(
-                                            'assets/world_map.png',
-                                            fit: BoxFit.contain,
-                                            color: isDarkMode ? Colors.white70 : themeColor.withOpacity(0.75),
-                                            colorBlendMode: BlendMode.modulate,
-                                            errorBuilder: (context, error, stackTrace) => Container(
-                                              color: isDarkMode ? Colors.grey.shade900 : Colors.blueGrey.shade100,
-                                              child: Center(
-                                                child: Icon(Icons.public, size: 100, color: themeColor.withOpacity(0.4)),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Dynamically render MULTIPLE live pins simultaneously when singing
-                                      if (_isCurrentlySinging && _livePinLocations.isNotEmpty)
-                                        ..._livePinLocations.map((pinOffset) {
-                                          return Align(
-                                            alignment: FractionalOffset(
-                                              pinOffset.dx,
-                                              pinOffset.dy,
-                                            ),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.redAccent,
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    boxShadow: const [
-                                                      BoxShadow(
-                                                        color: Colors.black38,
-                                                        blurRadius: 4,
-                                                        offset: Offset(0, 2),
-                                                      )
-                                                    ],
-                                                  ),
-                                                  child: const Text(
-                                                    "LIVE",
-                                                    style: TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 1),
-                                                Container(
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    boxShadow: [
-                                                      BoxShadow(
-                                                        color: Colors.red.withOpacity(0.4),
-                                                        blurRadius: 10,
-                                                        spreadRadius: 4,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.location_on,
-                                                    color: Colors.redAccent,
-                                                    size: 46,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        }),
-                                    ],
                                   ),
                                 ),
-                              ),
-                            ],
+                                if (_isCurrentlySinging && _livePinLocations.isNotEmpty)
+                                  ..._livePinLocations.map((pinOffset) {
+                                    return Align(
+                                      alignment: FractionalOffset(
+                                        pinOffset.dx,
+                                        pinOffset.dy,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.redAccent,
+                                              borderRadius: BorderRadius.circular(8),
+                                              boxShadow: const [
+                                                BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))
+                                              ],
+                                            ),
+                                            child: const Text(
+                                              "LIVE",
+                                              style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                          const Icon(Icons.location_on, color: Colors.redAccent, size: 32),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ROW 3: FULL-WIDTH MOST SUNG GENRES
+                _buildThemedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t('most_sung_genres').toUpperCase(),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeColor),
+                      ),
+                      const SizedBox(height: 10),
+                      if (sortedGenres.isEmpty)
+                        Text(t('none'), style: const TextStyle(fontSize: 12, color: Colors.grey))
+                      else ...[
+                        for (int i = 0; i < 4; i++) ...[
+                          if (i < sortedGenres.length) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  t(sortedGenres[i].key),
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  "${sortedGenres[i].value} ${t('songs')}",
+                                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            LinearProgressIndicator(
+                              value: sortedGenres[i].value / maxGenreCount,
+                              color: _getBarColor(i, themeColor),
+                              backgroundColor: Colors.grey.withOpacity(0.15),
+                              minHeight: 7,
+                            ),
+                            if (i < 3) const SizedBox(height: 8),
+                          ],
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ROW 4: FULL-WIDTH EMOTIONS DONUT CHART
+                _buildThemedCard(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: rawEmotionKeys.map((rawKey) {
+                            return _buildLegendRow(
+                              "${getEmotionPct(rawKey).toStringAsFixed(0)}% ${t(rawKey)}",
+                              emotionColors[rawKey]!,
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 4,
+                        child: SizedBox(
+                          height: 120,
+                          child: PieChart(
+                            PieChartData(
+                              sectionsSpace: 3,
+                              centerSpaceRadius: 24,
+                              sections: emotionSections,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -3059,7 +3359,7 @@ Text(
           ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(10),
       child: child,
     );
   }
@@ -3068,11 +3368,13 @@ Text(
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3.0),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-          const SizedBox(width: 8),
           Container(width: 12, height: 12, color: color),
+          const SizedBox(width: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
@@ -3093,6 +3395,101 @@ Text(
     }
   }
 }
+
+class SpotifyService {
+  static const String clientId = 'b2a0f02419ce44b5a443785d92681273';
+  static const String redirectUri = 'reczt://callback';
+  static const String scopes = 'playlist-modify-public playlist-modify-private';
+
+  /// Triggers OAuth authorization flow and returns an access token
+  Future<String?> authenticate() async {
+    final authUrl = Uri.https('accounts.spotify.com', '/authorize', {
+      'client_id': clientId,
+      'response_type': 'token',
+      'redirect_uri': redirectUri,
+      'scope': scopes,
+      'show_dialog': 'true',
+    });
+
+    try {
+      final result = await FlutterWebAuth2.authenticate(
+        url: authUrl.toString(),
+        callbackUrlScheme: 'reczt',
+      );
+
+      final parsedUri = Uri.parse(result.replaceAll('#', '?'));
+      return parsedUri.queryParameters['access_token'];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Searches track URIs, creates a new playlist, and pushes tracks
+  Future<bool> createPlaylistFromHistory(
+    String token, 
+    List<String> songTitles, 
+    String Function(String) t,
+  ) async {
+    final headers = {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
+
+    try {
+      // 1. Get User Profile ID
+      final userRes = await http.get(Uri.parse('https://api.spotify.com/v1/me'), headers: headers);
+      if (userRes.statusCode != 200) return false;
+      final userId = jsonDecode(userRes.body)['id'];
+
+      // 2. Search Spotify URIs for each song title
+      List<String> trackUris = [];
+      for (String title in songTitles) {
+        final query = Uri.encodeComponent(title);
+        final searchRes = await http.get(
+          Uri.parse('https://api.spotify.com/v1/search?q=$query&type=track&limit=1'),
+          headers: headers,
+        );
+
+        if (searchRes.statusCode == 200) {
+          final items = jsonDecode(searchRes.body)['tracks']['items'] as List;
+          if (items.isNotEmpty) {
+            trackUris.add(items.first['uri']);
+          }
+        }
+      }
+
+      if (trackUris.isEmpty) return false;
+
+      // 3. Create New Playlist using localized strings
+      final playlistRes = await http.post(
+        Uri.parse('https://api.spotify.com/v1/users/$userId/playlists'),
+        headers: headers,
+        body: jsonEncode({
+          'name': t('playlist_name'),
+          'description': t('playlist_desc'),
+          'public': true,
+        }),
+      );
+
+      if (playlistRes.statusCode != 201) return false;
+      final playlistId = jsonDecode(playlistRes.body)['id'];
+
+      // 4. Add Found Tracks to the Playlist
+      final addRes = await http.post(
+        Uri.parse('https://api.spotify.com/v1/playlists/$playlistId/tracks'),
+        headers: headers,
+        body: jsonEncode({'uris': trackUris}),
+      );
+
+      return addRes.statusCode == 201;
+    } catch (e) {
+      return false;
+    }
+  }
+}
+
+// Updated _exportToSpotify method inside _HistoryPageState
+
 // LOCALIZED SEARCH HISTORY & PLAYBACK PAGE
 // ----------------------------------------------------
 class HistoryPage extends StatefulWidget {
@@ -3106,6 +3503,7 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   List<String> _history = [];
   List<String> _pendingQueue = [];
+  Set<int> _selectedIndices = {};
 
   late final AudioPlayer _clipPlayer;
   String? _currentlyPlayingPath;
@@ -3145,82 +3543,169 @@ class _HistoryPageState extends State<HistoryPage> {
     setState(() {
       _history = prefs.getStringList('song_history') ?? [];
       _pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
+      _selectedIndices = Set.from(List.generate(_history.length, (index) => index));
     });
   }
 
   Future<void> _clearHistory() async {
     final prefs = await SharedPreferences.getInstance();
-
-    // Delete physical voice recording snippet files from the device disk
-    for (String rawItem in _history) {
-      try {
-        if (rawItem.startsWith('{')) {
-          final parsed = jsonDecode(rawItem);
-          final String? clipPath = parsed['audioPath'];
-          if (clipPath != null && clipPath.isNotEmpty) {
-            final file = File(clipPath);
-            if (await file.exists()) {
-              await file.delete();
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint("Error deleting recorded audio file: $e");
-      }
-    }
-
-    await _clipPlayer.stop();
     await prefs.remove('song_history');
-
     setState(() {
-      _history = [];
-      _currentlyPlayingPath = null;
-      _isPlayingClip = false;
+      _history.clear();
+      _selectedIndices.clear();
     });
   }
 
-  Future<void> _togglePlayClip(String path) async {
-    try {
-      if (_currentlyPlayingPath == path && _isPlayingClip) {
-        await _clipPlayer.pause();
-        setState(() {
-          _isPlayingClip = false;
-        });
-      } else {
-        await _clipPlayer.stop();
-        await _clipPlayer.play(DeviceFileSource(path));
-        setState(() {
-          _currentlyPlayingPath = path;
-          _isPlayingClip = true;
-        });
-      }
-    } catch (e) {
-      debugPrint("Error playing audio clip: $e");
+  Future<void> _deleteHistoryItem(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _history.removeAt(index);
+      _selectedIndices.remove(index);
+    });
+    await prefs.setStringList('song_history', _history);
+  }
+
+  String _parseSongTitle(String rawItem) {
+    if (rawItem.startsWith('{')) {
+      try {
+        final parsed = jsonDecode(rawItem);
+        return parsed['song'] ?? rawItem;
+      } catch (_) {}
+    }
+    return rawItem;
+  }
+
+  String? _parseAudioPath(String rawItem) {
+    if (rawItem.startsWith('{')) {
+      try {
+        final parsed = jsonDecode(rawItem);
+        return parsed['audioPath'];
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  Future<void> _openSongInPreferredApp(String title) async {
+    final prefs = await SharedPreferences.getInstance();
+    final preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
+    final encoded = Uri.encodeComponent(title);
+
+    final Uri targetUrl = preferredApp == 'apple_music'
+        ? Uri.parse("https://music.apple.com/us/search?term=$encoded")
+        : Uri.parse("https://open.spotify.com/search/$encoded");
+
+    if (await canLaunchUrl(targetUrl)) {
+      await launchUrl(targetUrl, mode: LaunchMode.externalApplication);
     }
   }
 
-  Future<void> _exportToSpotify() async {
-    if (_history.isEmpty) return;
-    final Uri spotifyUrl = Uri.parse("https://open.spotify.com/");
-    if (await canLaunchUrl(spotifyUrl)) {
-      await launchUrl(spotifyUrl, mode: LaunchMode.externalApplication);
+  Future<void> _togglePlayClip(String? path) async {
+    if (path == null || path.isEmpty) return;
+
+    if (_isPlayingClip && _currentlyPlayingPath == path) {
+      await _clipPlayer.pause();
+      setState(() {
+        _isPlayingClip = false;
+      });
+    } else {
+      await _clipPlayer.stop();
+      await _clipPlayer.play(DeviceFileSource(path));
+      setState(() {
+        _currentlyPlayingPath = path;
+        _isPlayingClip = true;
+      });
     }
+  }
+
+  void _showShareCardModal(BuildContext context, String songTitle) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              songTitle,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Share.share('Check out this song I recognized on Reczt: $songTitle');
+              },
+              icon: const Icon(Icons.share),
+              label: Text(t('share_card')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportToSpotify() async {
+    final selectedTitles = _selectedIndices
+        .where((index) => index < _history.length)
+        .map((index) => _parseSongTitle(_history[index]))
+        .toList();
+
+    if (selectedTitles.isEmpty) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(t('auth_spotify'))),
+    );
+
+    final spotifyService = SpotifyService();
+    final token = await spotifyService.authenticate();
+
+    if (token == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t('auth_failed'))),
+        );
+      }
+      return;
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Opening Spotify to generate your Reczt Playlist!')),
+        SnackBar(content: Text(t('creating_playlist'))),
+      );
+    }
+
+    final success = await spotifyService.createPlaylistFromHistory(token, selectedTitles, t);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success ? t('playlist_success') : t('playlist_error'),
+          ),
+        ),
       );
     }
   }
 
   Future<void> _exportToAppleMusic() async {
-    if (_history.isEmpty) return;
-    final Uri appleUrl = Uri.parse("https://music.apple.com/");
+    final selectedTitles = _selectedIndices
+        .where((index) => index < _history.length)
+        .map((index) => _parseSongTitle(_history[index]))
+        .toList();
+
+    if (selectedTitles.isEmpty) return;
+
+    final query = selectedTitles.join(" ");
+    final encodedQuery = Uri.encodeComponent(query);
+    final Uri appleUrl = Uri.parse("https://music.apple.com/us/search?term=$encodedQuery");
+
     if (await canLaunchUrl(appleUrl)) {
       await launchUrl(appleUrl, mode: LaunchMode.externalApplication);
     }
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Opening Apple Music to generate your Reczt Playlist!')),
+        SnackBar(content: Text('Opening Apple Music with ${selectedTitles.length} selected tracks!')),
       );
     }
   }
@@ -3322,59 +3807,81 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     ),
                   ),
-                  ..._history.map((rawItem) {
-                    String songTitle = rawItem;
-                    String? audioClipPath;
-
-                    // Parse JSON entry if it contains an audio path
-                    try {
-                      if (rawItem.startsWith('{')) {
-                        final parsed = jsonDecode(rawItem);
-                        songTitle = parsed['song'] ?? rawItem;
-                        audioClipPath = parsed['audioPath'];
-                      }
-                    } catch (_) {}
+                  ...List.generate(_history.length, (index) {
+                    final rawItem = _history[index];
+                    final songTitle = _parseSongTitle(rawItem);
+                    final audioClipPath = _parseAudioPath(rawItem);
 
                     final bool clipExists = audioClipPath != null &&
                         audioClipPath.isNotEmpty &&
                         File(audioClipPath).existsSync();
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          child: const Icon(Icons.music_note, color: Colors.white),
-                        ),
-                        title: Text(
-                          songTitle,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 🎵 REPLAY USER SINGING RECORDING BUTTON
-                            if (clipExists)
+                    final bool isSelected = _selectedIndices.contains(index);
+
+                    return Dismissible(
+                      key: Key('${rawItem}_$index'),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        color: Colors.redAccent,
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      onDismissed: (_) => _deleteHistoryItem(index),
+                      child: Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                        child: ListTile(
+                          onTap: () => _openSongInPreferredApp(songTitle),
+                          leading: IconButton(
+                            icon: Icon(
+                              isSelected ? Icons.check_circle : Icons.check_circle_outline,
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                if (isSelected) {
+                                  _selectedIndices.remove(index);
+                                } else {
+                                  _selectedIndices.add(index);
+                                }
+                              });
+                            },
+                          ),
+                          title: Text(
+                            songTitle,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            t('tap_to_play_preferred'),
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (clipExists)
+                                IconButton(
+                                  icon: Icon(
+                                    (_currentlyPlayingPath == audioClipPath && _isPlayingClip)
+                                        ? Icons.pause_circle_filled
+                                        : Icons.play_circle_fill,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    size: 28,
+                                  ),
+                                  tooltip: t('play_singing_sample'),
+                                  onPressed: () => _togglePlayClip(audioClipPath),
+                                ),
                               IconButton(
                                 icon: Icon(
-                                  (_currentlyPlayingPath == audioClipPath && _isPlayingClip)
-                                      ? Icons.pause_circle_filled
-                                      : Icons.play_circle_fill,
+                                  Icons.ios_share_rounded,
                                   color: Theme.of(context).colorScheme.primary,
-                                  size: 28,
                                 ),
-                                tooltip: "Play singing sample",
-                                onPressed: () => _togglePlayClip(audioClipPath!),
+                                tooltip: "QuickShare",
+                                onPressed: () => _showShareCardModal(context, songTitle),
                               ),
-                            IconButton(
-                              icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
-                              onPressed: () {
-                                Share.share(
-                                  'Check out "$songTitle", found hands-free using Reczt! https://reczt.com',
-                                );
-                              },
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     );
