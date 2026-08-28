@@ -20,13 +20,143 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 
+
+// --------------------------------------------------------------------
+// 🔗 SHARED APP CONSTANTS & HELPERS
+// --------------------------------------------------------------------
+
+/// Single source of truth for the Reczt App Store link. Previously this
+/// was redeclared locally in several functions — consolidated here.
+const String reczAppStoreUrl = "https://apps.apple.com/app/id123456789";
+
+/// Fetches the current device location for acoustic-map pin tracking.
+/// Returns null if location services or permissions are unavailable.
+Future<Position?> getCurrentDeviceLocation() async {
+  try {
+    final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return null;
+    }
+    if (permission == LocationPermission.deniedForever) return null;
+
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+  } catch (e) {
+    debugPrint('Error fetching device location: $e');
+    return null;
+  }
+}
+
+/// Fetches album artwork for a song/artist query via the iTunes Search API.
+Future<String?> fetchAlbumArtwork(String query) async {
+  try {
+    final encoded = Uri.encodeComponent(query);
+    final url = Uri.parse('https://itunes.apple.com/search?term=$encoded&entity=song&limit=1');
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['results'] != null && (data['results'] as List).isNotEmpty) {
+        String artwork = data['results'][0]['artworkUrl100'] ?? '';
+        return artwork.isEmpty ? null : artwork.replaceAll('100x100bb', '600x600bb');
+      }
+    }
+  } catch (e) {
+    debugPrint('Error fetching album cover: $e');
+  }
+  return null;
+}
+
+/// Infers a rough genre bucket from a song title when the backend doesn't supply one.
+String inferGenreFromTitle(String title) {
+  final lowerTitle = title.toLowerCase();
+  if (lowerTitle.contains('rock') || lowerTitle.contains('band')) return 'rock';
+  if (lowerTitle.contains('jazz') || lowerTitle.contains('blues')) return 'jazz';
+  if (lowerTitle.contains('indie') || lowerTitle.contains('acoustic')) return 'indie';
+  if (lowerTitle.contains('rap') || lowerTitle.contains('hip hop')) return 'rap';
+  if (lowerTitle.contains('classical') || lowerTitle.contains('orchestra')) return 'classical';
+  if (lowerTitle.contains('reggae')) return 'reggae';
+  if (lowerTitle.contains('r&b') || lowerTitle.contains('rnb')) return 'r&b';
+  return 'pop';
+}
+
+/// Refines a backend-provided emotion using simple title keyword checks,
+/// matching the heuristic the analytics page used to apply on its own.
+String refineEmotionFromTitle(String title, String backendEmotion) {
+  final lowerTitle = title.toLowerCase();
+  if (lowerTitle.contains('sad') || lowerTitle.contains('blue') || lowerTitle.contains('alone')) return 'sad';
+  if (lowerTitle.contains('party') || lowerTitle.contains('dance') || lowerTitle.contains('hype')) return 'hype';
+  if (lowerTitle.contains('love') || lowerTitle.contains('heart')) return 'romantic';
+  return backendEmotion.isNotEmpty ? backendEmotion : 'happy';
+}
+
+// --------------------------------------------------------------------
+// 🔔 LOCAL NOTIFICATIONS (offline-queue "song found" alert)
+// --------------------------------------------------------------------
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+Future<void> initLocalNotifications() async {
+  const AndroidInitializationSettings androidInit =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  final DarwinInitializationSettings iosInit = DarwinInitializationSettings();
+  final InitializationSettings initSettings = InitializationSettings(
+    android: androidInit,
+    iOS: iosInit,
+    macOS: iosInit,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(settings: initSettings);
+
+  // Android 13+ requires explicitly requesting notification permission.
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+      ?.requestNotificationsPermission();
+
+  // iOS/macOS permission request.
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+      ?.requestPermissions(alert: true, badge: true, sound: true);
+}
+
+/// Fires the "Reczt has found your queued song!" notification once a
+/// song recorded while offline is successfully matched after connectivity
+/// is restored.
+Future<void> showQueuedSongFoundNotification(String lang) async {
+  final String body =
+      localizedStrings[lang]?['queued_song_found'] ?? localizedStrings['en']!['queued_song_found']!;
+  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'reczt_offline_queue',
+    'Offline Queue',
+    channelDescription: 'Notifies you when a song recorded offline is found once you\'re back online.',
+    importance: Importance.high,
+    priority: Priority.high,
+  );
+  const NotificationDetails details = NotificationDetails(android: androidDetails);
+
+  try {
+    await flutterLocalNotificationsPlugin.show(
+      id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: 'Reczt',
+      body: body,
+      notificationDetails: details,
+    );
+  } catch (e) {
+    debugPrint('Error showing queued-song notification: $e');
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initLocalNotifications();
   
   final prefs = await SharedPreferences.getInstance();
   final int? savedColorValue = prefs.getInt('theme_seed_color');
@@ -127,6 +257,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Share Card',
     'create_spotify_playlist': 'Create Spotify Playlist',
     'create_apple_playlist': 'Create Apple Music Playlist',
+    'analytics_share_text': 'Check out my music analytics on Reczt!',
+    'calculating': 'Calculating...',
+    'connection_failed': 'Failed to connect',
+    'error_empty_path': 'Error: Recording path was empty.',
+    'error_stopping': 'Error stopping recording',
+    'live_pin_label': 'LIVE',
+    'playlist_name': 'Reczt Music History',
+    'quickshare_tooltip': 'QuickShare',
+    'server_error': 'Server error',
+    'unknown_artist': 'Unknown Artist',
+    'opening_apple_search': 'Opening Apple Music search for',
+    'processing_saved_recording': 'Processing Saved Recording...',
+    'queued_song_found': 'Reczt has found your queued song!',
     
   },
   'es': {
@@ -214,6 +357,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Tarjeta de compartir',
     'create_spotify_playlist': 'Crear lista en Spotify',
     'create_apple_playlist': 'Crear lista en Apple Music',
+    'analytics_share_text': '¡Descubre mis estadísticas musicales en Reczt!',
+    'calculating': 'Calculando...',
+    'connection_failed': 'Error de conexión',
+    'error_empty_path': 'Error: la ruta de la grabación estaba vacía.',
+    'error_stopping': 'Error al detener la grabación',
+    'live_pin_label': 'EN VIVO',
+    'playlist_name': 'Historial musical de Reczt',
+    'quickshare_tooltip': 'Compartir rápido',
+    'server_error': 'Error del servidor',
+    'unknown_artist': 'Artista desconocido',
+    'opening_apple_search': 'Abriendo búsqueda en Apple Music para',
+    'processing_saved_recording': 'Procesando grabación guardada...',
+    'queued_song_found': '¡Reczt ha encontrado tu canción en espera!',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
@@ -300,6 +456,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Carte de partage',
     'create_spotify_playlist': 'Créer une playlist Spotify',
     'create_apple_playlist': 'Créer une playlist Apple Music',
+    'analytics_share_text': 'Découvrez mes statistiques musicales sur Reczt !',
+    'calculating': 'Calcul en cours...',
+    'connection_failed': 'Échec de la connexion',
+    'error_empty_path': 'Erreur : le chemin de l\'enregistrement était vide.',
+    'error_stopping': 'Erreur lors de l\'arrêt de l\'enregistrement',
+    'live_pin_label': 'EN DIRECT',
+    'playlist_name': 'Historique musical Reczt',
+    'quickshare_tooltip': 'Partage rapide',
+    'server_error': 'Erreur du serveur',
+    'unknown_artist': 'Artiste inconnu',
+    'opening_apple_search': 'Ouverture de la recherche Apple Music pour',
+    'processing_saved_recording': 'Traitement de l\'enregistrement sauvegardé...',
+    'queued_song_found': 'Reczt a trouvé votre chanson en attente !',
   },
   'de': {
     'app_title': 'Song-Erkennung',
@@ -386,6 +555,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Teilen-Karte',
     'create_spotify_playlist': 'Spotify-Playlist erstellen',
     'create_apple_playlist': 'Apple Music-Playlist erstellen',
+    'analytics_share_text': 'Sieh dir meine Musikstatistiken auf Reczt an!',
+    'calculating': 'Wird berechnet...',
+    'connection_failed': 'Verbindung fehlgeschlagen',
+    'error_empty_path': 'Fehler: Der Aufnahmepfad war leer.',
+    'error_stopping': 'Fehler beim Stoppen der Aufnahme',
+    'live_pin_label': 'LIVE',
+    'playlist_name': 'Reczt Musikverlauf',
+    'quickshare_tooltip': 'Schnell teilen',
+    'server_error': 'Serverfehler',
+    'unknown_artist': 'Unbekannter Künstler',
+    'opening_apple_search': 'Apple-Music-Suche wird geöffnet für',
+    'processing_saved_recording': 'Gespeicherte Aufnahme wird verarbeitet...',
+    'queued_song_found': 'Reczt hat deinen wartenden Song gefunden!',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
@@ -472,6 +654,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Scheda di condivisione',
     'create_spotify_playlist': 'Crea playlist Spotify',
     'create_apple_playlist': 'Crea playlist Apple Music',
+    'analytics_share_text': 'Guarda le mie statistiche musicali su Reczt!',
+    'calculating': 'Calcolo in corso...',
+    'connection_failed': 'Connessione non riuscita',
+    'error_empty_path': 'Errore: il percorso della registrazione era vuoto.',
+    'error_stopping': 'Errore durante l\'arresto della registrazione',
+    'live_pin_label': 'LIVE',
+    'playlist_name': 'Cronologia musicale Reczt',
+    'quickshare_tooltip': 'Condivisione rapida',
+    'server_error': 'Errore del server',
+    'unknown_artist': 'Artista sconosciuto',
+    'opening_apple_search': 'Apertura ricerca Apple Music per',
+    'processing_saved_recording': 'Elaborazione registrazione salvata...',
+    'queued_song_found': 'Reczt ha trovato la tua canzone in coda!',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
@@ -558,6 +753,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Cartão de compartilhamento',
     'create_spotify_playlist': 'Criar playlist no Spotify',
     'create_apple_playlist': 'Criar playlist no Apple Music',
+    'analytics_share_text': 'Confira minhas estatísticas musicais no Reczt!',
+    'calculating': 'Calculando...',
+    'connection_failed': 'Falha na conexão',
+    'error_empty_path': 'Erro: o caminho da gravação estava vazio.',
+    'error_stopping': 'Erro ao parar a gravação',
+    'live_pin_label': 'AO VIVO',
+    'playlist_name': 'Histórico musical do Reczt',
+    'quickshare_tooltip': 'Compartilhamento rápido',
+    'server_error': 'Erro do servidor',
+    'unknown_artist': 'Artista desconhecido',
+    'opening_apple_search': 'Abrindo busca no Apple Music para',
+    'processing_saved_recording': 'Processando gravação salva...',
+    'queued_song_found': 'O Reczt encontrou sua música pendente!',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
@@ -645,6 +853,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'シェアカード',
     'create_spotify_playlist': 'Spotifyプレイリストを作成',
     'create_apple_playlist': 'Apple Musicプレイリストを作成',
+    'analytics_share_text': 'Recztで自分の音楽統計をチェックしよう！',
+    'calculating': '計算中...',
+    'connection_failed': '接続に失敗しました',
+    'error_empty_path': 'エラー：録音のパスが空でした。',
+    'error_stopping': '録音の停止中にエラーが発生しました',
+    'live_pin_label': 'ライブ',
+    'playlist_name': 'Reczt 音楽履歴',
+    'quickshare_tooltip': 'クイックシェア',
+    'server_error': 'サーバーエラー',
+    'unknown_artist': '不明なアーティスト',
+    'opening_apple_search': 'Apple Musicで検索を開いています：',
+    'processing_saved_recording': '保存された録音を処理中...',
+    'queued_song_found': 'Recztがキューに入っていた曲を見つけました！',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
@@ -732,6 +953,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': '공유 카드',
     'create_spotify_playlist': 'Spotify 재생목록 만들기',
     'create_apple_playlist': 'Apple Music 재생목록 만들기',
+    'analytics_share_text': 'Reczt에서 내 음악 분석을 확인해보세요!',
+    'calculating': '계산 중...',
+    'connection_failed': '연결 실패',
+    'error_empty_path': '오류: 녹음 경로가 비어 있습니다.',
+    'error_stopping': '녹음 중지 중 오류 발생',
+    'live_pin_label': '실시간',
+    'playlist_name': 'Reczt 음악 기록',
+    'quickshare_tooltip': '빠른 공유',
+    'server_error': '서버 오류',
+    'unknown_artist': '알 수 없는 아티스트',
+    'opening_apple_search': 'Apple Music에서 검색 여는 중:',
+    'processing_saved_recording': '저장된 녹음 처리 중...',
+    'queued_song_found': 'Reczt가 대기열에 있던 노래를 찾았습니다!',
   },
   'zh': {
     'app_title': '歌曲识别器',
@@ -819,6 +1053,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': '分享卡片',
     'create_spotify_playlist': '创建 Spotify 歌单',
     'create_apple_playlist': '创建 Apple Music 歌单',
+    'analytics_share_text': '快来看看我在 Reczt 上的音乐数据吧！',
+    'calculating': '计算中...',
+    'connection_failed': '连接失败',
+    'error_empty_path': '错误：录音路径为空。',
+    'error_stopping': '停止录音时出错',
+    'live_pin_label': '实时',
+    'playlist_name': 'Reczt 音乐历史',
+    'quickshare_tooltip': '快速分享',
+    'server_error': '服务器错误',
+    'unknown_artist': '未知艺术家',
+    'opening_apple_search': '正在打开 Apple Music 搜索：',
+    'processing_saved_recording': '正在处理已保存的录音...',
+    'queued_song_found': 'Reczt 已找到你排队等待的歌曲！',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
@@ -895,7 +1142,6 @@ final Map<String, Map<String, String>> localizedStrings = {
     'error_no_lyrics': 'बोल पहचाने नहीं जा सके। और स्पष्ट गाने का प्रयास करें!',
     'open_in_platform': '{platform} में खोलें',
     'songs': 'गाने',
-    'playlist_name': 'Reczt संगीत इतिहास',
     'playlist_desc': 'Reczt ऐप के माध्यम से स्वचालित रूप से बनाया गया',
     'auth_spotify': 'Spotify के साथ प्रमाणीकरण हो रहा है...',
     'auth_failed': 'Spotify प्रमाणीकरण रद्द कर दिया गया या विफल रहा।',
@@ -907,6 +1153,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'शेयर कार्ड',
     'create_spotify_playlist': 'Spotify प्लेलिस्ट बनाएं',
     'create_apple_playlist': 'Apple Music प्लेलिस्ट बनाएं',
+    'analytics_share_text': 'Reczt पर मेरे संगीत आँकड़े देखें!',
+    'calculating': 'गणना हो रही है...',
+    'connection_failed': 'कनेक्ट करने में विफल',
+    'error_empty_path': 'त्रुटि: रिकॉर्डिंग पथ खाली था।',
+    'error_stopping': 'रिकॉर्डिंग रोकने में त्रुटि',
+    'live_pin_label': 'लाइव',
+    'playlist_name': 'Reczt संगीत इतिहास',
+    'quickshare_tooltip': 'क्विकशेयर',
+    'server_error': 'सर्वर त्रुटि',
+    'unknown_artist': 'अज्ञात कलाकार',
+    'opening_apple_search': 'इसके लिए Apple Music खोज खोली जा रही है:',
+    'processing_saved_recording': 'सहेजी गई रिकॉर्डिंग को संसाधित किया जा रहा है...',
+    'queued_song_found': 'Reczt ने आपके कतार में रखे गाने को ढूंढ लिया है!',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
@@ -994,6 +1253,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Карточка шеринга',
     'create_spotify_playlist': 'Создать плейлист Spotify',
     'create_apple_playlist': 'Создать плейлист Apple Music',
+    'analytics_share_text': 'Посмотри мою музыкальную статистику в Reczt!',
+    'calculating': 'Вычисление...',
+    'connection_failed': 'Не удалось подключиться',
+    'error_empty_path': 'Ошибка: путь к записи пуст.',
+    'error_stopping': 'Ошибка при остановке записи',
+    'live_pin_label': 'СЕЙЧАС',
+    'playlist_name': 'История музыки Reczt',
+    'quickshare_tooltip': 'Быстрый доступ к обмену',
+    'server_error': 'Ошибка сервера',
+    'unknown_artist': 'Неизвестный исполнитель',
+    'opening_apple_search': 'Открытие поиска в Apple Music для',
+    'processing_saved_recording': 'Обработка сохранённой записи...',
+    'queued_song_found': 'Reczt нашёл вашу песню из очереди!',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
@@ -1081,6 +1353,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Paylaşım Kartı',
     'create_spotify_playlist': 'Spotify Çalma Listesi Oluştur',
     'create_apple_playlist': 'Apple Music Çalma Listesi Oluştur',
+    'analytics_share_text': 'Reczt\'teki müzik istatistiklerime göz at!',
+    'calculating': 'Hesaplanıyor...',
+    'connection_failed': 'Bağlantı başarısız oldu',
+    'error_empty_path': 'Hata: Kayıt yolu boştu.',
+    'error_stopping': 'Kaydı durdururken hata oluştu',
+    'live_pin_label': 'CANLI',
+    'playlist_name': 'Reczt Müzik Geçmişi',
+    'quickshare_tooltip': 'Hızlı Paylaş',
+    'server_error': 'Sunucu hatası',
+    'unknown_artist': 'Bilinmeyen Sanatçı',
+    'opening_apple_search': 'Şunun için Apple Music araması açılıyor:',
+    'processing_saved_recording': 'Kaydedilen kayıt işleniyor...',
+    'queued_song_found': 'Reczt, kuyruktaki şarkınızı buldu!',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
@@ -1168,6 +1453,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'بطاقة المشاركة',
     'create_spotify_playlist': 'إنشاء قائمة تشغيل Spotify',
     'create_apple_playlist': 'إنشاء قائمة تشغيل Apple Music',
+    'analytics_share_text': 'شاهد إحصائيات موسيقاي على Reczt!',
+    'calculating': 'جارٍ الحساب...',
+    'connection_failed': 'فشل الاتصال',
+    'error_empty_path': 'خطأ: مسار التسجيل كان فارغًا.',
+    'error_stopping': 'خطأ أثناء إيقاف التسجيل',
+    'live_pin_label': 'مباشر',
+    'playlist_name': 'سجل موسيقى Reczt',
+    'quickshare_tooltip': 'مشاركة سريعة',
+    'server_error': 'خطأ في الخادم',
+    'unknown_artist': 'فنان غير معروف',
+    'opening_apple_search': 'جارٍ فتح بحث Apple Music عن',
+    'processing_saved_recording': 'جارٍ معالجة التسجيل المحفوظ...',
+    'queued_song_found': 'لقد عثر Reczt على أغنيتك المنتظرة في قائمة الانتظار!',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
@@ -1255,6 +1553,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Deelkaart',
     'create_spotify_playlist': 'Spotify-afspeellijst maken',
     'create_apple_playlist': 'Apple Music-afspeellijst maken',
+    'analytics_share_text': 'Bekijk mijn muziekstatistieken op Reczt!',
+    'calculating': 'Berekenen...',
+    'connection_failed': 'Verbinding mislukt',
+    'error_empty_path': 'Fout: het opnamepad was leeg.',
+    'error_stopping': 'Fout bij het stoppen van de opname',
+    'live_pin_label': 'LIVE',
+    'playlist_name': 'Reczt Muziekgeschiedenis',
+    'quickshare_tooltip': 'Snel delen',
+    'server_error': 'Serverfout',
+    'unknown_artist': 'Onbekende artiest',
+    'opening_apple_search': 'Apple Music-zoekopdracht wordt geopend voor',
+    'processing_saved_recording': 'Opgeslagen opname wordt verwerkt...',
+    'queued_song_found': 'Reczt heeft je wachtende nummer gevonden!',
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
@@ -1342,6 +1653,19 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Karta udostępniania',
     'create_spotify_playlist': 'Utwórz playlistę Spotify',
     'create_apple_playlist': 'Utwórz playlistę Apple Music',
+    'analytics_share_text': 'Sprawdź moje statystyki muzyczne w Reczt!',
+    'calculating': 'Obliczanie...',
+    'connection_failed': 'Nie udało się połączyć',
+    'error_empty_path': 'Błąd: ścieżka nagrania była pusta.',
+    'error_stopping': 'Błąd podczas zatrzymywania nagrywania',
+    'live_pin_label': 'NA ŻYWO',
+    'playlist_name': 'Historia muzyki Reczt',
+    'quickshare_tooltip': 'Szybkie udostępnianie',
+    'server_error': 'Błąd serwera',
+    'unknown_artist': 'Nieznany wykonawca',
+    'opening_apple_search': 'Otwieranie wyszukiwania Apple Music dla',
+    'processing_saved_recording': 'Przetwarzanie zapisanego nagrania...',
+    'queued_song_found': 'Reczt znalazł Twoją oczekującą piosenkę!',
   },
 };
 
@@ -1403,8 +1727,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   static const MethodChannel _siriChannel =
       MethodChannel('com.handsfreefinder/siri');
 
-  final GlobalKey _shareCardKey = GlobalKey();
-
   @override
   void initState() {
     super.initState();
@@ -1429,6 +1751,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     _loadSavedMode();
     _loadPreferences();
     _checkPendingOfflineQueue();
+
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      if (!results.contains(ConnectivityResult.none)) {
+        _checkPendingOfflineQueue();
+      }
+    });
 
     if (!kIsWeb) {
       _initSiriListener();
@@ -1481,93 +1809,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     }
   }
 
-  Widget _buildDiscoveredSongBanner({
-  required BuildContext context,
-  required String title,
-  required String artist,
-  String? coverUrl,
-}) {
-  return Container(
-    margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Theme.of(context).cardColor,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: const [
-        BoxShadow(
-          color: Colors.black12,
-          blurRadius: 8,
-          offset: Offset(0, 4),
-        )
-      ],
-    ),
-    child: Row(
-      children: [
-        // Album Cover / Placeholder
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: coverUrl != null && coverUrl.isNotEmpty
-              ? Image.network(
-                  coverUrl,
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.cover,
-                )
-              : Container(
-                  width: 50,
-                  height: 50,
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  child: const Icon(Icons.music_note),
-                ),
-        ),
-        const SizedBox(width: 12),
-
-        // Song Title & Artist
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                artist,
-                style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-
-        // Share Button calling QuickShareHelper
-        IconButton(
-          icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
-          tooltip: "QuickShare",
-          onPressed: () {
-            QuickShareHelper.shareSongCard(
-              context: context,
-              title: title,
-              artist: artist,
-              coverUrl: coverUrl,
-            );
-          },
-        ),
-      ],
-    ),
-  );
-}
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
+    _connectivitySubscription?.cancel();
     _audioRecorder.dispose();
     _dingPlayer.dispose();
     _errorPlayer.dispose();
@@ -1587,10 +1834,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   late final AudioPlayer _dingPlayer;
   late final AudioPlayer _errorPlayer;
   late final AudioRecorder _audioRecorder;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   bool _isRecording = false;
   bool _isLoading = false;
   bool _autoPlayEnabled = true;
+  // Normalized map coordinates for locations displayed while singing.
+  final List<Offset> _livePinLocations = <Offset>[];
 
   EnvironmentMode _selectedMode = EnvironmentMode.Outdoors;
   int _secondsRemaining = 12;
@@ -1626,6 +1876,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   String? _artist;
   String? _spotifyUrl;
   String? _appleMusicUrl;
+  String? _albumArtUrl;
+  Position? _sessionLocation;
 
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
@@ -1637,32 +1889,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     return localizedStrings[_selectedLanguage]?[key] ??
         localizedStrings['en']![key] ??
         key;
-  }
-
-  Future<void> _shareSongCard(String title, String artist, bool isSpotify) async {
-    try {
-      RenderRepaintBoundary boundary = _shareCardKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      Uint8List? imageBytes = byteData?.buffer.asUint8List();
-
-      if (imageBytes == null) return;
-
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/reczt_song.png');
-      await file.writeAsBytes(imageBytes);
-
-      String platformName = isSpotify ? "Spotify" : "Apple Music";
-      String shareText = "I found '$title' by $artist on $platformName via Reczt! Check it out: https://reczt.com";
-
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: shareText,
-      );
-    } catch (e) {
-      debugPrint("Error sharing visual card: $e");
-      Share.share('Check out "$title" by $artist, found hands-free using Reczt! https://reczt.com');
-    }
   }
 
   Future<void> _loadPreferences() async {
@@ -1779,9 +2005,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                     const SizedBox(height: 8),
                     DropdownButton<Color>(
                       isExpanded: true,
-                      value: [Colors.deepPurple, Colors.blue, Colors.teal, Colors.orange].contains(tempColor) 
-                          ? tempColor 
-                          : Colors.deepPurple,
+                      value: [Colors.deepPurple, Colors.blue, Colors.teal, Colors.orange]
+                          .firstWhere(
+                            (c) => c.value == tempColor.value,
+                            orElse: () => Colors.deepPurple,
+                          ),
                       items: [
                         DropdownMenuItem(value: Colors.deepPurple, child: Text(t('theme_purple'))),
                         DropdownMenuItem(value: Colors.blue, child: Text(t('theme_blue'))),
@@ -1882,13 +2110,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     }
   }
 
-  Future<void> _saveToHistory(String songEntry, {String? audioPath}) async {
+  Future<void> _saveToHistory(String songEntry, {String? audioPath, String? albumCover}) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> history = prefs.getStringList('song_history') ?? [];
     
     final Map<String, dynamic> historyObj = {
       'song': songEntry,
       'audioPath': audioPath ?? '',
+      'albumCover': albumCover ?? '',
     };
     
     history.insert(0, jsonEncode(historyObj));
@@ -1933,7 +2162,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         final String path = pendingQueue.removeAt(0);
         await prefs.setStringList('pending_offline_songs', pendingQueue);
 
-        await _sendAudioToBackend(path);
+        await _sendAudioToBackend(path, isFromOfflineQueue: true);
       }
     } catch (e) {
       debugPrint('Error checking offline queue: $e');
@@ -1944,6 +2173,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
     _isExplicitlyPausedForRecording = false;
+    await _endLiveSingingTracking();
 
     try {
       setState(() {
@@ -1970,20 +2200,20 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       } else {
         setState(() {
           _isLoading = false;
-          _customStatusText = 'Error: Path was empty.';
+          _customStatusText = t('error_empty_path');
         });
         _playErrorCue();
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _customStatusText = 'Error stopping: $e';
+        _customStatusText = '${t('error_stopping')}: $e';
       });
       _playErrorCue();
     }
   }
 
-  Future<void> _sendAudioToBackend(String path) async {
+  Future<void> _sendAudioToBackend(String path, {bool isFromOfflineQueue = false}) async {
   final uri = Uri.parse(_backendUrl);
   var request = http.MultipartRequest('POST', uri);
   request.fields['language'] = _selectedLanguage;
@@ -2044,7 +2274,9 @@ if (validResults.isNotEmpty) {
   final topMatch = validResults.first;
   final String title = topMatch['title'] ?? 'Unknown Title';
   final String artist = topMatch['artist'] ?? 'Unknown Artist';
-  final String emotion = topMatch['emotion'] ?? 'happy'; // Extract emotion from backend if available
+  final String backendEmotion = topMatch['emotion'] ?? 'happy'; // Extract emotion from backend if available
+  final String emotion = refineEmotionFromTitle(title, backendEmotion);
+  final String genre = inferGenreFromTitle(title);
 
   setState(() {
     _songTitle = title;
@@ -2056,17 +2288,31 @@ if (validResults.isNotEmpty) {
   });
   
   final preservedClipPath = await _preserveAudioClip(path);
+  final String? albumArt = await fetchAlbumArtwork('$title $artist');
+  if (mounted) {
+    setState(() {
+      _albumArtUrl = albumArt;
+    });
+  }
 
   // --- SAVE TO HISTORY (Temporary display log) ---
-  await _saveToHistory('$title - $artist', audioPath: preservedClipPath);
+  await _saveToHistory('$title - $artist', audioPath: preservedClipPath, albumCover: albumArt);
 
-  // --- SAVE TO ANALYTICS (Permanent counters) ---
+  // --- SAVE TO ANALYTICS (Permanent counters, independent of history) ---
   await recordSessionToAnalytics(
+    songTitle: title,
     artistName: artist,
     primaryEmotion: emotion,
+    genre: genre,
+    latitude: _sessionLocation?.latitude,
+    longitude: _sessionLocation?.longitude,
   );
 
   _checkPendingOfflineQueue();
+
+  if (isFromOfflineQueue) {
+    unawaited(showQueuedSongFoundNotification(_selectedLanguage));
+  }
   // ... rest of autoPlay logic ...
 
           if (_autoPlayEnabled) {
@@ -2098,21 +2344,25 @@ if (validResults.isNotEmpty) {
     } else {
       _playErrorCue();
       setState(() {
-        _customStatusText = 'Server Error: ${response.statusCode}';
+        _customStatusText = '${t('server_error')}: ${response.statusCode}';
       });
     }
   } catch (e) {
     _playErrorCue();
     setState(() {
       _isLoading = false;
-      _customStatusText = 'Failed to connect: $e';
+      _customStatusText = '${t('connection_failed')}: $e';
     });
   }
 }
  
 Future<void> recordSessionToAnalytics({
+  required String songTitle,
   required String artistName,
   required String primaryEmotion,
+  required String genre,
+  double? latitude,
+  double? longitude,
 }) async {
   final prefs = await SharedPreferences.getInstance();
 
@@ -2132,6 +2382,34 @@ Future<void> recordSessionToAnalytics({
   }
   artistMap[artistName] = (artistMap[artistName] ?? 0) + 1;
   await prefs.setString('analytics_artist_counts', jsonEncode(artistMap));
+
+  // 4. Increment genre count in a persistent JSON map
+  final String? genreJson = prefs.getString('analytics_genre_counts');
+  Map<String, dynamic> genreMap = {};
+  if (genreJson != null) {
+    genreMap = jsonDecode(genreJson) as Map<String, dynamic>;
+  }
+  genreMap[genre] = (genreMap[genre] ?? 0) + 1;
+  await prefs.setString('analytics_genre_counts', jsonEncode(genreMap));
+
+  // 5. Track this session's date for streak calculation.
+  // Stored independently of song_history so "Clear History" doesn't erase it.
+  final List<String> sessionDates = prefs.getStringList('analytics_session_dates') ?? [];
+  sessionDates.add(DateTime.now().toIso8601String());
+  await prefs.setStringList('analytics_session_dates', sessionDates);
+
+  // 6. Persist an acoustic memory pin if a location was captured while singing.
+  if (latitude != null && longitude != null) {
+    final List<String> memories = prefs.getStringList('acoustic_memories') ?? [];
+    memories.add(jsonEncode({
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'title': songTitle,
+      'lat': latitude,
+      'lng': longitude,
+      'timestamp': DateTime.now().toIso8601String(),
+    }));
+    await prefs.setStringList('acoustic_memories', memories);
+  }
 }
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
@@ -2149,6 +2427,33 @@ Future<void> recordSessionToAnalytics({
     }
   }
 
+  /// Marks the user as actively singing and captures their current
+  /// location so the analytics acoustic map can show a live pin.
+  /// Runs in the background so it never delays the mic starting.
+  Future<void> _beginLiveSingingTracking() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_currently_singing', true);
+
+    final position = await getCurrentDeviceLocation();
+    if (!mounted) return;
+    _sessionLocation = position;
+
+    if (position != null) {
+      await prefs.setStringList('active_singing_locations', [
+        jsonEncode({'lat': position.latitude, 'lng': position.longitude}),
+      ]);
+    } else {
+      await prefs.remove('active_singing_locations');
+    }
+  }
+
+  /// Clears the live-singing indicator once recording stops.
+  Future<void> _endLiveSingingTracking() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_currently_singing', false);
+    await prefs.remove('active_singing_locations');
+  }
+
   Future<void> _startRecording({bool playDing = true}) async {
     if (_isRecording || _isLoading) return;
 
@@ -2162,8 +2467,10 @@ Future<void> recordSessionToAnalytics({
       _secondsRemaining = _selectedMode.duration;
       _songTitle = null;
       _artist = null;
+      _albumArtUrl = null;
       _customStatusText = null;
     });
+    unawaited(_beginLiveSingingTracking());
 
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -2204,8 +2511,6 @@ Future<void> recordSessionToAnalytics({
 
 @override
   Widget build(BuildContext context) {
-    final bool isSpotifyPlatform = _preferredMusicApp == 'spotify';
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reczt'),
@@ -2213,67 +2518,6 @@ Future<void> recordSessionToAnalytics({
       ),
       body: Stack(
         children: [
-          // Hidden capture card layout for sharing
-          Offstage(
-            offstage: true,
-            child: RepaintBoundary(
-              key: _cardShareKey,
-              child: Container(
-                width: 300,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 260,
-                      width: 260,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[900],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.music_note, color: Colors.white, size: 80),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _songTitle ?? 'Track Title',
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      _artist ?? 'Artist Name',
-                      style: const TextStyle(color: Colors.grey, fontSize: 16),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          isSpotifyPlatform ? "Found via Spotify" : "Found via Apple Music",
-                          style: TextStyle(
-                            color: isSpotifyPlatform ? Colors.greenAccent : Colors.pinkAccent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Text(
-                          "Reczt",
-                          style: TextStyle(color: Colors.white70, fontSize: 12, fontStyle: FontStyle.italic),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
@@ -2468,7 +2712,15 @@ Future<void> recordSessionToAnalytics({
                               children: [
                                 IconButton(
                                   icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
-                                  onPressed: _captureAndShareCard, // <--- Updated to trigger the image builder function
+                                  onPressed: () {
+                                    QuickShareHelper.showSongShareSheet(
+                                      context,
+                                      lang: _selectedLanguage,
+                                      title: _songTitle!,
+                                      artist: _artist!,
+                                      coverUrl: _albumArtUrl,
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -2532,28 +2784,6 @@ Future<void> recordSessionToAnalytics({
         ],
       ),
     );
-  }
-
-  Future<void> _captureAndShareCard() async {
-    try {
-      RenderRepaintBoundary boundary = 
-          _cardShareKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      Uint8List pngBytes = byteData!.buffer.asUint8List();
-
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/reczt_song_card.png');
-      await file.writeAsBytes(pngBytes);
-
-      await Share.shareXFiles(
-        [XFile(file.path)], 
-        text: "Check out this track I found on Reczt! 🎵✨",
-      );
-    } catch (e) {
-      debugPrint("Error sharing card: $e");
-    }
   }
 
   void _showUserManualDialog(BuildContext context) {
@@ -2674,460 +2904,7 @@ class AnalyticsPage extends StatefulWidget {
   @override
   State<AnalyticsPage> createState() => _AnalyticsPageState();
 }
-final GlobalKey _cardShareKey = GlobalKey();
 
-class ArtistStat {
-  final String name;
-  final int playCount;
-  final String imageUrl;
-  final String primaryGenre;
-
-  const ArtistStat({
-    required this.name,
-    required this.playCount,
-    required this.imageUrl,
-    required this.primaryGenre,
-  });
-}
-
-class GenreStat {
-  final String name;
-  final double percentage;
-  final Color color;
-  final int count;
-
-  const GenreStat({
-    required this.name,
-    required this.percentage,
-    required this.color,
-    required this.count,
-  });
-}
-
-class VibeStat {
-  final String name;
-  final double percentage;
-  final IconData icon;
-  final Color color;
-
-  const VibeStat({
-    required this.name,
-    required this.percentage,
-    required this.icon,
-    required this.color,
-  });
-}
-
-class AcousticStat {
-  final String environment;
-  final int count;
-  final int durationMinutes;
-  final IconData icon;
-  final Color color;
-
-  const AcousticStat({
-    required this.environment,
-    required this.count,
-    required this.durationMinutes,
-    required this.icon,
-    required this.color,
-  });
-}
-class DynamicEmotionChart extends StatelessWidget {
-  final Map<String, double> emotionData;
-
-  const DynamicEmotionChart({
-    super.key,
-    required this.emotionData,
-  });
-
-  // Default color palette mapped to standard emotion keys
-  static const Map<String, Color> defaultColors = {
-    'happy': Colors.amber,
-    'sad': Colors.blueAccent,
-    'hype': Colors.orangeAccent,
-    'romantic': Colors.pinkAccent,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    // 1. Calculate actual total count across all emotions
-final rawEmotionKeys = emotionData.keys;
-final double totalCounts = rawEmotionKeys.fold(
-  0.0,
-  (sum, key) => sum + (emotionData[key] ?? 0),
-);
-
-// 2. Filter keys to only those with a count greater than 0
-final activeKeys = rawEmotionKeys.where((key) => (emotionData[key] ?? 0) > 0).toList();
-
-List<PieChartSectionData> emotionSections = [];
-
-if (totalCounts == 0) {
-  // Fallback state when there is no data at all
-  emotionSections = [
-    PieChartSectionData(
-      color: Colors.grey.shade300,
-      value: 1,
-      title: '',
-      radius: 18,
-    ),
-  ];
-} else if (activeKeys.length == 1) {
-  // 100% SINGLE EMOTION: A single continuous section filling the entire donut ring
-  final singleKey = activeKeys.first;
-  emotionSections = [
-    PieChartSectionData(
-      color: defaultColors[singleKey] ?? Colors.grey.shade300,
-      value: totalCounts,
-      title: '',
-      radius: 18, // Keeps the same donut thickness while filling the full circle
-    ),
-  ];
-} else {
-  // MULTIPLE EMOTIONS: Include ONLY the emotions with count > 0
-  emotionSections = activeKeys.map((rawKey) {
-    final count = (emotionData[rawKey] ?? 0).toDouble();
-    return PieChartSectionData(
-      color: defaultColors[rawKey] ?? Colors.grey.shade300,
-      value: count,
-      title: '',
-      radius: 18,
-    );
-  }).toList();
-}
-    return PieChart(
-      PieChartData(
-        sections: emotionSections,
-        centerSpaceRadius: 32,
-      ),
-    );
-  }
-}
-class AcousticMemory {
-  final String id;
-  final String title;
-  final double latitude;
-  final double longitude;
-  final DateTime timestamp;
-
-  AcousticMemory({
-    required this.id,
-    required this.title,
-    required this.latitude,
-    required this.longitude,
-    required this.timestamp,
-  });
-}
-
-class AcousticMapView extends StatefulWidget {
-  final List<AcousticMemory> initialMemories;
-
-  const AcousticMapView({super.key, required this.initialMemories});
-
-  @override
-  State<AcousticMapView> createState() => _AcousticMapViewState();
-}
-
-class _AcousticMapViewState extends State<AcousticMapView> {
-  late List<AcousticMemory> _memories;
-
-  Map<String, double> _emotionData = {
-    'happy': 0,
-    'sad': 0,
-    'hype': 0,
-    'romantic': 0,
-  };
-  
-  List<ArtistStat> _topArtists = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _memories = List.from(widget.initialMemories);
-    _loadAnalyticsFromPrefs();
-  }
-
-  Future<void> _loadAnalyticsFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // 1. Load persistent emotion counts
-    final Map<String, double> loadedEmotions = {};
-    for (String key in DynamicEmotionChart.defaultColors.keys) {
-      // Read each key independently (e.g., 'analytics_emotion_happy')
-      final int count = prefs.getInt('analytics_emotion_$key') ?? 0;
-      loadedEmotions[key] = count.toDouble();
-    }
-
-    // 2. Load top artists (Example: JSON string or encoded map stored in prefs)
-    // You can store artist counts in JSON format under key 'analytics_artist_counts'
-    final String? artistJson = prefs.getString('analytics_artist_counts');
-    List<ArtistStat> loadedArtists = [];
-    if (artistJson != null) {
-      final Map<String, dynamic> artistCounts = jsonDecode(artistJson);
-      loadedArtists = artistCounts.entries.map((entry) {
-        return ArtistStat(
-          name: entry.key,
-          playCount: entry.value as int,
-          imageUrl: '', // Load cached image URL or default asset
-          primaryGenre: '', 
-        );
-      }).toList();
-      
-      // Sort by play count descending
-      loadedArtists.sort((a, b) => b.playCount.compareTo(a.playCount));
-    }
-
-    setState(() {
-      _emotionData = loadedEmotions;
-      _topArtists = loadedArtists;
-      _isLoading = false;
-    });
-  }
-
-  /// 1. Fetches current device coordinates safely
-  Future<Position?> _getCurrentLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return null;
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return null;
-    }
-    
-    if (permission == LocationPermission.deniedForever) return null;
-
-    return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-  }
-
-  /// 2. Saves recording and updates state so pins render instantly
-  Future<void> addRecordingPin(String title) async {
-    final position = await _getCurrentLocation();
-    
-    // Fallback to default position if location is unavailable
-    final double lat = position?.latitude ?? 40.7128; 
-    final double lng = position?.longitude ?? -74.0060;
-
-    final newMemory = AcousticMemory(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: title,
-      latitude: lat,
-      longitude: lng,
-      timestamp: DateTime.now(),
-    );
-
-    setState(() {
-      _memories.add(newMemory);
-    });
-  }
-
-  /// 3. Normalizes geographic coordinates into map pixel offsets
-  Offset _latLngToMapOffset(double lat, double lng, Size mapSize) {
-    final double x = ((lng + 180) / 360) * mapSize.width;
-    final double y = ((90 - lat) / 180) * mapSize.height;
-    return Offset(x, y);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final mapSize = Size(constraints.maxWidth, constraints.maxHeight);
-
-        return Stack(
-          children: [
-            // Map Background
-            Container(
-              width: mapSize.width,
-              height: mapSize.height,
-              color: const Color(0xFF1E1E2C),
-            ),
-
-            // Dynamically Rendered Pins
-            ..._memories.map((memory) {
-              final offset = _latLngToMapOffset(
-                memory.latitude, 
-                memory.longitude, 
-                mapSize,
-              );
-
-              return Positioned(
-                left: offset.dx - 12, // Center pin horizontally
-                top: offset.dy - 24,  // Align pin point vertically
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text(
-                        'LIVE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const Icon(
-                      Icons.location_on,
-                      color: Colors.redAccent,
-                      size: 24,
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        );
-      },
-    );
-  }
-}
-class AnalyticsSummaryCard extends StatelessWidget {
-  final int streakDays;
-  final String topArtist;
-  final Map<String, double> genres;
-  final Map<String, double> emotions;
-  final int totalMemories;
-
-  const AnalyticsSummaryCard({
-    super.key,
-    required this.streakDays,
-    required this.topArtist,
-    required this.genres,
-    required this.emotions,
-    required this.totalMemories,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 340,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1E1E2C), Color(0xFF2A2D3E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black45,
-            blurRadius: 15,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Branding Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Reczt Stats',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.purpleAccent.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'RECAP',
-                  style: TextStyle(
-                    color: Colors.purpleAccent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Key Metrics Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildMetric('Streak', '$streakDays Days 🔥'),
-              _buildMetric('Top Artist', topArtist),
-              _buildMetric('Memories', '$totalMemories Pins 📍'),
-            ],
-          ),
-          const Divider(color: Colors.white24, height: 24),
-
-          // Top Genres Summary
-          Text(
-            t('most_sung_genres'),
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-          const SizedBox(height: 6),
-          ...genres.entries.take(3).map(
-                (e) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(e.key, style: const TextStyle(color: Colors.white, fontSize: 13)),
-                      Text('${e.value.toStringAsFixed(0)}%', style: const TextStyle(color: Colors.amber, fontSize: 13)),
-                    ],
-                  ),
-                ),
-              ),
-          const SizedBox(height: 12),
-
-          // Primary Emotion Summary
-          const Text(
-            'Vibe Breakdown',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 8,
-            children: emotions.entries.map((e) {
-              return Chip(
-                backgroundColor: Colors.white10,
-                label: Text(
-                  '${e.key}: ${e.value.toStringAsFixed(0)}%',
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetric(String label, String value) {
-    return Column(
-      children: [
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-      ],
-    );
-  }
-
-  String t(String s) => s;
-}
 
 class _AnalyticsPageState extends State<AnalyticsPage> {
   int _singingStreak = 0;
@@ -3162,7 +2939,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       'indie': 0,
       'jazz': 0,
     };
-    _curatedPlaylistTitle = t('analyzing_mood');
+    _curatedPlaylistTitle = t('analyzing');
     _countdownText = t('calculating');
     _computeAnalytics();
   }
@@ -3189,7 +2966,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   Future<void> _computeAnalytics() async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> history = prefs.getStringList('song_history') ?? [];
 
     _preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
     bool activeSinging = prefs.getBool('is_currently_singing') ?? false;
@@ -3206,88 +2982,25 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       } catch (_) {}
     }
 
-    if (calculatedOffsets.isEmpty && activeSinging) {
-      calculatedOffsets = [
-        _latLngToMapOffset(40.7128, -74.0060),
-        _latLngToMapOffset(51.5074, -0.1278),
-        _latLngToMapOffset(35.6762, 139.6503),
-      ];
+    // --- Permanent counters (survive "Clear History") ---
+    Map<String, int> emotionMap = {'happy': 0, 'sad': 0, 'hype': 0, 'romantic': 0};
+    for (String key in emotionMap.keys.toList()) {
+      emotionMap[key] = prefs.getInt('analytics_emotion_$key') ?? 0;
     }
 
     Map<String, int> artistMap = {};
-    Map<String, int> rawGenreMap = {};
-    Map<String, int> emotionMap = {'happy': 0, 'sad': 0, 'hype': 0, 'romantic': 0};
-    List<DateTime> sessionDates = [];
-
-    for (String rawItem in history) {
-      String songTitle = rawItem;
-      DateTime? itemDate;
-      String emotion = "happy";
-      String? extractedGenre;
-
-      try {
-        if (rawItem.startsWith('{')) {
-          final data = jsonDecode(rawItem);
-          songTitle = data['song'] ?? rawItem;
-          if (data['date'] != null) {
-            itemDate = DateTime.tryParse(data['date']);
-          }
-          if (data['emotion'] != null) {
-            emotion = data['emotion'].toString().toLowerCase();
-          } else if (data['mood'] != null) {
-            emotion = data['mood'].toString().toLowerCase();
-          }
-          if (data['genre'] != null) {
-            extractedGenre = data['genre'].toString().toLowerCase().trim();
-          }
-        }
-      } catch (_) {}
-
-      final lowerTitle = songTitle.toLowerCase();
-      if (lowerTitle.contains('sad') || lowerTitle.contains('blue') || lowerTitle.contains('alone')) {
-        emotion = 'sad';
-      } else if (lowerTitle.contains('party') || lowerTitle.contains('dance') || lowerTitle.contains('hype')) {
-        emotion = 'hype';
-      } else if (lowerTitle.contains('love') || lowerTitle.contains('heart')) {
-        emotion = 'romantic';
-      }
-
-      emotionMap[emotion] = (emotionMap[emotion] ?? 0) + 1;
-
-      itemDate ??= DateTime.now();
-      sessionDates.add(itemDate);
-
-      if (songTitle.contains(' - ')) {
-        final parts = songTitle.split(' - ');
-        if (parts.length > 1) {
-          final artist = parts[1].trim();
-          artistMap[artist] = (artistMap[artist] ?? 0) + 1;
-        }
-      }
-
-      if (extractedGenre == null || extractedGenre.isEmpty) {
-        if (lowerTitle.contains('rock') || lowerTitle.contains('band')) {
-          extractedGenre = 'rock';
-        } else if (lowerTitle.contains('jazz') || lowerTitle.contains('blues')) {
-          extractedGenre = 'jazz';
-        } else if (lowerTitle.contains('indie') || lowerTitle.contains('acoustic')) {
-          extractedGenre = 'indie';
-        } else if (lowerTitle.contains('rap') || lowerTitle.contains('hip hop')) {
-          extractedGenre = 'rap';
-        } else if (lowerTitle.contains('classical') || lowerTitle.contains('orchestra')) {
-          extractedGenre = 'classical';
-        } else if (lowerTitle.contains('reggae')) {
-          extractedGenre = 'reggae';
-        } else if (lowerTitle.contains('r&b') || lowerTitle.contains('rnb')) {
-          extractedGenre = 'r&b';
-        } else {
-          extractedGenre = 'pop';
-        }
-      }
-
-      rawGenreMap[extractedGenre] = (rawGenreMap[extractedGenre] ?? 0) + 1;
+    final String? artistJson = prefs.getString('analytics_artist_counts');
+    if (artistJson != null) {
+      final decoded = jsonDecode(artistJson) as Map<String, dynamic>;
+      decoded.forEach((key, value) => artistMap[key] = (value as num).toInt());
     }
 
+    Map<String, int> rawGenreMap = {};
+    final String? genreJson = prefs.getString('analytics_genre_counts');
+    if (genreJson != null) {
+      final decoded = jsonDecode(genreJson) as Map<String, dynamic>;
+      decoded.forEach((key, value) => rawGenreMap[key] = (value as num).toInt());
+    }
     final defaultFallbacks = ['pop', 'rock', 'indie', 'jazz'];
     for (String fallback in defaultFallbacks) {
       rawGenreMap.putIfAbsent(fallback, () => 0);
@@ -3308,7 +3021,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     List<String> topArtistsList = sortedArtists.map((e) => e.key).take(3).toList();
 
     String calculatedMajority = 'happy';
-    if (emotionMap.isNotEmpty) {
+    if (emotionMap.values.any((v) => v > 0)) {
       var dominant = emotionMap.entries.reduce((a, b) => a.value > b.value ? a : b);
       if (dominant.value <= 1 && topArtistsList.isNotEmpty) {
         calculatedMajority = 'fallback';
@@ -3318,6 +3031,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     } else {
       calculatedMajority = 'fallback';
     }
+
+    // Streak is computed from a permanent list of session dates, not from
+    // song_history, so it doesn't reset when history is cleared.
+    List<String> rawSessionDates = prefs.getStringList('analytics_session_dates') ?? [];
+    List<DateTime> sessionDates = rawSessionDates
+        .map((s) => DateTime.tryParse(s))
+        .whereType<DateTime>()
+        .toList();
 
     int calculatedStreak = _calculateStreak(sessionDates);
 
@@ -3398,19 +3119,19 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   final Map<String, Map<String, String>> emotionPlaylists = {
     'sad': {
-      'title': 'Sad Indie & Melancholy Mix',
+      'title': 'Sad Indie\n& Melancholy Mix',
       'query': 'Sad Indie',
     },
     'hype': {
-      'title': 'Hype Workout & Energy Boost',
+      'title': 'Hype Workout\n& Energy Boost',
       'query': 'Workout Hits',
     },
     'romantic': {
-      'title': 'Love Songs & Romance Essentials',
+      'title': 'Love Songs\n& Romance Essentials',
       'query': 'Love Songs Essentials',
     },
     'happy': {
-      'title': 'Feel-Good Happy Hits Mix',
+      'title': 'Feel-Good Happy\nHits Mix',
       'query': 'Happy Hits',
     },
   };
@@ -3441,11 +3162,15 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
 void _showShareCardModal(BuildContext context) {
   final themeColor = Theme.of(context).colorScheme.primary;
+  final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+  final GlobalKey previewCardKey = GlobalKey(); // Key to capture widget as image
+
+  // Updated color mapping: Red = happy, Blue = sad, Yellow = hype, Pink = romantic
   const emotionColors = <String, Color>{
-    'happy': Colors.amber,
+    'happy': Colors.red,
     'sad': Colors.blue,
-    'hype': Colors.red,
-    'romantic': Colors.pink,
+    'hype': Colors.amber, // Using amber/yellow for hype
+    'romantic': Colors.purpleAccent,
   };
 
   // Dynamic fallbacks based on class state
@@ -3488,7 +3213,29 @@ void _showShareCardModal(BuildContext context) {
     }).toList();
   }
 
-  const appStoreUrl = "https://apps.apple.com/app/id123456789";
+  // Capture RepaintBoundary as an image and trigger native share
+  Future<void> captureAndShare() async {
+    try {
+      final boundary = previewCardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final pngBytes = byteData.buffer.asUint8List();
+      final tempDir = await getTemporaryDirectory();
+      final file = await File('${tempDir.path}/analytics_card.png').create();
+      await file.writeAsBytes(pngBytes);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: t('analytics_share_text'),
+      );
+    } catch (e) {
+      debugPrint('Error sharing graphics card: $e');
+    }
+  }
 
   showModalBottomSheet(
     context: context,
@@ -3501,220 +3248,395 @@ void _showShareCardModal(BuildContext context) {
           color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Modal Handle Bar
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-
-            // SLEEK GRAPHICS CARD PREVIEW WITH ANALYTICS DATA
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    themeColor.withOpacity(0.85),
-                    const Color(0xFF121212),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Modal Handle Bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: themeColor.withOpacity(0.5), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: themeColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Title Header
-                  Text(
-                    t('analytics_title'),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
 
-                  // Analytics Row: Donut Chart & Emotion Breakdown
-                  Row(
+              // GRAPHICS CARD PREVIEW
+              RepaintBoundary(
+                key: previewCardKey,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        themeColor.withOpacity(0.85),
+                        const Color(0xFF121212),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: themeColor.withOpacity(0.5), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: themeColor.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Legend / Emotion Percentages
-                      Expanded(
-                        flex: 5,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: activeKeys.map((rawKey) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2.0),
-                              child: Row(
+                      // Title Header
+                      Text(
+                        t('analytics_title'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Donut Chart & Emotion Breakdown
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: activeKeys.map((rawKey) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: emotionColors[rawKey] ?? themeColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        "${getEmotionPct(rawKey).toStringAsFixed(0)}% ${t(rawKey)}",
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.white70,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+
+                          Expanded(
+                            flex: 4,
+                            child: SizedBox(
+                              height: 90,
+                              child: PieChart(
+                                PieChartData(
+                                  sectionsSpace: activeKeys.length == 1 ? 0 : 2,
+                                  centerSpaceRadius: 18,
+                                  sections: modalEmotionSections,
+                                ),
+                                swapAnimationDuration: const Duration(milliseconds: 600),
+                                swapAnimationCurve: Curves.easeInOutCubic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(color: Colors.white24, height: 1),
+                      const SizedBox(height: 16),
+
+                      // Most Sung Genres Chart Section
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t('most_sung_genres'),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          if (_genreCounts.isEmpty)
+                            Text(
+                              t('none'),
+                              style: const TextStyle(fontSize: 11, color: Colors.white54),
+                            )
+                          else
+                            Column(
+                              children: _genreCounts.entries.take(3).map((genre) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 3.0),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 3,
+                                        child: Text(
+                                          t(genre.key),
+                                          style: const TextStyle(fontSize: 11, color: Colors.white),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        flex: 7,
+                                        child: LinearProgressIndicator(
+                                          value: genre.value / 10,
+                                          backgroundColor: Colors.white12,
+                                          color: themeColor,
+                                          minHeight: 6,
+                                          borderRadius: BorderRadius.circular(3),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(color: Colors.white24, height: 1),
+                      const SizedBox(height: 16),
+
+                      // Acoustic Map Section
+                                            // ACOUSTIC MAP WITH WORLD MAP IMAGE & PINS
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              t('acoustic_map').toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: themeColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 140,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Stack(
                                 children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: emotionColors[rawKey],
-                                      shape: BoxShape.circle,
+                                  Positioned.fill(
+                                    child: Container(
+                                      color: isDarkMode ? const Color(0xFF1E2638) : const Color(0xFFE8F0FE),
+                                      child: Image.asset(
+                                        'assets/world_map.png',
+                                        fit: BoxFit.cover,
+                                        color: isDarkMode ? Colors.white70 : themeColor.withOpacity(0.75),
+                                        colorBlendMode: BlendMode.modulate,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: isDarkMode ? Colors.grey.shade900 : Colors.blueGrey.shade100,
+                                          child: Center(
+                                            child: Icon(Icons.public, size: 60, color: themeColor.withOpacity(0.4)),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    "${getEmotionPct(rawKey).toStringAsFixed(0)}% ${t(rawKey)}",
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.white70,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                                  if (_isCurrentlySinging && _livePinLocations.isNotEmpty)
+                                    ..._livePinLocations.map((pinOffset) {
+                                      return Align(
+                                        alignment: FractionalOffset(
+                                          pinOffset.dx,
+                                          pinOffset.dy,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.redAccent,
+                                                borderRadius: BorderRadius.circular(8),
+                                                boxShadow: const [
+                                                  BoxShadow(
+                                                    color: Colors.black38,
+                                                    blurRadius: 4,
+                                                    offset: Offset(0, 2),
+                                                  )
+                                                ],
+                                              ),
+                                              child: Text(
+                                                t('live_pin_label'),
+                                                style: const TextStyle(
+                                                  fontSize: 8,
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            const Icon(Icons.location_on, color: Colors.redAccent, size: 28),
+                                          ],
+                                        ),
+                                      );
+                                    }),
                                 ],
                               ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-
-                      // Donut Pie Chart Preview
-                      Expanded(
-                        flex: 4,
-                        child: SizedBox(
-                          height: 90,
-                          child: PieChart(
-                            PieChartData(
-                              sectionsSpace: activeKeys.length == 1 ? 0 : 2,
-                              centerSpaceRadius: 18,
-                              sections: modalEmotionSections,
                             ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(color: Colors.white24, height: 1),
-                  const SizedBox(height: 16),
-
-                  // Stats Row: Streak & Top Artist
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      // Streak Metric
-                      Column(
-                        children: [
-                          const Icon(Icons.local_fire_department, color: Colors.orange, size: 22),
-                          const SizedBox(height: 2),
-                          Text(
-                            "$_singingStreak",
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            t('streak_title'),
-                            style: const TextStyle(fontSize: 10, color: Colors.white60),
                           ),
                         ],
                       ),
-                      Container(width: 1, height: 32, color: Colors.white24),
-                      // Top Artist Metric
-                      Column(
+                      const SizedBox(height: 20),
+
+                      // Stats Row: Streak, Top Artist & Vibe Match Playlist
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 22),
-                          const SizedBox(height: 2),
-                          Text(
-                            currentArtist,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                          // Streak Metric
+                          Column(
+                            children: [
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 22),
+                              const SizedBox(height: 2),
+                              Text(
+                                "$_singingStreak",
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                t('streak_title'),
+                                style: const TextStyle(fontSize: 10, color: Colors.white60),
+                              ),
+                            ],
                           ),
-                          Text(
-                            t('top_artist'),
-                            style: const TextStyle(fontSize: 10, color: Colors.white60),
+                          Container(width: 1, height: 32, color: Colors.white24),
+                          // Top Artist Metric
+                          Column(
+                            children: [
+                              const Icon(Icons.star, color: Colors.amber, size: 22),
+                              const SizedBox(height: 2),
+                              Text(
+                                currentArtist,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                t('top_artist'),
+                                style: const TextStyle(fontSize: 10, color: Colors.white60),
+                              ),
+                            ],
+                          ),
+                          Container(width: 1, height: 32, color: Colors.white24),
+                          // Vibe Match Playlist Metric
+                          Column(
+                            children: [
+                              const Icon(Icons.queue_music, color: Colors.tealAccent, size: 22),
+                              const SizedBox(height: 2),
+                              SizedBox(
+                                width: 90,
+                                child: Text(
+                                  _curatedPlaylistTitle,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                t('vibe_match_playlist'),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 10, color: Colors.white60),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                  // App Badge Link
-                  InkWell(
-                    onTap: () async {
-                      final uri = Uri.parse(appStoreUrl);
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
+                      // App Badge Link
+                      InkWell(
+                        onTap: () async {
+                          final uri = Uri.parse(reczAppStoreUrl);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          }
+                        },
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white30, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.open_in_new_rounded, size: 14, color: Colors.white70),
-                          SizedBox(width: 6),
-                          Text(
-                            "Reczt",
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 0.8,
-                              decoration: TextDecoration.underline,
-                            ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white30, width: 1),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.open_in_new_rounded, size: 14, color: Colors.white70),
+                              SizedBox(width: 6),
+                              Text(
+                                "Reczt",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.8,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // Modal Bottom Action Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: themeColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: () => Navigator.pop(modalContext),
-                icon: const Icon(Icons.share, color: Colors.white),
-                label: const Text(
-                  "Share",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              // Active Share Button
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: themeColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: () async {
+                    await captureAndShare();
+                  },
+                  icon: const Icon(Icons.share, color: Colors.white),
+                  label: Text(
+                    t('share_card'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     },
@@ -3751,15 +3673,43 @@ void _showShareCardModal(BuildContext context) {
       'romantic': Colors.purpleAccent,
     };
 
-    List<PieChartSectionData> emotionSections = rawEmotionKeys.map((rawKey) {
-      final count = (_emotionCounts[rawKey] ?? 0).toDouble();
-      return PieChartSectionData(
-        color: emotionColors[rawKey],
-        value: count == 0 ? 1 : count,
-        title: '',
-        radius: 18,
-      );
-    }).toList();
+    final activeEmotionKeys = rawEmotionKeys.where((key) => (_emotionCounts[key] ?? 0) > 0).toList();
+
+    List<PieChartSectionData> emotionSections;
+    if (totalEmotions == 0) {
+      // No data yet — show a single neutral placeholder ring.
+      emotionSections = [
+        PieChartSectionData(
+          color: Colors.grey.withOpacity(0.3),
+          value: 1,
+          title: '',
+          radius: 18,
+        ),
+      ];
+    } else if (activeEmotionKeys.length == 1) {
+      // Exactly one emotion recorded so far — fill the whole ring with it.
+      emotionSections = [
+        PieChartSectionData(
+          color: emotionColors[activeEmotionKeys.first],
+          value: totalEmotions.toDouble(),
+          title: '',
+          radius: 18,
+        ),
+      ];
+    } else {
+      // Real proportional slices — only emotions that actually occurred,
+      // sized by their true share of the total so the donut matches the
+      // percentages shown in the legend.
+      emotionSections = activeEmotionKeys.map((rawKey) {
+        final count = (_emotionCounts[rawKey] ?? 0).toDouble();
+        return PieChartSectionData(
+          color: emotionColors[rawKey],
+          value: count,
+          title: '',
+          radius: 18,
+        );
+      }).toList();
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -3771,7 +3721,7 @@ void _showShareCardModal(BuildContext context) {
   actions: [
     IconButton(
       icon: const Icon(Icons.share),
-      tooltip: 'QuickShare',
+      tooltip: t('quickshare_tooltip'),
       onPressed: () => _showShareCardModal(context),
     ),
   ],
@@ -3855,7 +3805,7 @@ void _showShareCardModal(BuildContext context) {
                                 child: Text(
                                   _countdownText.toUpperCase(),
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: themeColor),
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: themeColor),
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -3867,7 +3817,7 @@ void _showShareCardModal(BuildContext context) {
                                     _curatedPlaylistTitle,
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      fontSize: 14,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.bold,
                                       color: themeColor,
                                       decoration: TextDecoration.underline,
@@ -3881,7 +3831,7 @@ void _showShareCardModal(BuildContext context) {
                                 child: Text(
                                   preferredPlatform,
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600),
+                                  style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
                                 ),
                               ),
                             ],
@@ -4040,10 +3990,12 @@ void _showShareCardModal(BuildContext context) {
           child: PieChart(
             PieChartData(
               // Remove section spacing if only 1 emotion is active so there are no seams
-              sectionsSpace: rawEmotionKeys.length == 1 ? 0 : 3,
+              sectionsSpace: activeEmotionKeys.length <= 1 ? 0 : 3,
               centerSpaceRadius: 24,
               sections: emotionSections,
             ),
+            swapAnimationDuration: const Duration(milliseconds: 600),
+            swapAnimationCurve: Curves.easeInOutCubic,
           ),
         ),
       ),
@@ -4209,142 +4161,6 @@ class SpotifyService {
     }
   }
 }
-class AnalyticsShareCard extends StatelessWidget {
-  final int streakCount;
-  final String topArtist;
-  final String topGenre;
-  final Map<String, double> emotionPercentages;
-  final Color themeColor;
-  final bool isDarkMode;
-
-  const AnalyticsShareCard({
-    Key? key,
-    required this.streakCount,
-    required this.topArtist,
-    required this.topGenre,
-    required this.emotionPercentages,
-    required this.themeColor,
-    required this.isDarkMode,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 360,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF121826) : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: themeColor.withOpacity(0.6), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: themeColor.withOpacity(0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header / Branding
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "MY VIBE STATS",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
-                  color: themeColor,
-                ),
-              ),
-              Icon(Icons.music_note, color: themeColor, size: 20),
-            ],
-          ),
-          const Divider(height: 24),
-
-          // Core Stats Grid / Rows
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatTile(
-                  icon: Icons.local_fire_department,
-                  iconColor: Colors.orangeAccent,
-                  title: "$streakCount Days",
-                  subtitle: "Streak",
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatTile(
-                  icon: Icons.star,
-                  iconColor: Colors.amber,
-                  title: topArtist,
-                  subtitle: t('top_artist'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildStatTile(
-            icon: Icons.pie_chart,
-            iconColor: themeColor,
-            title: topGenre,
-            subtitle: "Top Vibe / Genre",
-            isFullWidth: true,
-          ),
-          
-          const SizedBox.shrink(), // Footer space
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatTile({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    bool isFullWidth = false,
-  }) {
-    return Container(
-      width: isFullWidth ? double.infinity : null,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: iconColor, size: 24),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String t(String s) => s;
-}
 // Updated _exportToSpotify method inside _HistoryPageState
 
 // LOCALIZED SEARCH HISTORY & PLAYBACK PAGE
@@ -4418,320 +4234,101 @@ class _HistoryPageState extends State<HistoryPage> {
       _selectedItems.clear();
     });
   }
+Future<void> _deleteHistoryItem(int index) async {
+  final prefs = await SharedPreferences.getInstance();
+  final itemToRemove = _history[index];
+  setState(() {
+    _history.removeAt(index);
+    _selectedItems.remove(itemToRemove);
+  });
+  await prefs.setStringList('song_history', _history);
+}
 
-  Future<void> _deleteHistoryItem(int index) async {
-    final prefs = await SharedPreferences.getInstance();
-    final itemToRemove = _history[index];
-    setState(() {
-      _history.removeAt(index);
-      _selectedItems.remove(itemToRemove);
-    });
-    await prefs.setStringList('song_history', _history);
+String _parseSongTitle(dynamic rawItem) {
+  String str = rawItem.toString();
+  if (str.startsWith('{')) {
+    try {
+      final parsed = jsonDecode(str);
+      str = parsed['song']?.toString() ?? str;
+    } catch (_) {}
   }
-
-  String _parseSongTitle(String rawItem) {
-    if (rawItem.startsWith('{')) {
-      try {
-        final parsed = jsonDecode(rawItem);
-        return parsed['song'] ?? rawItem;
-      } catch (_) {}
-    }
-    return rawItem;
+  if (str.contains(' - ')) {
+    return str.split(' - ').first.trim();
   }
+  return str;
+}
 
-  String? _parseAudioPath(String rawItem) {
-    if (rawItem.startsWith('{')) {
-      try {
-        final parsed = jsonDecode(rawItem);
-        return parsed['audioPath'];
-      } catch (_) {}
-    }
-    return null;
+String _parseArtist(dynamic rawItem) {
+  String str = rawItem.toString();
+  if (str.startsWith('{')) {
+    try {
+      final parsed = jsonDecode(str);
+      str = parsed['song']?.toString() ?? str;
+    } catch (_) {}
   }
-
-  String _parseArtist(String rawItem) {
-    if (rawItem.startsWith('{')) {
-      try {
-        final parsed = jsonDecode(rawItem);
-        final artist = parsed['artist'];
-        if (artist is String && artist.isNotEmpty) return artist;
-      } catch (_) {}
-    }
-    return 'Unknown Artist';
-  }
-
-  String? _parseAlbumCover(String rawItem) {
-    if (rawItem.startsWith('{')) {
-      try {
-        final parsed = jsonDecode(rawItem);
-        return parsed['albumCover'] ?? parsed['imageUrl'];
-      } catch (_) {}
-    }
-    return null;
-  }
-
-  Future<void> _openSongInPreferredApp(String title) async {
-    final prefs = await SharedPreferences.getInstance();
-    final preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
-    final encoded = Uri.encodeComponent(title);
-
-    final Uri targetUrl = preferredApp == 'apple_music'
-        ? Uri.parse("https://music.apple.com/us/search?term=$encoded")
-        : Uri.parse("https://open.spotify.com/search/$encoded");
-
-    if (await canLaunchUrl(targetUrl)) {
-      await launchUrl(targetUrl, mode: LaunchMode.externalApplication);
+  if (str.contains(' - ')) {
+    final parts = str.split(' - ');
+    if (parts.length > 1) {
+      return parts.sublist(1).join(' - ').trim();
     }
   }
+  return '';
+}
 
-  Future<void> _togglePlayClip(String? path) async {
-    if (path == null || path.isEmpty) return;
-
-    if (_isPlayingClip && _currentlyPlayingPath == path) {
-      await _clipPlayer.pause();
-      if (mounted) {
-        setState(() {
-          _isPlayingClip = false;
-        });
-      }
-    } else {
-      await _clipPlayer.stop();
-      await _clipPlayer.play(DeviceFileSource(path));
-      if (mounted) {
-        setState(() {
-          _currentlyPlayingPath = path;
-          _isPlayingClip = true;
-        });
-      }
-    }
+String? _parseAudioPath(String rawItem) {
+  if (rawItem.startsWith('{')) {
+    try {
+      final parsed = jsonDecode(rawItem);
+      return parsed['audioPath'];
+    } catch (_) {}
   }
+  return null;
+}
 
-  /// DIRECT QUICK SHARE METHOD:
-  /// Captures an off-screen graphic card and immediately opens native share sheet.
-Future<void> _quickShareSong(String rawItem) async {
-  final title = _parseSongTitle(rawItem);
-  final artist = _parseArtist(rawItem);
-  final coverUrl = _parseAlbumCover(rawItem);
+String? _parseAlbumCover(String rawItem) {
+  if (rawItem.startsWith('{')) {
+    try {
+      final parsed = jsonDecode(rawItem);
+      return parsed['albumCover'] ?? parsed['imageUrl'];
+    } catch (_) {}
+  }
+  return null;
+}
 
-  // ===========================================================================
-  // BRANDING & STYLE CUSTOMIZATION
-  // ===========================================================================
-  const String appStoreUrl = "https://apps.apple.com/app/id123456789";
-  
-  // Card Palette
-  const Color gradientStart = Color(0xFF1E1035); // Dark Purple
-  const Color gradientEnd = Color(0xFF0F0C20);   // Deep Navy/Black
-  const Color accentColor = Color(0xFFFF2D55);   // Brand Accent (e.g., Neon Pink/Red)
-  const Color cardBorderColor = Color(0x33FF2D55); // Subtle Border Highlight
+Future<void> _openSongInPreferredApp(String title) async {
+  final prefs = await SharedPreferences.getInstance();
+  final preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
+  final encoded = Uri.encodeComponent(title);
 
-  // Font Styles
-  const String fontFamily = 'Roboto'; // Replace with your app's font family if custom
-  const TextStyle titleStyle = TextStyle(
-    fontFamily: fontFamily,
-    color: Colors.white,
-    fontSize: 22,
-    fontWeight: FontWeight.w800,
-    letterSpacing: -0.5,
-    decoration: TextDecoration.none,
-  );
+  final Uri targetUrl = preferredApp == 'apple_music'
+      ? Uri.parse("https://music.apple.com/us/search?term=$encoded")
+      : Uri.parse("https://open.spotify.com/search/$encoded");
 
-  const TextStyle artistStyle = TextStyle(
-    fontFamily: fontFamily,
-    color: Colors.white70,
-    fontSize: 15,
-    fontWeight: FontWeight.w500,
-    letterSpacing: 0.2,
-    decoration: TextDecoration.none,
-  );
-
-  const TextStyle brandFooterStyle = TextStyle(
-    fontFamily: fontFamily,
-    color: accentColor,
-    fontSize: 13,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 1.0,
-    decoration: TextDecoration.none,
-  );
-  // ===========================================================================
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text("Preparing share card..."),
-      duration: Duration(milliseconds: 800),
-    ),
-  );
-
-  try {
-    final boundaryKey = GlobalKey();
-
-    final widgetToRender = RepaintBoundary(
-      key: boundaryKey,
-      child: MediaQuery(
-        data: const MediaQueryData(),
-        child: Directionality(
-          textDirection: TextDirection.ltr,
-          child: Container(
-            width: 320,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [gradientStart, gradientEnd],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: cardBorderColor, width: 1.5),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black38,
-                  blurRadius: 16,
-                  offset: Offset(0, 8),
-                )
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Album Cover with Subtle Glow
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accentColor.withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: coverUrl != null && coverUrl.isNotEmpty
-                        ? Image.network(
-                            coverUrl,
-                            width: 200,
-                            height: 200,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildCustomPlaceholder(accentColor),
-                          )
-                        : _buildCustomPlaceholder(accentColor),
-                  ),
-                ),
-                const SizedBox(height: 22),
-
-                // Song Title
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: titleStyle,
-                ),
-                const SizedBox(height: 6),
-
-                // Artist Name
-                Text(
-                  artist,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: artistStyle,
-                ),
-                const SizedBox(height: 20),
-
-                // Subtle Divider
-                Container(
-                  height: 1,
-                  width: double.infinity,
-                  color: Colors.white.withOpacity(0.12),
-                ),
-                const SizedBox(height: 16),
-
-                // Reczt Branding Badge
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: accentColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.graphic_eq_rounded,
-                        size: 12,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      "Reczt • Get on App Store",
-                      style: brandFooterStyle,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    // Render Off-screen
-    final buildOwner = BuildOwner(focusManager: FocusManager());
-    final pipelineOwner = PipelineOwner();
-    final rootElement = RenderObjectToWidgetAdapter<RenderBox>(
-      container: RenderRepaintBoundary(),
-      child: widgetToRender,
-    ).attachToRenderTree(buildOwner);
-
-    buildOwner.buildScope(rootElement);
-    buildOwner.finalizeTree();
-    pipelineOwner.flushLayout();
-    pipelineOwner.flushCompositingBits();
-    pipelineOwner.flushPaint();
-
-    final renderObject = boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-    if (renderObject == null) return;
-
-    final image = await renderObject.toImage(pixelRatio: 3.0);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    final buffer = byteData!.buffer.asUint8List();
-
-    final tempDir = await getTemporaryDirectory();
-    final filePath = '${tempDir.path}/reczt_song_card.png';
-    final file = File(filePath);
-    await file.writeAsBytes(buffer);
-
-    await Share.shareXFiles(
-      [XFile(filePath)],
-      text: 'Listen to "$title" by $artist on Reczt!\n$appStoreUrl',
-    );
-  } catch (e) {
-    await Share.share(
-      'Listen to "$title" by $artist on Reczt!\n$appStoreUrl',
-    );
+  if (await canLaunchUrl(targetUrl)) {
+    await launchUrl(targetUrl, mode: LaunchMode.externalApplication);
   }
 }
 
-// Custom Placeholder helper matching the accent theme
-Widget _buildCustomPlaceholder(Color accentColor) {
-  return Container(
-    width: 200,
-    height: 200,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: [accentColor.withOpacity(0.8), Colors.black87],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-    ),
-    child: const Icon(
-      Icons.music_note_rounded,
-      size: 80,
-      color: Colors.white,
-    ),
-  );
+Future<void> _togglePlayClip(String? path) async {
+  if (path == null || path.isEmpty) return;
+
+  if (_isPlayingClip && _currentlyPlayingPath == path) {
+    await _clipPlayer.pause();
+    if (mounted) {
+      setState(() {
+        _isPlayingClip = false;
+      });
+    }
+  } else {
+    await _clipPlayer.stop();
+    await _clipPlayer.play(DeviceFileSource(path));
+    if (mounted) {
+      setState(() {
+        _currentlyPlayingPath = path;
+        _isPlayingClip = true;
+      });
+    }
+  }
 }
 
   Future<void> _exportToSpotify() async {
@@ -4793,7 +4390,7 @@ Widget _buildCustomPlaceholder(Color accentColor) {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Opening Apple Music search for "$primaryTitle"')),
+        SnackBar(content: Text('${t('opening_apple_search')} "$primaryTitle"')),
       );
     }
   }
@@ -4872,7 +4469,7 @@ Widget _buildCustomPlaceholder(Color accentColor) {
           child: Icon(Icons.sync, color: Colors.white),
         ),
         title: Text(
-          'Processing Saved Recording...',
+          t('processing_saved_recording'),
           style: TextStyle(
             fontWeight: FontWeight.w600,
             color: Theme.of(context).colorScheme.onSurface,
@@ -4882,69 +4479,75 @@ Widget _buildCustomPlaceholder(Color accentColor) {
     );
   }
 
-  Widget _buildHistoryTile(int index) {
-    final rawItem = _history[index];
-    final songTitle = _parseSongTitle(rawItem);
-    final audioClipPath = _parseAudioPath(rawItem);
-    final bool clipExists = audioClipPath != null && audioClipPath.isNotEmpty && File(audioClipPath).existsSync();
-    final bool isSelected = _selectedItems.contains(rawItem);
+Widget _buildHistoryTile(int index) {
+  final rawItem = _history[index];
+  final songTitle = _parseSongTitle(rawItem);
+  final audioClipPath = _parseAudioPath(rawItem);
+  final bool clipExists = audioClipPath != null && audioClipPath.isNotEmpty && File(audioClipPath).existsSync();
+  final bool isSelected = _selectedItems.contains(rawItem);
 
-    return Dismissible(
-      key: Key('${rawItem}_$index'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: Colors.redAccent,
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      onDismissed: (_) => _deleteHistoryItem(index),
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-        child: ListTile(
-          onTap: () => _openSongInPreferredApp(songTitle),
-          leading: IconButton(
-            icon: Icon(
-              isSelected ? Icons.check_circle : Icons.check_circle_outline,
-              color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
-            ),
-            onPressed: () {
-              setState(() {
-                isSelected ? _selectedItems.remove(rawItem) : _selectedItems.add(rawItem);
-              });
-            },
+  return Dismissible(
+    key: Key('${rawItem}_$index'),
+    direction: DismissDirection.endToStart,
+    background: Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20),
+      color: Colors.redAccent,
+      child: const Icon(Icons.delete, color: Colors.white),
+    ),
+    onDismissed: (_) => _deleteHistoryItem(index),
+    child: Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: ListTile(
+        onTap: () => _openSongInPreferredApp(songTitle),
+        leading: IconButton(
+          icon: Icon(
+            isSelected ? Icons.check_circle : Icons.check_circle_outline,
+            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
           ),
-          title: Text(songTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(
-            t('tap_to_play_preferred'),
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (clipExists)
-                IconButton(
-                  icon: Icon(
-                    (_currentlyPlayingPath == audioClipPath && _isPlayingClip)
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_fill,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 28,
-                  ),
-                  tooltip: t('play_singing_sample'),
-                  onPressed: () => _togglePlayClip(audioClipPath),
-                ),
+          onPressed: () {
+            setState(() {
+              isSelected ? _selectedItems.remove(rawItem) : _selectedItems.add(rawItem);
+            });
+          },
+        ),
+        title: Text(songTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(
+          t('tap_to_play_preferred'),
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (clipExists)
               IconButton(
-                icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
-                tooltip: "QuickShare",
-                onPressed: () => _quickShareSong(rawItem),
+                icon: Icon(
+                  (_currentlyPlayingPath == audioClipPath && _isPlayingClip)
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_fill,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 28,
+                ),
+                tooltip: t('play_singing_sample'),
+                onPressed: () => _togglePlayClip(audioClipPath),
               ),
-            ],
-          ),
+            IconButton(
+              icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
+              tooltip: t('quickshare_tooltip'),
+              onPressed: () => QuickShareHelper.showSongShareSheet(
+                context,
+                lang: widget.lang,
+                title: songTitle,
+                artist: _parseArtist(rawItem),
+                coverUrl: _parseAlbumCover(rawItem),
+              ),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showClearHistoryDialog(BuildContext context) {
     showDialog(
@@ -5080,195 +4683,259 @@ class LanguageMatcher {
     return matchedResults;
   }
 }
-class QuickShareHelper {
-  static Future<void> shareSongCard({
-    required BuildContext context,
-    required String title,
-    required String artist,
-    String? coverUrl,
-  }) async {
-    const String appStoreUrl = "https://apps.apple.com/app/id123456789";
+// --------------------------------------------------------------------
+// 🎵 UNIFIED SONG SHARE CARD
+// Used for the main-screen match banner, the history list, and any other
+// individual-song quickshare — same graphics card everywhere.
+// --------------------------------------------------------------------
+class SongShareCard extends StatelessWidget {
+  final String title;
+  final String artist;
+  final String? coverUrl;
+  final Color themeColor;
+  final String brandLabel;
+  final VoidCallback onBrandTap;
 
-    // Design Tokens
-    const Color gradientStart = Color(0xFF1E1035);
-    const Color gradientEnd = Color(0xFF0F0C20);
-    const Color accentColor = Color(0xFFFF2D55);
+  const SongShareCard({
+    super.key,
+    required this.title,
+    required this.artist,
+    required this.themeColor,
+    required this.brandLabel,
+    required this.onBrandTap,
+    this.coverUrl,
+  });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Preparing share card..."),
-        duration: Duration(milliseconds: 800),
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            themeColor.withOpacity(0.85),
+            const Color(0xFF121212),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: themeColor.withOpacity(0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-    );
-
-    try {
-      final boundaryKey = GlobalKey();
-
-      final widgetToRender = RepaintBoundary(
-        key: boundaryKey,
-        child: MediaQuery(
-          data: const MediaQueryData(),
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            child: Container(
-              width: 320,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [gradientStart, gradientEnd],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: accentColor.withOpacity(0.2), width: 1.5),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black38,
-                    blurRadius: 16,
-                    offset: Offset(0, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Album Cover
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: (coverUrl != null && coverUrl!.isNotEmpty)
+                ? Image.network(
+                    coverUrl!,
+                    width: 180,
+                    height: 180,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _placeholder(),
                   )
-                ],
+                : _placeholder(),
+          ),
+          const SizedBox(height: 20),
+
+          // Song Title
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // Artist Name
+          Text(
+            artist,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Reczt App Badge Link
+          InkWell(
+            onTap: onBrandTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white30, width: 1),
               ),
-              child: Column(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accentColor.withOpacity(0.3),
-                          blurRadius: 20,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: coverUrl != null && coverUrl.isNotEmpty
-                          ? Image.network(
-                              coverUrl,
-                              width: 200,
-                              height: 200,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _buildPlaceholder(accentColor),
-                            )
-                          : _buildPlaceholder(accentColor),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
+                  const Icon(Icons.open_in_new_rounded, size: 14, color: Colors.white70),
+                  const SizedBox(width: 6),
                   Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    brandLabel,
                     style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      decoration: TextDecoration.none,
+                      letterSpacing: 0.8,
+                      decoration: TextDecoration.underline,
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    artist,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    height: 1,
-                    width: double.infinity,
-                    color: Colors.white.withOpacity(0.12),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: accentColor,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.graphic_eq_rounded,
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        "Reczt • Get on App Store",
-                        style: TextStyle(
-                          color: accentColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.none,
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
             ),
           ),
-        ),
-      );
-
-      final buildOwner = BuildOwner(focusManager: FocusManager());
-      final pipelineOwner = PipelineOwner();
-      final rootElement = RenderObjectToWidgetAdapter<RenderBox>(
-        container: RenderRepaintBoundary(),
-        child: widgetToRender,
-      ).attachToRenderTree(buildOwner);
-
-      buildOwner.buildScope(rootElement);
-      buildOwner.finalizeTree();
-      pipelineOwner.flushLayout();
-      pipelineOwner.flushCompositingBits();
-      pipelineOwner.flushPaint();
-
-      final renderObject = boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (renderObject == null) return;
-
-      final image = await renderObject.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final buffer = byteData!.buffer.asUint8List();
-
-      final tempDir = await getTemporaryDirectory();
-      final filePath = '${tempDir.path}/reczt_song_card.png';
-      final file = File(filePath);
-      await file.writeAsBytes(buffer);
-
-      await Share.shareXFiles(
-        [XFile(filePath)],
-        text: 'Listen to "$title" by $artist on Reczt!\n$appStoreUrl',
-      );
-    } catch (e) {
-      await Share.share('Listen to "$title" by $artist on Reczt!\n$appStoreUrl');
-    }
+        ],
+      ),
+    );
   }
 
-  static Widget _buildPlaceholder(Color accentColor) {
+  Widget _placeholder() {
     return Container(
-      width: 200,
-      height: 200,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [accentColor.withOpacity(0.8), Colors.black87],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: const Icon(Icons.music_note_rounded, size: 80, color: Colors.white),
+      width: 180,
+      height: 180,
+      color: Colors.white10,
+      child: const Icon(Icons.music_note, size: 64, color: Colors.white54),
+    );
+  }
+}
+
+class QuickShareHelper {
+  /// Shows a themed preview of [SongShareCard] in a bottom sheet, then lets
+  /// the user capture + share it. This is the single place that handles
+  /// "quickshare a song" — called from the main-screen match banner and
+  /// from the history list so the card always looks the same everywhere.
+  static Future<void> showSongShareSheet(
+    BuildContext context, {
+    required String lang,
+    required String title,
+    required String artist,
+    String? coverUrl,
+  }) async {
+    String tt(String key) =>
+        localizedStrings[lang]?[key] ?? localizedStrings['en']?[key] ?? key;
+
+    final themeColor = Theme.of(context).colorScheme.primary;
+    final GlobalKey previewKey = GlobalKey();
+
+    String? resolvedCover = coverUrl;
+    if (resolvedCover == null || resolvedCover.isEmpty) {
+      resolvedCover = await fetchAlbumArtwork('$title $artist');
+    }
+
+    final String displayArtist = artist.isNotEmpty ? artist : tt('unknown_artist');
+
+    Future<void> captureAndShare() async {
+      try {
+        final boundary = previewKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+        if (boundary == null) return;
+
+        final image = await boundary.toImage(pixelRatio: 3.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData == null) return;
+
+        final pngBytes = byteData.buffer.asUint8List();
+        final tempDir = await getTemporaryDirectory();
+        final file = await File('${tempDir.path}/reczt_song_card.png').create();
+        await file.writeAsBytes(pngBytes);
+
+        final shareText = tt('share_text')
+            .replaceAll('{title}', title)
+            .replaceAll('{artist}', displayArtist);
+
+        await Share.shareXFiles([XFile(file.path)], text: shareText);
+      } catch (e) {
+        debugPrint('Error sharing song graphics card: $e');
+      }
+    }
+
+    if (!context.mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (modalContext) {
+        return Container(
+          padding: const EdgeInsets.all(24.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+
+                RepaintBoundary(
+                  key: previewKey,
+                  child: SongShareCard(
+                    title: title,
+                    artist: displayArtist,
+                    coverUrl: resolvedCover,
+                    themeColor: themeColor,
+                    brandLabel: 'Reczt',
+                    onBrandTap: () async {
+                      final uri = Uri.parse(reczAppStoreUrl);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: themeColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: captureAndShare,
+                    icon: const Icon(Icons.share, color: Colors.white),
+                    label: Text(
+                      tt('share_card'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

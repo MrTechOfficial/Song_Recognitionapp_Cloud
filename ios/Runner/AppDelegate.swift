@@ -33,6 +33,8 @@ class SiriBridge {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
+      UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
+
         let controller : FlutterViewController = window?.rootViewController as! FlutterViewController
         
         // Initialize MethodChannel (matching main.dart: com.handsfreefinder/siri)
