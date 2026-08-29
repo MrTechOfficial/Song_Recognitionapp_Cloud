@@ -1,0 +1,9 @@
+/* Reczt native iOS permission prompts */
+
+"NSMicrophoneUsageDescription" = "Reczt używa mikrofonu, aby rozpoznać utwór, który śpiewasz lub nucisz.";
+
+"NSLocationWhenInUseUsageDescription" = "Reczt używa Twojej lokalizacji podczas śpiewania, aby mapa Acoustic Memory zapamiętywała miejsca, w których korzystasz z aplikacji.";
+
+"NSBluetoothAlwaysUsageDescription" = "Reczt używa Bluetooth do obsługi bez użycia rąk z podłączonymi urządzeniami audio, takimi jak AirPods.";
+
+"NSSiriUsageDescription" = "Reczt używa Siri, aby umożliwić uruchamianie rozpoznawania utworów bez użycia rąk.";

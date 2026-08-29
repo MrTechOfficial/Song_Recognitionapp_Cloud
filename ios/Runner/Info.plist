@@ -28,12 +28,18 @@
     <true/>
 
     <!-- Permissions -->
-    <key>NSMicrophoneUsageDescription</key>
-    <string>This app requires access to the microphone to identify songs.</string>
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>This app requires Bluetooth access to connect with your AirPods stem buttons.</string>
-    <key>NSSiriUsageDescription</key>
-    <string>This app uses Siri so you can activate song recognition hands-free.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>This app requires access to the microphone to identify songs.</string>
+
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Reczt uses your location while you sing so your Acoustic Memory map can remember where you used the app.</string>
+
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>This app requires Bluetooth access to connect with your AirPods stem buttons.</string>
+
+<key>NSSiriUsageDescription</key>
+<string>This app uses Siri so you can activate song recognition hands-free.</string>
+
 
     <key>UIBackgroundModes</key>
     <array>

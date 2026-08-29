@@ -1,0 +1,9 @@
+/* Reczt native iOS permission prompts */
+
+"NSMicrophoneUsageDescription" = "Reczt, söylediğiniz veya mırıldandığınız şarkıyı tanımlamak için mikrofonu kullanır.";
+
+"NSLocationWhenInUseUsageDescription" = "Reczt, şarkı söylerken konumunuzu kullanarak Acoustic Memory haritasında uygulamayı nerelerde kullandığınızı hatırlar.";
+
+"NSBluetoothAlwaysUsageDescription" = "Reczt, AirPods gibi bağlı ses aygıtlarıyla eller serbest kontrolü desteklemek için Bluetooth kullanır.";
+
+"NSSiriUsageDescription" = "Reczt, şarkı tanımayı eller serbest başlatabilmeniz için Siri'yi kullanır.";

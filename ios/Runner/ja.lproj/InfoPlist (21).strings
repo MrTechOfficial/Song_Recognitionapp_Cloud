@@ -1,0 +1,9 @@
+/* Reczt native iOS permission prompts */
+
+"NSMicrophoneUsageDescription" = "Recztは、歌ったりハミングした曲を識別するためにマイクを使用します。";
+
+"NSLocationWhenInUseUsageDescription" = "Recztは歌っている間の位置情報を使用し、Acoustic Memoryマップにアプリを使用した場所を記録します。";
+
+"NSBluetoothAlwaysUsageDescription" = "Recztは、AirPodsなどの接続済みオーディオ機器でハンズフリー操作を行うためにBluetoothを使用します。";
+
+"NSSiriUsageDescription" = "Recztは、ハンズフリーで曲の認識を開始できるようにSiriを使用します。";

@@ -1,0 +1,9 @@
+/* Reczt native iOS permission prompts */
+
+"NSMicrophoneUsageDescription" = "Reczt 使用麦克风来识别你演唱或哼唱的歌曲。";
+
+"NSLocationWhenInUseUsageDescription" = "Reczt 会在你演唱时使用位置信息，让 Acoustic Memory 地图记录你曾在哪里使用这款 App。";
+
+"NSBluetoothAlwaysUsageDescription" = "Reczt 使用蓝牙来支持通过 AirPods 等已连接音频设备进行免手操作。";
+
+"NSSiriUsageDescription" = "Reczt 使用 Siri，让你可以免手启动歌曲识别。";

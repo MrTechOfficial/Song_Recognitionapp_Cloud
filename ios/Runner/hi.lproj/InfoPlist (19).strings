@@ -1,0 +1,9 @@
+/* Reczt native iOS permission prompts */
+
+"NSMicrophoneUsageDescription" = "Reczt आपके गाए या गुनगुनाए गए गाने की पहचान करने के लिए माइक्रोफ़ोन का उपयोग करता है।";
+
+"NSLocationWhenInUseUsageDescription" = "Reczt आपके गाते समय आपकी लोकेशन का उपयोग करता है ताकि Acoustic Memory मैप याद रख सके कि आपने ऐप कहाँ इस्तेमाल किया।";
+
+"NSBluetoothAlwaysUsageDescription" = "Reczt AirPods जैसे कनेक्टेड ऑडियो डिवाइस के साथ हैंड्स-फ़्री नियंत्रण के लिए Bluetooth का उपयोग करता है।";
+
+"NSSiriUsageDescription" = "Reczt Siri का उपयोग करता है ताकि आप हैंड्स-फ़्री तरीके से गाने की पहचान शुरू कर सकें।";

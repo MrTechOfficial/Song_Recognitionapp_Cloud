@@ -1,0 +1,9 @@
+/* Reczt native iOS permission prompts */
+
+"NSMicrophoneUsageDescription" = "Reczt gebruikt de microfoon om het nummer te herkennen dat je zingt of neuriet.";
+
+"NSLocationWhenInUseUsageDescription" = "Reczt gebruikt je locatie terwijl je zingt, zodat de Acoustic Memory-kaart kan onthouden waar je de app hebt gebruikt.";
+
+"NSBluetoothAlwaysUsageDescription" = "Reczt gebruikt Bluetooth voor handsfree bediening met verbonden audioapparaten, zoals AirPods.";
+
+"NSSiriUsageDescription" = "Reczt gebruikt Siri zodat je handsfree nummerherkenning kunt starten.";

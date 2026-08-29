@@ -1,0 +1,9 @@
+/* Reczt native iOS permission prompts */
+
+"NSMicrophoneUsageDescription" = "Reczt usa il microfono per identificare il brano che canti o canticchi.";
+
+"NSLocationWhenInUseUsageDescription" = "Reczt usa la tua posizione mentre canti affinché la mappa Acoustic Memory ricordi dove hai utilizzato l’app.";
+
+"NSBluetoothAlwaysUsageDescription" = "Reczt usa il Bluetooth per supportare i controlli a mani libere con dispositivi audio connessi, come gli AirPods.";
+
+"NSSiriUsageDescription" = "Reczt usa Siri per permetterti di avviare il riconoscimento dei brani a mani libere.";

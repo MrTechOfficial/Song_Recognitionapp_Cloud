@@ -1,0 +1,9 @@
+/* Reczt native iOS permission prompts */
+
+"NSMicrophoneUsageDescription" = "يستخدم Reczt الميكروفون للتعرّف على الأغنية التي تغنيها أو تدندنها.";
+
+"NSLocationWhenInUseUsageDescription" = "يستخدم Reczt موقعك أثناء الغناء لكي تتذكر خريطة Acoustic Memory الأماكن التي استخدمت فيها التطبيق.";
+
+"NSBluetoothAlwaysUsageDescription" = "يستخدم Reczt البلوتوث لدعم التحكم دون استخدام اليدين مع أجهزة الصوت المتصلة مثل AirPods.";
+
+"NSSiriUsageDescription" = "يستخدم Reczt Siri حتى تتمكن من بدء التعرّف على الأغاني دون استخدام اليدين.";
