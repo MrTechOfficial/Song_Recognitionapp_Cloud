@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "يستخدم Reczt البلوتوث لدعم التحكم دون استخدام اليدين مع أجهزة الصوت المتصلة مثل AirPods.";
 
 "NSSiriUsageDescription" = "يستخدم Reczt Siri حتى تتمكن من بدء التعرّف على الأغاني دون استخدام اليدين.";
+
+"NSSpeechRecognitionUsageDescription" = "يستمع Reczt لفترة وجيزة إلى اختيارك الصوتي عندما يطلب منك الاختيار دون استخدام اليدين بين أغنيتين محتملتين.";

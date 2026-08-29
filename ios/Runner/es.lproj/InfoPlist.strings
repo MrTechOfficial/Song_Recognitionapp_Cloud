@@ -1,4 +1,4 @@
-/* Reczt native iOS permission prompts */
+a/* Reczt native iOS permission prompts */
 
 "NSMicrophoneUsageDescription" = "Reczt usa el micrófono para identificar la canción que cantas o tarareas.";
 
@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "Reczt usa Bluetooth para permitir controles manos libres con dispositivos de audio conectados, como AirPods.";
 
 "NSSiriUsageDescription" = "Reczt usa Siri para que puedas iniciar el reconocimiento de canciones con manos libres.";
+
+"NSSpeechRecognitionUsageDescription" = "Reczt escucha una breve respuesta hablada cuando te pide elegir entre dos posibles canciones sin usar las manos.";

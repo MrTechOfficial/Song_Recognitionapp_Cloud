@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "Recztは、AirPodsなどの接続済みオーディオ機器でハンズフリー操作を行うためにBluetoothを使用します。";
 
 "NSSiriUsageDescription" = "Recztは、ハンズフリーで曲の認識を開始できるようにSiriを使用します。";
+
+"NSSpeechRecognitionUsageDescription" = "Recztは、ハンズフリーで2つの曲候補から選ぶときに、短い音声回答を聞き取ります。";

@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "Reczt AirPods जैसे कनेक्टेड ऑडियो डिवाइस के साथ हैंड्स-फ़्री नियंत्रण के लिए Bluetooth का उपयोग करता है।";
 
 "NSSiriUsageDescription" = "Reczt Siri का उपयोग करता है ताकि आप हैंड्स-फ़्री तरीके से गाने की पहचान शुरू कर सकें।";
+
+"NSSpeechRecognitionUsageDescription" = "जब Reczt आपको दो संभावित गानों में से हैंड्स-फ़्री चुनने के लिए कहता है, तो वह आपकी छोटी-सी बोली गई पसंद सुनता है।";

@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "O Reczt usa Bluetooth para oferecer controles sem as mãos com dispositivos de áudio conectados, como AirPods.";
 
 "NSSiriUsageDescription" = "O Reczt usa a Siri para que você possa iniciar o reconhecimento de músicas sem usar as mãos.";
+
+"NSSpeechRecognitionUsageDescription" = "O Reczt ouve uma breve escolha falada quando pede que você escolha, sem usar as mãos, entre duas músicas possíveis.";

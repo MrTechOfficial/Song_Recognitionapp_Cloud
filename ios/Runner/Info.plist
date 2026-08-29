@@ -40,6 +40,9 @@
 <key>NSSiriUsageDescription</key>
 <string>This app uses Siri so you can activate song recognition hands-free.</string>
 
+<key>NSSpeechRecognitionUsageDescription</key>
+<string>Reczt listens for a brief spoken choice when it asks you to choose between two possible songs hands-free.</string>
+
 
     <key>UIBackgroundModes</key>
     <array>

@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "Reczt 使用蓝牙来支持通过 AirPods 等已连接音频设备进行免手操作。";
 
 "NSSiriUsageDescription" = "Reczt 使用 Siri，让你可以免手启动歌曲识别。";
+
+"NSSpeechRecognitionUsageDescription" = "当 Reczt 让你免手选择两首可能的歌曲时，会短暂聆听你的语音选择。";

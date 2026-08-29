@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "Reczt использует Bluetooth для управления без помощи рук с подключёнными аудиоустройствами, например AirPods.";
 
 "NSSiriUsageDescription" = "Reczt использует Siri, чтобы вы могли запускать распознавание песен без помощи рук.";
+
+"NSSpeechRecognitionUsageDescription" = "Reczt кратко прослушивает ваш голосовой выбор, когда просит без помощи рук выбрать одну из двух возможных песен.";

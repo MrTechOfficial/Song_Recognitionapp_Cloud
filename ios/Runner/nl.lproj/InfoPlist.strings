@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "Reczt gebruikt Bluetooth voor handsfree bediening met verbonden audioapparaten, zoals AirPods.";
 
 "NSSiriUsageDescription" = "Reczt gebruikt Siri zodat je handsfree nummerherkenning kunt starten.";
+
+"NSSpeechRecognitionUsageDescription" = "Reczt luistert kort naar je gesproken keuze wanneer je handsfree tussen twee mogelijke nummers kiest.";

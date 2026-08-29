@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "Reczt utilise le Bluetooth pour permettre les commandes mains libres avec des appareils audio connectés, comme les AirPods.";
 
 "NSSiriUsageDescription" = "Reczt utilise Siri pour vous permettre de lancer la reconnaissance d’une chanson en mode mains libres.";
+
+"NSSpeechRecognitionUsageDescription" = "Reczt écoute une brève réponse vocale lorsqu’il vous demande de choisir entre deux chansons possibles en mode mains libres.";

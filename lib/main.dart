@@ -38,6 +38,9 @@ const String reczAppStoreUrl = "https://apps.apple.com/app/id123456789";
 /// text + URL share so the feature still works on every platform.
 const MethodChannel _recztRichShareChannel = MethodChannel('reczt/rich_share');
 
+/// Native iOS bridge for hands-free candidate confirmation.
+const MethodChannel _recztVoiceChoiceChannel = MethodChannel('reczt/voice_choice');
+
 /// Captures a Flutter preview widget only for use as LPLinkMetadata artwork.
 /// The PNG is NOT shared as an attachment; on iOS it becomes the image inside
 /// the tappable rich-link card.
@@ -2232,6 +2235,88 @@ final Map<String, Map<String, String>> localizedStrings = {
   },
 };
 
+
+/// Localized strings used only by the hands-free two-song voice chooser.
+/// Kept separate from the main UI table so this feature can evolve without
+/// disturbing the rest of Reczt's translations.
+const Map<String, Map<String, String>> _voiceChoiceStrings = {
+  'en': {
+    'prompt': 'Reczt found two song possibilities: {song1} by {artist1}, and {song2} by {artist2}. Which one was correct? Say first or second.',
+    'listening': 'Listening for your choice...',
+    'failed': 'I didn\'t catch that. Tap the correct song below.',
+  },
+  'es': {
+    'prompt': 'Reczt encontró dos posibles canciones: {song1} de {artist1} y {song2} de {artist2}. ¿Cuál era la correcta? Di primera o segunda.',
+    'listening': 'Escuchando tu elección...',
+    'failed': 'No entendí tu respuesta. Toca la canción correcta abajo.',
+  },
+  'fr': {
+    'prompt': 'Reczt a trouvé deux chansons possibles : {song1} de {artist1}, ou {song2} de {artist2}. Laquelle était la bonne ? Dites première ou deuxième.',
+    'listening': 'J’écoute votre choix...',
+    'failed': 'Je n’ai pas compris. Touchez la bonne chanson ci-dessous.',
+  },
+  'de': {
+    'prompt': 'Reczt hat zwei mögliche Songs gefunden: {song1} von {artist1} oder {song2} von {artist2}. Welcher war richtig? Sag erste oder zweite.',
+    'listening': 'Ich höre auf deine Auswahl...',
+    'failed': 'Das habe ich nicht verstanden. Tippe unten auf den richtigen Song.',
+  },
+  'it': {
+    'prompt': 'Reczt ha trovato due possibili brani: {song1} di {artist1} oppure {song2} di {artist2}. Qual era quello giusto? Di\' prima o seconda.',
+    'listening': 'Sto ascoltando la tua scelta...',
+    'failed': 'Non ho capito. Tocca il brano corretto qui sotto.',
+  },
+  'pt': {
+    'prompt': 'O Reczt encontrou duas músicas possíveis: {song1} de {artist1} ou {song2} de {artist2}. Qual era a correta? Diga primeira ou segunda.',
+    'listening': 'Ouvindo sua escolha...',
+    'failed': 'Não entendi. Toque na música correta abaixo.',
+  },
+  'ja': {
+    'prompt': 'Recztは2つの候補を見つけました。1つ目は{artist1}の{song1}、2つ目は{artist2}の{song2}です。正しいのはどちらですか？「1番目」または「2番目」と言ってください。',
+    'listening': '選択を聞いています…',
+    'failed': '聞き取れませんでした。下の正しい曲をタップしてください。',
+  },
+  'ko': {
+    'prompt': 'Reczt가 두 곡의 가능성을 찾았습니다. 첫 번째는 {artist1}의 {song1}, 두 번째는 {artist2}의 {song2}입니다. 어느 곡이 맞나요? 첫 번째 또는 두 번째라고 말해 주세요.',
+    'listening': '선택을 듣고 있어요...',
+    'failed': '잘 알아듣지 못했어요. 아래에서 올바른 곡을 눌러 주세요.',
+  },
+  'zh': {
+    'prompt': 'Reczt 找到两首可能的歌曲。第一首是 {artist1} 的 {song1}，第二首是 {artist2} 的 {song2}。哪一首是正确的？请说第一首或第二首。',
+    'listening': '正在聆听你的选择…',
+    'failed': '没有听清。请点击下面正确的歌曲。',
+  },
+  'hi': {
+    'prompt': 'Reczt को दो संभावित गाने मिले: पहला {artist1} का {song1}, और दूसरा {artist2} का {song2}। कौन सा सही था? पहला या दूसरा कहें।',
+    'listening': 'आपकी पसंद सुन रहा है...',
+    'failed': 'मैं समझ नहीं पाया। नीचे सही गाने पर टैप करें।',
+  },
+  'ru': {
+    'prompt': 'Reczt нашёл два возможных варианта: {song1} — {artist1}, или {song2} — {artist2}. Какой вариант правильный? Скажите первый или второй.',
+    'listening': 'Слушаю ваш выбор...',
+    'failed': 'Не удалось распознать ответ. Нажмите на правильную песню ниже.',
+  },
+  'tr': {
+    'prompt': 'Reczt iki olası şarkı buldu: {artist1} tarafından {song1} veya {artist2} tarafından {song2}. Hangisi doğruydu? Birinci veya ikinci deyin.',
+    'listening': 'Seçiminiz dinleniyor...',
+    'failed': 'Yanıtınızı anlayamadım. Aşağıdaki doğru şarkıya dokunun.',
+  },
+  'ar': {
+    'prompt': 'وجد Reczt احتمالين للأغنية: {song1} لـ {artist1} أو {song2} لـ {artist2}. أيهما الصحيح؟ قل الأولى أو الثانية.',
+    'listening': 'جارٍ الاستماع إلى اختيارك...',
+    'failed': 'لم أفهم اختيارك. اضغط على الأغنية الصحيحة أدناه.',
+  },
+  'nl': {
+    'prompt': 'Reczt vond twee mogelijke nummers: {song1} van {artist1} of {song2} van {artist2}. Welke was juist? Zeg eerste of tweede.',
+    'listening': 'Ik luister naar je keuze...',
+    'failed': 'Ik heb dat niet verstaan. Tik hieronder op het juiste nummer.',
+  },
+  'pl': {
+    'prompt': 'Reczt znalazł dwa możliwe utwory: {song1} wykonawcy {artist1} albo {song2} wykonawcy {artist2}. Który był właściwy? Powiedz pierwszy albo drugi.',
+    'listening': 'Słucham Twojego wyboru...',
+    'failed': 'Nie udało mi się zrozumieć. Dotknij właściwego utworu poniżej.',
+  },
+};
+
 class MyApp extends StatelessWidget {
   final String currentLang;
   final Color seedColor;
@@ -2911,6 +2996,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         key;
   }
 
+  String _voiceT(String key) {
+    return _voiceChoiceStrings[_selectedLanguage]?[key] ??
+        _voiceChoiceStrings['en']?[key] ??
+        key;
+  }
+
   void _startEnhancedSearchIndicator({required bool isFromOfflineQueue}) {
     _enhancedSearchTimer?.cancel();
     if (isFromOfflineQueue) return;
@@ -2970,6 +3061,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     await prefs.setString('preferred_language', lang);
     await prefs.setInt('theme_seed_color', seedColor.value);
     await prefs.setBool('auto_play_enabled', autoPlay);
+    if (autoPlay) {
+      unawaited(_prepareHandsFreeVoiceChoice());
+    }
 
     setState(() {
       _preferredMusicApp = musicApp;
@@ -3226,13 +3320,17 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
 
   Future<void> _playErrorCue() async {
-    // Keep failure feedback entirely local. The previous remote MP3 could fail
-    // precisely when the network was already having trouble.
+    // Use a short, restrained local error cue instead of the harsher iOS
+    // alert sound. Two quick clicks create a simple "err-err" cue without
+    // adding another audio asset or depending on the network.
     try {
-      await SystemSound.play(SystemSoundType.alert);
+      await SystemSound.play(SystemSoundType.click);
+      await Future.delayed(const Duration(milliseconds: 110));
+      await SystemSound.play(SystemSoundType.click);
     } catch (_) {}
+
     try {
-      await HapticFeedback.mediumImpact();
+      await HapticFeedback.lightImpact();
     } catch (_) {}
   }
 
@@ -3352,20 +3450,131 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     });
   }
 
+  bool _hasMeaningfulAmbiguity(List<_SongMatchCandidate> candidates) {
+    if (candidates.length < 2) return false;
+
+    final top = candidates[0].confidence;
+    final second = candidates[1].confidence;
+    if (top == null || second == null) return false;
+
+    // Do not interrupt hands-free playback for a second candidate that is
+    // itself weaker than the 28% hands-free acceptance floor.
+    if (second < 0.28) return false;
+
+    final gap = (top - second).abs();
+    return top < _dynamicConfidenceThreshold ||
+        (top < 0.92 && gap < 0.08);
+  }
+
   bool _shouldOfferTopGuesses(List<_SongMatchCandidate> candidates) {
     if (_autoPlayEnabled || candidates.isEmpty) return false;
-    final double? top = candidates.first.confidence;
+    final top = candidates.first.confidence;
     if (top == null) return false;
 
-    if (top < _dynamicConfidenceThreshold) return true;
-
-    if (candidates.length > 1) {
-      final second = candidates[1].confidence;
-      if (second != null && top < 0.92 && (top - second).abs() < 0.06) {
-        return true;
-      }
+    if (candidates.length > 1 && top < _dynamicConfidenceThreshold) {
+      return true;
     }
-    return false;
+    return _hasMeaningfulAmbiguity(candidates);
+  }
+
+  String get _voiceChoiceLocale {
+    const locales = <String, String>{
+      'en': 'en-US',
+      'es': 'es-ES',
+      'fr': 'fr-FR',
+      'de': 'de-DE',
+      'it': 'it-IT',
+      'pt': 'pt-BR',
+      'ja': 'ja-JP',
+      'ko': 'ko-KR',
+      'zh': 'zh-CN',
+      'hi': 'hi-IN',
+      'ru': 'ru-RU',
+      'tr': 'tr-TR',
+      'ar': 'ar-SA',
+      'nl': 'nl-NL',
+      'pl': 'pl-PL',
+    };
+    return locales[_selectedLanguage] ?? 'en-US';
+  }
+
+  Map<String, List<String>> get _voiceChoiceOrdinals {
+    const words = <String, Map<String, List<String>>>{
+      'en': {'first': ['first', 'one', 'number one'], 'second': ['second', 'two', 'number two']},
+      'es': {'first': ['primera', 'primero', 'uno', 'número uno'], 'second': ['segunda', 'segundo', 'dos', 'número dos']},
+      'fr': {'first': ['première', 'premier', 'un', 'numéro un'], 'second': ['deuxième', 'seconde', 'deux', 'numéro deux']},
+      'de': {'first': ['erste', 'erster', 'eins', 'nummer eins'], 'second': ['zweite', 'zweiter', 'zwei', 'nummer zwei']},
+      'it': {'first': ['prima', 'primo', 'uno', 'numero uno'], 'second': ['seconda', 'secondo', 'due', 'numero due']},
+      'pt': {'first': ['primeira', 'primeiro', 'um', 'número um'], 'second': ['segunda', 'segundo', 'dois', 'número dois']},
+      'ja': {'first': ['1番目', '一番目', '最初', '1'], 'second': ['2番目', '二番目', '二つ目', '2']},
+      'ko': {'first': ['첫 번째', '첫번째', '하나', '1번'], 'second': ['두 번째', '두번째', '둘', '2번']},
+      'zh': {'first': ['第一首', '第一个', '第一'], 'second': ['第二首', '第二个', '第二']},
+      'hi': {'first': ['पहला', 'पहली', 'एक', 'नंबर एक'], 'second': ['दूसरा', 'दूसरी', 'दो', 'नंबर दो']},
+      'ru': {'first': ['первый', 'первая', 'один', 'номер один'], 'second': ['второй', 'вторая', 'два', 'номер два']},
+      'tr': {'first': ['birinci', 'ilk', 'bir', 'numara bir'], 'second': ['ikinci', 'iki', 'numara iki']},
+      'ar': {'first': ['الأولى', 'الأول', 'واحد', 'رقم واحد'], 'second': ['الثانية', 'الثاني', 'اثنان', 'رقم اثنين']},
+      'nl': {'first': ['eerste', 'één', 'een', 'nummer één'], 'second': ['tweede', 'twee', 'nummer twee']},
+      'pl': {'first': ['pierwszy', 'pierwsza', 'jeden', 'numer jeden'], 'second': ['drugi', 'druga', 'dwa', 'numer dwa']},
+    };
+    return words[_selectedLanguage] ?? words['en']!;
+  }
+
+  Future<void> _prepareHandsFreeVoiceChoice() async {
+    if (kIsWeb || !Platform.isIOS) return;
+    try {
+      await _recztVoiceChoiceChannel.invokeMethod<bool>('prepare');
+    } catch (e) {
+      debugPrint('Voice choice preparation unavailable: $e');
+    }
+  }
+
+  String _buildVoiceChoicePrompt(
+    _SongMatchCandidate first,
+    _SongMatchCandidate second,
+  ) {
+    return _voiceT('prompt')
+        .replaceAll('{song1}', first.title)
+        .replaceAll(
+          '{artist1}',
+          first.artist == 'Unknown Artist' ? t('unknown_artist') : first.artist,
+        )
+        .replaceAll('{song2}', second.title)
+        .replaceAll(
+          '{artist2}',
+          second.artist == 'Unknown Artist' ? t('unknown_artist') : second.artist,
+        );
+  }
+
+  Future<int?> _askHandsFreeSongChoice(
+    List<_SongMatchCandidate> candidates,
+  ) async {
+    if (candidates.length < 2 || kIsWeb || !Platform.isIOS) return null;
+
+    final first = candidates[0];
+    final second = candidates[1];
+    final ordinals = _voiceChoiceOrdinals;
+
+    if (mounted) {
+      setState(() {
+        _customStatusText = _voiceT('listening');
+      });
+    }
+
+    try {
+      final choice = await _recztVoiceChoiceChannel.invokeMethod<int>(
+        'askSongChoice',
+        <String, dynamic>{
+          'prompt': _buildVoiceChoicePrompt(first, second),
+          'locale': _voiceChoiceLocale,
+          'firstPhrases': <String>[...ordinals['first']!, first.title],
+          'secondPhrases': <String>[...ordinals['second']!, second.title],
+        },
+      );
+      if (choice == 0 || choice == 1) return choice;
+    } catch (e) {
+      debugPrint('Hands-free song choice unavailable: $e');
+    }
+    return null;
   }
 
   Future<String?> _saveToOfflineQueue(String sourcePath) async {
@@ -3551,6 +3760,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     request.fields['language'] = _selectedLanguage;
     request.fields['vocal_isolation'] = 'true';
     request.fields['environment'] = _selectedMode.name;
+    // Use a more forgiving backend floor only for genuine hands-free Auto Play.
+    request.fields['auto_play'] =
+        (_autoPlayEnabled && !isFromOfflineQueue).toString();
 
     _startEnhancedSearchIndicator(isFromOfflineQueue: isFromOfflineQueue);
 
@@ -3658,24 +3870,64 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         return true;
       }
 
-      // Your requested behavior: ambiguity UI is NEVER allowed to interrupt
-      // hands-free Auto Play. It is also skipped for background offline-queue
-      // processing because nobody may be looking at the screen then.
-      if (!isFromOfflineQueue && _shouldOfferTopGuesses(candidates)) {
-        final preservedPath = await _preserveAudioClip(path);
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _songTitle = null;
-            _artist = null;
-            _spotifyUrl = null;
-            _appleMusicUrl = null;
-            _topGuesses = candidates.take(3).toList();
-            _pendingGuessAudioPath = preservedPath;
-            _customStatusText = t('top_guesses_subtitle');
-          });
+      // Resolve ambiguity differently depending on interaction mode.
+      // Manual mode uses the tappable Top Guesses card.
+      // Auto Play remains hands-free: Reczt reads the top two choices aloud
+      // and listens for "first" or "second". If that fails, the card appears
+      // as a safe fallback instead of auto-playing a questionable match.
+      if (!isFromOfflineQueue) {
+        final ambiguous = _hasMeaningfulAmbiguity(candidates);
+
+        if (_autoPlayEnabled && ambiguous) {
+          final preservedPath = await _preserveAudioClip(path);
+          final visibleChoices = candidates.take(2).toList();
+          final spokenChoice =
+              await _askHandsFreeSongChoice(visibleChoices);
+
+          if (spokenChoice != null &&
+              spokenChoice >= 0 &&
+              spokenChoice < visibleChoices.length) {
+            await _finalizeCandidate(
+              visibleChoices[spokenChoice],
+              audioPath: preservedPath,
+              isFromOfflineQueue: false,
+              allowAutoPlay: true,
+            );
+            unawaited(_checkPendingOfflineQueue());
+            return true;
+          }
+
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _songTitle = null;
+              _artist = null;
+              _spotifyUrl = null;
+              _appleMusicUrl = null;
+              _topGuesses = visibleChoices;
+              _pendingGuessAudioPath = preservedPath;
+              _customStatusText = _voiceT('failed');
+            });
+          }
+          return true;
         }
-        return true;
+
+        if (_shouldOfferTopGuesses(candidates)) {
+          final preservedPath = await _preserveAudioClip(path);
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _songTitle = null;
+              _artist = null;
+              _spotifyUrl = null;
+              _appleMusicUrl = null;
+              _topGuesses = candidates.take(3).toList();
+              _pendingGuessAudioPath = preservedPath;
+              _customStatusText = t('top_guesses_subtitle');
+            });
+          }
+          return true;
+        }
       }
 
       final preservedPath = await _preserveAudioClip(path);
@@ -3721,7 +3973,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
 
   Future<void> _selectTopGuess(_SongMatchCandidate candidate) async {
-    if (_autoPlayEnabled || _isLoading) return;
+    if (_isLoading) return;
     final audioPath = _pendingGuessAudioPath;
     _pendingGuessAudioPath = null;
 
@@ -3737,7 +3989,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       candidate,
       audioPath: audioPath,
       isFromOfflineQueue: false,
-      allowAutoPlay: false,
+      allowAutoPlay: _autoPlayEnabled,
     );
 
     if (mounted) {
@@ -4390,7 +4642,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                       label: Text(t('retry_search')),
                     ),
                   ],
-                  if (!_autoPlayEnabled && _topGuesses.isNotEmpty) ...[
+                  if (_topGuesses.isNotEmpty) ...[
                     const SizedBox(height: 22),
                     _buildTopGuessesCard(),
                   ],

@@ -7,3 +7,5 @@
 "NSBluetoothAlwaysUsageDescription" = "Reczt, AirPods gibi bağlı ses aygıtlarıyla eller serbest kontrolü desteklemek için Bluetooth kullanır.";
 
 "NSSiriUsageDescription" = "Reczt, şarkı tanımayı eller serbest başlatabilmeniz için Siri'yi kullanır.";
+
+"NSSpeechRecognitionUsageDescription" = "Reczt, iki olası şarkı arasında eller serbest seçim yapmanızı istediğinde kısa sesli yanıtınızı dinler.";
