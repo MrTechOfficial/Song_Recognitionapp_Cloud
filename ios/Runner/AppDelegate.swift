@@ -82,17 +82,15 @@ class SiriBridge {
 @available(iOS 16.0, *)
 struct AppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        [
-            AppShortcut(
-                intent: IdentifySongIntent(),
-                phrases: [
-                    "Activate \(.applicationName)",
-                    "Find Song With \(.applicationName)"
-                ],
-                shortTitle: "Identify Song",
-                systemImageName: "waveform"
-            )
-        ]
+        AppShortcut(
+            intent: IdentifySongIntent(),
+            phrases: [
+                "Activate \(.applicationName)",
+                "Find Song With \(.applicationName)"
+            ],
+            shortTitle: "Identify Song",
+            systemImageName: "waveform"
+        )
     }
 }
 
