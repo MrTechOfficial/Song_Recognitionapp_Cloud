@@ -117,7 +117,11 @@ Future<void> shareRecztInteractiveCard({
 }
 
 /// Fetches the current device location for acoustic-map pin tracking.
-/// Returns null if location services or permissions are unavailable.
+///
+/// The OS permission prompt is triggered the first time the microphone is used.
+/// Medium accuracy is plenty for the world map and usually resolves much faster
+/// than GPS-level accuracy. If a fresh fix is temporarily unavailable, Reczt
+/// falls back to the device's last known position so a pin can still be placed.
 Future<Position?> getCurrentDeviceLocation() async {
   try {
     final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -130,9 +134,13 @@ Future<Position?> getCurrentDeviceLocation() async {
     }
     if (permission == LocationPermission.deniedForever) return null;
 
-    return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+      ).timeout(const Duration(seconds: 5));
+    } catch (_) {
+      return await Geolocator.getLastKnownPosition();
+    }
   } catch (e) {
     debugPrint('Error fetching device location: $e');
     return null;
@@ -140,8 +148,8 @@ Future<Position?> getCurrentDeviceLocation() async {
 }
 
 /// Lightweight metadata returned by the iTunes Search API.
-/// Reczt uses this only as a metadata fallback after recognition; recognition
-/// itself still comes from your existing backend / ACRCloud pipeline.
+/// Reczt uses this only as a catalog metadata fallback after recognition;
+/// recognition itself still comes from your existing backend / ACRCloud pipeline.
 class _SongLookupMetadata {
   final String? artworkUrl;
   final String? genre;
@@ -149,51 +157,278 @@ class _SongLookupMetadata {
   const _SongLookupMetadata({this.artworkUrl, this.genre});
 }
 
+/// Keeps real catalog genres instead of collapsing anything unfamiliar into
+/// "Other". A few equivalent labels are canonicalized so counts do not split
+/// between spelling variants.
 String _normalizeGenre(String? rawGenre) {
-  final value = (rawGenre ?? '').toLowerCase().trim();
-  if (value.isEmpty) return 'other';
-  if (value.contains('rock')) return 'rock';
-  if (value.contains('jazz') || value.contains('blues')) return 'jazz';
-  if (value.contains('alternative') || value.contains('indie') || value.contains('singer/songwriter')) return 'indie';
-  if (value.contains('hip-hop') || value.contains('hip hop') || value.contains('rap')) return 'rap';
-  if (value.contains('classical') || value.contains('orchestra')) return 'classical';
-  if (value.contains('reggae')) return 'reggae';
-  if (value.contains('r&b') || value.contains('rnb') || value.contains('soul')) return 'r&b';
-  if (value.contains('pop')) return 'pop';
-  return 'other';
+  final value = (rawGenre ?? '').trim();
+  if (value.isEmpty) return '';
+
+  final lower = value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (lower == 'other' ||
+      lower == 'unknown' ||
+      lower == 'unknown genre' ||
+      lower == 'n/a') {
+    return '';
+  }
+
+  if (lower.contains('hip-hop') ||
+      lower.contains('hip hop') ||
+      lower == 'rap' ||
+      lower.contains('rap/hip')) {
+    return 'hip-hop/rap';
+  }
+  if (lower.contains('r&b') ||
+      lower.contains('rnb') ||
+      lower.contains('rhythm and blues') ||
+      lower == 'soul') {
+    return 'r&b/soul';
+  }
+  if (lower.contains('singer/songwriter') ||
+      lower.contains('singer-songwriter')) {
+    return 'singer/songwriter';
+  }
+  if (lower.contains('alternative')) return 'alternative';
+  if (lower.contains('indie')) return 'indie';
+  if (lower.contains('electronic')) return 'electronic';
+  if (lower.contains('dance')) return 'dance';
+  if (lower.contains('country')) return 'country';
+  if (lower.contains('latin')) return 'latin';
+  if (lower.contains('metal')) return 'metal';
+  if (lower.contains('folk')) return 'folk';
+  if (lower.contains('blues')) return 'blues';
+  if (lower.contains('jazz')) return 'jazz';
+  if (lower.contains('classical')) return 'classical';
+  if (lower.contains('reggae')) return 'reggae';
+  if (lower.contains('soundtrack')) return 'soundtrack';
+  if (lower.contains('world')) return 'world';
+  if (lower.contains('k-pop') || lower.contains('kpop')) return 'k-pop';
+  if (lower.contains('pop')) return 'pop';
+  if (lower.contains('rock')) return 'rock';
+
+  // Preserve a real catalog label even when it is not in Reczt's common list.
+  return lower;
+}
+
+String _formatGenreLabel(String rawGenre) {
+  final value = rawGenre.trim();
+  if (value.isEmpty) return '';
+  switch (value.toLowerCase()) {
+    case 'hip-hop/rap':
+      return 'Hip-Hop/Rap';
+    case 'r&b/soul':
+      return 'R&B/Soul';
+    case 'singer/songwriter':
+      return 'Singer/Songwriter';
+    case 'k-pop':
+      return 'K-Pop';
+  }
+
+  return value
+      .split(RegExp(r'[\s/]+'))
+      .where((part) => part.isNotEmpty)
+      .map((part) =>
+          part.length == 1 ? part.toUpperCase() : '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
 }
 
 String _normalizeEmotion(String? rawEmotion) {
   final value = (rawEmotion ?? '').toLowerCase().trim();
-  if (value.contains('sad') || value.contains('melanch') || value.contains('blue')) return 'sad';
-  if (value.contains('hype') || value.contains('energetic') || value.contains('excited') || value.contains('party')) return 'hype';
-  if (value.contains('romantic') || value.contains('love') || value.contains('tender')) return 'romantic';
+  if (value.isEmpty) return '';
+  if (value.contains('sad') ||
+      value.contains('melanch') ||
+      value.contains('blue') ||
+      value.contains('sorrow')) {
+    return 'sad';
+  }
+  if (value.contains('hype') ||
+      value.contains('energetic') ||
+      value.contains('excited') ||
+      value.contains('party') ||
+      value.contains('upbeat')) {
+    return 'hype';
+  }
+  if (value.contains('romantic') ||
+      value.contains('love') ||
+      value.contains('tender')) {
+    return 'romantic';
+  }
+  if (value.contains('happy') ||
+      value.contains('joy') ||
+      value.contains('positive') ||
+      value.contains('bright')) {
+    return 'happy';
+  }
+  return '';
+}
+
+/// Uses backend emotion when one is available. If the current backend response
+/// does not include mood, Reczt applies a conservative title/genre fallback.
+/// Sad words are intentionally checked before romantic words so a title such as
+/// "Love Is Gone" is categorized as sad instead of defaulting to happy.
+String _resolveSongEmotion({
+  required String title,
+  required String artist,
+  String? backendEmotion,
+  String? genre,
+}) {
+  final normalizedBackend = _normalizeEmotion(backendEmotion);
+  if (normalizedBackend.isNotEmpty) return normalizedBackend;
+
+  final text = '${title.toLowerCase()} ${artist.toLowerCase()}';
+
+  const sadSignals = <String>[
+    'gone',
+    'goodbye',
+    'lost',
+    'lonely',
+    'alone',
+    'broken',
+    'heartbreak',
+    'tears',
+    'cry',
+    'crying',
+    'hurt',
+    'pain',
+    'sorry',
+    'miss you',
+    'missing you',
+    'without you',
+    'empty',
+    'death',
+    'dying',
+    'die',
+    'never again',
+  ];
+  if (sadSignals.any(text.contains)) return 'sad';
+
+  const hypeSignals = <String>[
+    'party',
+    'dance',
+    'dancing',
+    'turn up',
+    'fire',
+    'shake',
+    'jump',
+    'workout',
+    'pump',
+    'hype',
+    'celebrate',
+    'celebration',
+  ];
+  if (hypeSignals.any(text.contains)) return 'hype';
+
+  const romanticSignals = <String>[
+    'love',
+    'lover',
+    'heart',
+    'kiss',
+    'baby',
+    'romance',
+    'marry',
+    'forever',
+    'together',
+  ];
+  if (romanticSignals.any(text.contains)) return 'romantic';
+
+  const happySignals = <String>[
+    'happy',
+    'smile',
+    'sunshine',
+    'good day',
+    'beautiful day',
+    'joy',
+    'glad',
+    'wonderful',
+  ];
+  if (happySignals.any(text.contains)) return 'happy';
+
+  final normalizedGenre = _normalizeGenre(genre);
+  if (normalizedGenre == 'blues') return 'sad';
+  if (normalizedGenre == 'dance' || normalizedGenre == 'electronic') {
+    return 'hype';
+  }
+
+  // The chart currently has four supported mood buckets. Happy is used only as
+  // the final neutral fallback after all stronger evidence above is exhausted.
   return 'happy';
 }
 
-/// Fetches artwork and a real catalog genre rather than guessing genre from
-/// words in the song title. The call is short-timeout so it never holds up
-/// recognition for long if Apple's metadata service is unavailable.
-Future<_SongLookupMetadata> fetchSongMetadata(String query) async {
+String _catalogComparable(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll(
+        RegExp(
+          r'[^a-z0-9\u00C0-\u024F\u0400-\u04FF\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]+',
+        ),
+        ' ',
+      )
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
+double _catalogTextScore(String candidate, String target) {
+  final a = _catalogComparable(candidate);
+  final b = _catalogComparable(target);
+  if (a.isEmpty || b.isEmpty) return 0;
+  if (a == b) return 1;
+  if (a.contains(b) || b.contains(a)) return 0.88;
+
+  final aTokens = a.split(' ').where((e) => e.isNotEmpty).toSet();
+  final bTokens = b.split(' ').where((e) => e.isNotEmpty).toSet();
+  if (aTokens.isEmpty || bTokens.isEmpty) return 0;
+  final intersection = aTokens.intersection(bTokens).length.toDouble();
+  final union = aTokens.union(bTokens).length.toDouble();
+  return union == 0 ? 0 : intersection / union;
+}
+
+Future<_SongLookupMetadata> fetchSongMetadataForSong(
+  String title,
+  String artist,
+) async {
   try {
+    final query = artist.trim().isEmpty ? title : '$title $artist';
     final encoded = Uri.encodeComponent(query);
     final url = Uri.parse(
-      'https://itunes.apple.com/search?term=$encoded&entity=song&limit=5',
+      'https://itunes.apple.com/search?term=$encoded&entity=song&limit=8',
     );
-    final response = await http.get(url).timeout(const Duration(seconds: 8));
+    final response = await http.get(url).timeout(const Duration(seconds: 6));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final results = data['results'];
       if (results is List && results.isNotEmpty) {
-        final first = Map<String, dynamic>.from(results.first as Map);
-        final artwork = (first['artworkUrl100'] ?? '').toString();
-        final rawGenre = first['primaryGenreName']?.toString();
-        return _SongLookupMetadata(
-          artworkUrl: artwork.isEmpty
-              ? null
-              : artwork.replaceAll('100x100bb', '600x600bb'),
-          genre: rawGenre == null ? null : _normalizeGenre(rawGenre),
-        );
+        Map<String, dynamic>? best;
+        double bestScore = -1;
+
+        for (final raw in results.whereType<Map>()) {
+          final item = Map<String, dynamic>.from(raw);
+          final candidateTitle = (item['trackName'] ?? '').toString();
+          final candidateArtist = (item['artistName'] ?? '').toString();
+          final titleScore = _catalogTextScore(candidateTitle, title);
+          final artistScore = artist.trim().isEmpty
+              ? 1.0
+              : _catalogTextScore(candidateArtist, artist);
+          final score = artist.trim().isEmpty
+              ? titleScore
+              : (0.68 * titleScore) + (0.32 * artistScore);
+
+          if (score > bestScore) {
+            bestScore = score;
+            best = item;
+          }
+        }
+
+        if (best != null && bestScore >= 0.45) {
+          final artwork = (best['artworkUrl100'] ?? '').toString();
+          final rawGenre = best['primaryGenreName']?.toString();
+          final normalizedGenre = _normalizeGenre(rawGenre);
+          return _SongLookupMetadata(
+            artworkUrl: artwork.isEmpty
+                ? null
+                : artwork.replaceAll('100x100bb', '600x600bb'),
+            genre: normalizedGenre.isEmpty ? null : normalizedGenre,
+          );
+        }
       }
     }
   } catch (e) {
@@ -202,16 +437,25 @@ Future<_SongLookupMetadata> fetchSongMetadata(String query) async {
   return const _SongLookupMetadata();
 }
 
+/// Compatibility helper for older call sites that only have a combined query.
+Future<_SongLookupMetadata> fetchSongMetadata(String query) async {
+  return fetchSongMetadataForSong(query, '');
+}
+
 /// Kept as a compatibility helper for the existing QuickShare code.
 Future<String?> fetchAlbumArtwork(String query) async {
   return (await fetchSongMetadata(query)).artworkUrl;
 }
 
 /// Compatibility wrappers retained so older call sites do not break.
-/// Analytics no longer guesses genre or emotion from title keywords.
-String inferGenreFromTitle(String title) => 'other';
+String inferGenreFromTitle(String title) => '';
 String refineEmotionFromTitle(String title, String backendEmotion) =>
-    _normalizeEmotion(backendEmotion);
+    _resolveSongEmotion(
+      title: title,
+      artist: '',
+      backendEmotion: backendEmotion,
+    );
+
 
 // --------------------------------------------------------------------
 // 🔔 LOCAL NOTIFICATIONS (offline-queue "song found" alert)
@@ -302,6 +546,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Select your environment and tap the mic or Say "Hey Siri, Activate Reczt"!',
     'listening': 'Listening...',
     'searching': 'Searching database...',
+    'enhanced_search': "Still searching — using enhanced recognition…",
+    'location_pin_permission': "Allow location access to place Acoustic Memory pins.",
     'match_found': 'Match Found!',
     'mic_denied': 'Microphone permission denied.',
     'settings_title': 'App Preferences',
@@ -415,6 +661,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Selecciona tu entorno y toca el micrófono o di: "Oye Siri, activa Reczt".' ,
     'listening': 'Escuchando...',
     'searching': 'Buscando en la base de datos...',
+    'enhanced_search': "Seguimos buscando — usando reconocimiento avanzado…",
+    'location_pin_permission': "Permite el acceso a la ubicación para colocar pines de Memoria Acústica.",
     'match_found': '¡Coincidencia encontrada!',
     'mic_denied': 'Permiso de micrófono denegado.',
     'settings_title': 'Preferencias de la aplicación',
@@ -525,6 +773,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Sélectionnez votre environnement et appuyez sur le micro, ou dites "Dis Siri, active Reczt"!.',
     'listening': 'Écoute en cours...',
     'searching': 'Recherche dans la base de données...',
+    'enhanced_search': "Recherche en cours — reconnaissance avancée…",
+    'location_pin_permission': "Autorisez l’accès à la localisation pour placer les repères de mémoire acoustique.",
     'match_found': 'Correspondance trouvée !',
     'mic_denied': 'Autorisation du microphone refusée.',
     'settings_title': 'Préférences de l\'application',
@@ -635,6 +885,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Wähle deine Umgebung aus und tippe auf das Mikrofon oder sage: "Hey Siri, aktiviere Reczt"!',
     'listening': 'Zuhören...',
     'searching': 'Datenbank wird durchsucht...',
+    'enhanced_search': "Suche läuft weiter – erweiterte Erkennung wird verwendet…",
+    'location_pin_permission': "Erlaube den Standortzugriff, um Acoustic-Memory-Pins zu setzen.",
     'match_found': 'Treffer gefunden!',
     'mic_denied': 'Mikrofonberechtigung verweigert.',
     'settings_title': 'App-Einstellungen',
@@ -745,6 +997,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Seleziona l\'ambiente e tocca il microfono o dicci: "Hey Siri, attiva Reczt"!',
     'listening': 'Ascolto in corso...',
     'searching': 'Ricerca nel database...',
+    'enhanced_search': "Ricerca in corso — uso del riconoscimento avanzato…",
+    'location_pin_permission': "Consenti l’accesso alla posizione per aggiungere i pin della Memoria Acustica.",
     'match_found': 'Brano trovato!',
     'mic_denied': 'Autorizzazione microfono negata.',
     'settings_title': 'Preferenze App',
@@ -855,6 +1109,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Selecione seu ambiente e toque no microfone ou diga: "Oye Siri, ative Reczt"!',
     'listening': 'Ouvindo...',
     'searching': 'Buscando no banco de dados...',
+    'enhanced_search': "Ainda procurando — usando reconhecimento avançado…",
+    'location_pin_permission': "Permita o acesso à localização para adicionar pinos de Memória Acústica.",
     'match_found': 'Música encontrada!',
     'mic_denied': 'Permissão do microfone negada.',
     'settings_title': 'Preferências do App',
@@ -965,6 +1221,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': '環境を選択し、マイクをタップするか、「Hey Siri, Activate Reczt」と話しかけてください。',
     'listening': '聞き取り中...',
     'searching': 'データベースを検索中...',
+    'enhanced_search': "検索を続けています — 高精度認識を使用中…",
+    'location_pin_permission': "アコースティックメモリーのピンを表示するには位置情報へのアクセスを許可してください。",
     'match_found': '曲が見つかりました！',
     'mic_denied': 'マイクのアクセス許可が拒否されました。',
     'settings_title': 'アプリ設定',
@@ -1076,6 +1334,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': '환경을 선택한 뒤 마이크를 탭하거나 "Hey Siri, Activate Reczt"라고 말하세요!',
     'listening': '듣는 중...',
     'searching': '데이터베이스 검색 중...',
+    'enhanced_search': "계속 검색 중 — 고급 인식 엔진 사용 중…",
+    'location_pin_permission': "어쿠스틱 메모리 핀을 표시하려면 위치 접근을 허용해 주세요.",
     'match_found': '곡을 찾았습니다!',
     'mic_denied': '마이크 권한이 거부되었습니다.',
     'settings_title': '앱 설정',
@@ -1187,6 +1447,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': '选择你的环境并点击麦克风，或者说：“嘿 Siri，激活 Reczt”！',
     'listening': '正在聆听...',
     'searching': '正在搜索数据库...',
+    'enhanced_search': "仍在搜索 — 正在使用增强识别…",
+    'location_pin_permission': "请允许位置访问，以显示声学记忆图钉。",
     'match_found': '找到歌曲！',
     'mic_denied': '麦克风权限被拒绝。',
     'settings_title': '应用设置',
@@ -1298,6 +1560,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'अपना एनवायरनमेंट चुनें और माइक पर टैप करें या "Hey Siri, Activate Reczt" कहें!',
     'listening': 'सुन रहा है...',
     'searching': 'डेटाबेस में खोज रहा है...',
+    'enhanced_search': "खोज जारी है — उन्नत पहचान का उपयोग हो रहा है…",
+    'location_pin_permission': "अकूस्टिक मेमोरी पिन दिखाने के लिए स्थान की अनुमति दें।",
     'match_found': 'गाना मिल गया!',
     'mic_denied': 'माइक अनुमति अस्वीकृत।',
     'settings_title': 'ऐप प्राथमिकताएं',
@@ -1409,6 +1673,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Выберите обстановку и нажмите на микрофон или скажите: "Hey Siri, Activate Reczt"!',
     'listening': 'Слушаю...',
     'searching': 'Поиск в базе данных...',
+    'enhanced_search': "Поиск продолжается — используется расширенное распознавание…",
+    'location_pin_permission': "Разрешите доступ к геопозиции, чтобы добавлять метки Acoustic Memory.",
     'match_found': 'Песня найдена!',
     'mic_denied': 'Доступ к микрофону запрещен.',
     'settings_title': 'Настройки приложения',
@@ -1520,6 +1786,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Ortamınızı seçin ve mikrofona dokunun ya da "Hey Siri, Reczt\'i etkinleştir" deyin!',
     'listening': 'Dinleniyor...',
     'searching': 'Veritabanı aranıyor...',
+    'enhanced_search': "Arama sürüyor — gelişmiş tanıma kullanılıyor…",
+    'location_pin_permission': "Akustik Hafıza pinlerini göstermek için konum erişimine izin verin.",
     'match_found': 'Eşleşme Bulundu!',
     'mic_denied': 'Mikrofon izni reddedildi.',
     'settings_title': 'Uygulama Tercihleri',
@@ -1631,6 +1899,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'ابك واضغط على الميكروفوناختر البيئة الخاصة أو قُل: "Hey Siri, Activate Reczt!',
     'listening': 'جاري الاستماع...',
     'searching': 'جاري البحث...',
+    'enhanced_search': "ما زال البحث جارياً — يتم استخدام التعرّف المتقدم…",
+    'location_pin_permission': "اسمح بالوصول إلى الموقع لإظهار دبابيس الذاكرة الصوتية.",
     'match_found': 'تم العثور على الأغنية!',
     'mic_denied': 'تم رفض إذن الميكروفون.',
     'settings_title': 'تفضيلات التطبيق',
@@ -1742,6 +2012,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Selecteer je omgeving en tik op de microfoon of zeg: "Hey Siri, activeer Reczt"!',
     'listening': 'Luisteren...',
     'searching': 'Database zoeken...',
+    'enhanced_search': "Nog aan het zoeken — geavanceerde herkenning wordt gebruikt…",
+    'location_pin_permission': "Sta locatietoegang toe om Acoustic Memory-pinnen te plaatsen.",
     'match_found': 'Nummer Gevonden!',
     'mic_denied': 'Microfoontoegang geweigerd.',
     'settings_title': 'App Voorkeuren',
@@ -1853,6 +2125,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'initial_status': 'Wybierz swoje środowisko i stuknij w mikrofon lub powiedz Hej Siri, Aktywuj Reczt!',
     'listening': 'Słucham...',
     'searching': 'Wyszukiwanie w bazie...',
+    'enhanced_search': "Wciąż szukam — używam rozszerzonego rozpoznawania…",
+    'location_pin_permission': "Zezwól na dostęp do lokalizacji, aby dodawać pinezki Acoustic Memory.",
     'match_found': 'Znaleziono utwór!',
     'mic_denied': 'Odmowa dostępu do mikrofonu.',
     'settings_title': 'Preferencje Aplikacji',
@@ -1988,12 +2262,283 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
+// --------------------------------------------------------------------
+// 📍 COMPACT ACOUSTIC LOCATION USAGE
+// --------------------------------------------------------------------
+// Reczt stores one compact bucket per approximate place (~100 m) and
+// increments its use count instead of saving one permanent record per mic use.
+
+const String _acousticUsageKey = 'acoustic_location_usage_v3';
+const String _acousticUsageMigratedKey =
+    'acoustic_location_usage_v3_migrated';
+
+String _acousticBucketKey(double lat, double lng) =>
+    '${lat.toStringAsFixed(3)},${lng.toStringAsFixed(3)}';
+
+class _AcousticLocationUsage {
+  _AcousticLocationUsage({
+    required this.latitude,
+    required this.longitude,
+    required this.count,
+    this.lastUsed,
+  });
+
+  double latitude;
+  double longitude;
+  int count;
+  DateTime? lastUsed;
+
+  String get bucketKey => _acousticBucketKey(latitude, longitude);
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'lat': latitude,
+        'lng': longitude,
+        'count': count,
+        if (lastUsed != null) 'last_used': lastUsed!.toIso8601String(),
+      };
+
+  static _AcousticLocationUsage? fromRaw(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final lat = decoded['lat'];
+      final lng = decoded['lng'];
+      if (lat is! num || lng is! num) return null;
+      final rawCount = decoded['count'];
+      return _AcousticLocationUsage(
+        latitude: lat.toDouble(),
+        longitude: lng.toDouble(),
+        count: rawCount is num ? max(1, rawCount.toInt()) : 1,
+        lastUsed: DateTime.tryParse(
+          (decoded['last_used'] ?? decoded['timestamp'] ?? '').toString(),
+        ),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+Future<void> _saveAcousticLocationUsage(
+  SharedPreferences prefs,
+  Iterable<_AcousticLocationUsage> usages,
+) async {
+  final sorted = usages.toList()
+    ..sort((a, b) => b.count.compareTo(a.count));
+  await prefs.setStringList(
+    _acousticUsageKey,
+    sorted.map((usage) => jsonEncode(usage.toJson())).toList(),
+  );
+}
+
+Future<List<_AcousticLocationUsage>> _loadAcousticLocationUsage(
+  SharedPreferences prefs,
+) async {
+  final compactRaw = prefs.getStringList(_acousticUsageKey) ?? <String>[];
+  final compact = compactRaw
+      .map(_AcousticLocationUsage.fromRaw)
+      .whereType<_AcousticLocationUsage>()
+      .toList();
+
+  if (prefs.getBool(_acousticUsageMigratedKey) ?? false) {
+    return compact;
+  }
+
+  // If compact data already exists, prefer it rather than risking a second
+  // migration after an interrupted run.
+  if (compact.isNotEmpty) {
+    await prefs.remove('acoustic_mic_locations');
+    await prefs.remove('acoustic_memories');
+    await prefs.setBool(_acousticUsageMigratedKey, true);
+    return compact;
+  }
+
+  final buckets = <String, _AcousticLocationUsage>{};
+  final micSessionIds = <String>{};
+  final micEvents = <Map<String, dynamic>>[];
+
+  void addUsage(
+    double lat,
+    double lng, {
+    int increment = 1,
+    DateTime? timestamp,
+  }) {
+    final key = _acousticBucketKey(lat, lng);
+    final safeIncrement = max(1, increment);
+    final existing = buckets[key];
+
+    if (existing == null) {
+      buckets[key] = _AcousticLocationUsage(
+        latitude: lat,
+        longitude: lng,
+        count: safeIncrement,
+        lastUsed: timestamp,
+      );
+      return;
+    }
+
+    final oldCount = existing.count;
+    final newCount = oldCount + safeIncrement;
+    existing.latitude =
+        ((existing.latitude * oldCount) + (lat * safeIncrement)) / newCount;
+    existing.longitude =
+        ((existing.longitude * oldCount) + (lng * safeIncrement)) / newCount;
+    existing.count = newCount;
+    if (timestamp != null &&
+        (existing.lastUsed == null || timestamp.isAfter(existing.lastUsed!))) {
+      existing.lastUsed = timestamp;
+    }
+  }
+
+  final micRaw =
+      prefs.getStringList('acoustic_mic_locations') ?? <String>[];
+  for (final raw in micRaw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) continue;
+      final latValue = decoded['lat'];
+      final lngValue = decoded['lng'];
+      if (latValue is! num || lngValue is! num) continue;
+
+      final sessionId = decoded['session_id']?.toString() ?? '';
+      final timestamp =
+          DateTime.tryParse(decoded['timestamp']?.toString() ?? '');
+      final rawCount = decoded['count'];
+      final increment = rawCount is num ? rawCount.toInt() : 1;
+
+      if (sessionId.isNotEmpty) micSessionIds.add(sessionId);
+      micEvents.add(<String, dynamic>{
+        'lat': latValue.toDouble(),
+        'lng': lngValue.toDouble(),
+        'time': timestamp,
+      });
+
+      addUsage(
+        latValue.toDouble(),
+        lngValue.toDouble(),
+        increment: increment,
+        timestamp: timestamp,
+      );
+    } catch (_) {}
+  }
+
+  final memoryRaw =
+      prefs.getStringList('acoustic_memories') ?? <String>[];
+  for (final raw in memoryRaw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) continue;
+      final latValue = decoded['lat'];
+      final lngValue = decoded['lng'];
+      if (latValue is! num || lngValue is! num) continue;
+
+      final lat = latValue.toDouble();
+      final lng = lngValue.toDouble();
+      final sessionId = decoded['session_id']?.toString() ?? '';
+      final timestamp =
+          DateTime.tryParse(decoded['timestamp']?.toString() ?? '');
+
+      if (sessionId.isNotEmpty && micSessionIds.contains(sessionId)) {
+        continue;
+      }
+
+      if (sessionId.isEmpty && timestamp != null) {
+        final sameLegacyEvent = micEvents.any((mic) {
+          final micTime = mic['time'];
+          final micLat = mic['lat'];
+          final micLng = mic['lng'];
+          if (micTime is! DateTime || micLat is! double || micLng is! double) {
+            return false;
+          }
+          final samePlace =
+              (micLat - lat).abs() < 0.0001 && (micLng - lng).abs() < 0.0001;
+          return samePlace &&
+              micTime.difference(timestamp).inSeconds.abs() <= 90;
+        });
+        if (sameLegacyEvent) continue;
+      }
+
+      addUsage(lat, lng, timestamp: timestamp);
+    } catch (_) {}
+  }
+
+  final migrated = buckets.values.toList();
+  await _saveAcousticLocationUsage(prefs, migrated);
+
+  // Remove the old duplicate-heavy location lists after migration.
+  await prefs.remove('acoustic_mic_locations');
+  await prefs.remove('acoustic_memories');
+  await prefs.setBool(_acousticUsageMigratedKey, true);
+
+  return migrated;
+}
+
+Future<void> _recordAcousticLocationUse(
+  SharedPreferences prefs,
+  double latitude,
+  double longitude,
+) async {
+  final usages = await _loadAcousticLocationUsage(prefs);
+  final key = _acousticBucketKey(latitude, longitude);
+  final now = DateTime.now();
+
+  _AcousticLocationUsage? existing;
+  for (final usage in usages) {
+    if (usage.bucketKey == key) {
+      existing = usage;
+      break;
+    }
+  }
+
+  if (existing == null) {
+    usages.add(
+      _AcousticLocationUsage(
+        latitude: latitude,
+        longitude: longitude,
+        count: 1,
+        lastUsed: now,
+      ),
+    );
+  } else {
+    final oldCount = existing.count;
+    final newCount = oldCount + 1;
+    existing.latitude =
+        ((existing.latitude * oldCount) + latitude) / newCount;
+    existing.longitude =
+        ((existing.longitude * oldCount) + longitude) / newCount;
+    existing.count = newCount;
+    existing.lastUsed = now;
+  }
+
+  await _saveAcousticLocationUsage(prefs, usages);
+}
+
+class _AcousticUsagePin {
+  const _AcousticUsagePin({
+    required this.offset,
+    required this.count,
+  });
+
+  final Offset offset;
+  final int count;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _AcousticUsagePin &&
+      other.offset == offset &&
+      other.count == count;
+
+  @override
+  int get hashCode => Object.hash(offset, count);
+}
+
 enum EnvironmentMode {
   // ACRCloud humming/cover recognition generally benefits from a longer
   // melodic sample. Reczt still stops early when it has captured enough
   // usable singing, but these are the safe maximum listen windows.
-  quiet(duration: 10, icon: Icons.king_bed, key: 'quiet_room'),
-  loud(duration: 12, icon: Icons.volume_up, key: 'loud_room'),
+  quiet(duration: 6, icon: Icons.king_bed, key: 'quiet_room'),
+  loud(duration: 8, icon: Icons.volume_up, key: 'loud_room'),
   Outdoors(duration: 12, icon: Icons.forest, key: 'Outdoors');
 
   final int duration;
@@ -2271,6 +2816,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
+    _enhancedSearchTimer?.cancel();
     _amplitudeSubscription?.cancel();
     _connectivitySubscription?.cancel();
     if (!kIsWeb) {
@@ -2323,6 +2869,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   EnvironmentMode _selectedMode = EnvironmentMode.Outdoors;
   int _secondsRemaining = 12;
   Timer? _countdownTimer;
+  Timer? _enhancedSearchTimer;
 
   String _preferredMusicApp = 'spotify';
   String _selectedLanguage = 'en';
@@ -2355,7 +2902,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   String? _appleMusicUrl;
   String? _albumArtUrl;
   Position? _sessionLocation;
-
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
@@ -2363,6 +2909,27 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     return localizedStrings[_selectedLanguage]?[key] ??
         localizedStrings['en']![key] ??
         key;
+  }
+
+  void _startEnhancedSearchIndicator({required bool isFromOfflineQueue}) {
+    _enhancedSearchTimer?.cancel();
+    if (isFromOfflineQueue) return;
+
+    // The backend starts with its fastest recognition path. If the request is
+    // still running after a few seconds, the slower/high-accuracy fallback is
+    // likely being consulted. This status keeps that extra accuracy from
+    // looking like a frozen search without adding another network round trip.
+    _enhancedSearchTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted || !_isLoading || _isRecording) return;
+      setState(() {
+        _customStatusText = t('enhanced_search');
+      });
+    });
+  }
+
+  void _cancelEnhancedSearchIndicator() {
+    _enhancedSearchTimer?.cancel();
+    _enhancedSearchTimer = null;
   }
 
   Future<void> _loadStartupState() async {
@@ -2621,16 +3188,28 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
   Future<void> _saveToHistory(
     String songEntry, {
+    String? title,
+    String? artist,
     String? audioPath,
     String? albumCover,
+    String? genre,
+    String? emotion,
+    String? spotifyUrl,
+    String? appleMusicUrl,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final List<String> history = prefs.getStringList('song_history') ?? [];
 
     final Map<String, dynamic> historyObj = {
       'song': songEntry,
+      'title': title ?? '',
+      'artist': artist ?? '',
       'audioPath': audioPath ?? '',
       'albumCover': albumCover ?? '',
+      'genre': _normalizeGenre(genre),
+      'emotion': _normalizeEmotion(emotion),
+      'spotifyUrl': spotifyUrl ?? '',
+      'appleMusicUrl': appleMusicUrl ?? '',
     };
 
     history.insert(0, jsonEncode(historyObj));
@@ -2973,6 +3552,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     request.fields['vocal_isolation'] = 'true';
     request.fields['environment'] = _selectedMode.name;
 
+    _startEnhancedSearchIndicator(isFromOfflineQueue: isFromOfflineQueue);
+
     try {
       if (kIsWeb) {
         final sourceResponse =
@@ -3134,6 +3715,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       }
       unawaited(_playErrorCue());
       return false;
+    } finally {
+      _cancelEnhancedSearchIndicator();
     }
   }
 
@@ -3189,17 +3772,46 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       });
     }
 
-    final metadata = await fetchSongMetadata('$title $artist');
-    final String? albumArt =
-        (candidate.coverUrl != null && candidate.coverUrl!.isNotEmpty)
-            ? candidate.coverUrl
-            : metadata.artworkUrl;
-    final String genre = candidate.genre != null && candidate.genre != 'other'
-        ? candidate.genre!
-        : (metadata.genre ?? 'other');
-    final String emotion = _normalizeEmotion(candidate.emotion);
+    // Hands-free mode should feel immediate. Once Reczt has accepted the match,
+    // open the user's music app before doing nonessential artwork/analytics I/O.
+    if (allowAutoPlay && _autoPlayEnabled) {
+      if (_preferredMusicApp == 'apple_music' &&
+          candidate.appleMusicUrl != null &&
+          candidate.appleMusicUrl!.isNotEmpty) {
+        unawaited(_openMusicUrl(candidate.appleMusicUrl!));
+      } else if (candidate.spotifyUrl != null &&
+          candidate.spotifyUrl!.isNotEmpty) {
+        unawaited(_openSpotifyNative(candidate.spotifyUrl!));
+      }
+    }
 
-    if (mounted) {
+    final String candidateGenre = _normalizeGenre(candidate.genre);
+    final String? candidateCover =
+        (candidate.coverUrl != null && candidate.coverUrl!.trim().isNotEmpty)
+            ? candidate.coverUrl
+            : null;
+
+    // The optimized backend normally already sends both genre and artwork.
+    // Avoid repeating the same catalog lookup unless one of those fields is
+    // actually missing; this removes a redundant network request from the
+    // normal recognition path.
+    _SongLookupMetadata metadata = const _SongLookupMetadata();
+    if (candidateCover == null || candidateGenre.isEmpty) {
+      metadata = await fetchSongMetadataForSong(title, artist);
+    }
+
+    final String? albumArt = candidateCover ?? metadata.artworkUrl;
+    final String genre = candidateGenre.isNotEmpty
+        ? candidateGenre
+        : _normalizeGenre(metadata.genre);
+    final String emotion = _resolveSongEmotion(
+      title: title,
+      artist: artist,
+      backendEmotion: candidate.emotion,
+      genre: genre,
+    );
+
+    if (mounted && albumArt != _albumArtUrl) {
       setState(() {
         _albumArtUrl = albumArt;
       });
@@ -3207,8 +3819,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     await _saveToHistory(
       '$title - $artist',
+      title: title,
+      artist: artist,
       audioPath: audioPath,
       albumCover: albumArt,
+      genre: genre,
+      emotion: emotion,
+      spotifyUrl: candidate.spotifyUrl,
+      appleMusicUrl: candidate.appleMusicUrl,
     );
 
     await recordSessionToAnalytics(
@@ -3222,16 +3840,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     if (isFromOfflineQueue) {
       unawaited(showQueuedSongFoundNotification(_selectedLanguage));
-    }
-
-    if (allowAutoPlay && _autoPlayEnabled) {
-      if (_preferredMusicApp == 'apple_music' &&
-          _appleMusicUrl != null &&
-          _appleMusicUrl!.isNotEmpty) {
-        unawaited(_openMusicUrl(_appleMusicUrl!));
-      } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
-        unawaited(_openSpotifyNative(_spotifyUrl!));
-      }
     }
   }
 
@@ -3248,10 +3856,15 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     final int totalSongs = (prefs.getInt('analytics_total_songs') ?? 0) + 1;
     await prefs.setInt('analytics_total_songs', totalSongs);
 
+    final normalizedEmotion = _normalizeEmotion(primaryEmotion);
+    final emotionKey =
+        normalizedEmotion.isEmpty ? 'happy' : normalizedEmotion;
     final int emotionCount =
-        (prefs.getInt('analytics_emotion_$primaryEmotion') ?? 0) + 1;
-    await prefs.setInt('analytics_emotion_$primaryEmotion', emotionCount);
+        (prefs.getInt('analytics_emotion_$emotionKey') ?? 0) + 1;
+    await prefs.setInt('analytics_emotion_$emotionKey', emotionCount);
 
+    // Artist counts are permanent and case-insensitive, so "Coldplay" and
+    // "coldplay" cannot accidentally become separate artists.
     final String? artistJson = prefs.getString('analytics_artist_counts');
     Map<String, dynamic> artistMap = {};
     if (artistJson != null) {
@@ -3259,22 +3872,41 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         artistMap = jsonDecode(artistJson) as Map<String, dynamic>;
       } catch (_) {}
     }
-    artistMap[artistName] = (artistMap[artistName] ?? 0) + 1;
-    await prefs.setString('analytics_artist_counts', jsonEncode(artistMap));
 
-    final String? genreJson = prefs.getString('analytics_genre_counts');
-    Map<String, dynamic> genreMap = {};
-    if (genreJson != null) {
-      try {
-        genreMap = jsonDecode(genreJson) as Map<String, dynamic>;
-      } catch (_) {}
+    final cleanedArtist = artistName.trim();
+    if (cleanedArtist.isNotEmpty &&
+        cleanedArtist.toLowerCase() != t('unknown_artist').toLowerCase()) {
+      String storageKey = cleanedArtist;
+      for (final existing in artistMap.keys) {
+        if (existing.trim().toLowerCase() == cleanedArtist.toLowerCase()) {
+          storageKey = existing;
+          break;
+        }
+      }
+      artistMap[storageKey] = ((artistMap[storageKey] ?? 0) as num).toInt() + 1;
+      await prefs.setString('analytics_artist_counts', jsonEncode(artistMap));
     }
-    genreMap[genre] = (genreMap[genre] ?? 0) + 1;
-    await prefs.setString('analytics_genre_counts', jsonEncode(genreMap));
 
-    // A streak only needs one entry per calendar day. The old implementation
-    // appended one timestamp per SONG, which could grow SharedPreferences
-    // indefinitely for frequent users.
+    // Never create an "Other" bucket. If the backend does not provide genre,
+    // the catalog lookup in _finalizeCandidate gets a real genre first.
+    final normalizedGenre = _normalizeGenre(genre);
+    if (normalizedGenre.isNotEmpty) {
+      final String? genreJson = prefs.getString('analytics_genre_counts');
+      Map<String, dynamic> genreMap = {};
+      if (genreJson != null) {
+        try {
+          genreMap = jsonDecode(genreJson) as Map<String, dynamic>;
+        } catch (_) {}
+      }
+      genreMap[normalizedGenre] =
+          ((genreMap[normalizedGenre] ?? 0) as num).toInt() + 1;
+      // Remove legacy broad buckets so they never reappear in the chart.
+      genreMap.remove('other');
+      genreMap.remove('Other');
+      await prefs.setString('analytics_genre_counts', jsonEncode(genreMap));
+    }
+
+    // A streak only needs one entry per calendar day.
     final List<String> sessionDates =
         prefs.getStringList('analytics_session_dates') ?? [];
     final now = DateTime.now();
@@ -3291,18 +3923,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       await prefs.setStringList('analytics_session_dates', sessionDates);
     }
 
-    if (latitude != null && longitude != null) {
-      final List<String> memories =
-          prefs.getStringList('acoustic_memories') ?? [];
-      memories.add(jsonEncode({
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'title': songTitle,
-        'lat': latitude,
-        'lng': longitude,
-        'timestamp': DateTime.now().toIso8601String(),
-      }));
-      await prefs.setStringList('acoustic_memories', memories);
-    }
+    // Location usage is recorded once when the microphone starts via
+    // _recordAcousticLocationUse(). Keeping it out of successful-song
+    // analytics prevents duplicate location storage.
   }
 
   Future<void> _openSpotifyNative(String url) async {
@@ -3327,16 +3950,39 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_currently_singing', true);
 
+    // This call also triggers the OS "Allow location while using the app?"
+    // prompt the first time the user sings, if permission has not been decided.
     final position = await getCurrentDeviceLocation();
-    if (!mounted) return;
-    _sessionLocation = position;
 
     if (position != null) {
-      await prefs.setStringList('active_singing_locations', [
-        jsonEncode({'lat': position.latitude, 'lng': position.longitude}),
-      ]);
+      if (mounted) {
+        _sessionLocation = position;
+      }
+
+      final encodedPosition = jsonEncode({
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      await prefs.setStringList('active_singing_locations', [encodedPosition]);
+
+      // One compact lifetime pin per approximate place. Repeated mic uses in
+      // roughly the same ~100 m area increment this location's use count.
+      await _recordAcousticLocationUse(
+        prefs,
+        position.latitude,
+        position.longitude,
+      );
     } else {
       await prefs.remove('active_singing_locations');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(t('location_pin_permission')),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -3966,6 +4612,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   bool _isCurrentlySinging = false;
   List<Offset> _livePinLocations = [];
+  List<_AcousticUsagePin> _memoryPinLocations = [];
+  Timer? _mapRefreshTimer;
+  bool _genreBackfillStarted = false;
 
   String _curatedPlaylistTitle = "";
   String _streamingUrl = "";
@@ -3982,27 +4631,246 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         key;
   }
 
+  String _genreLabel(String rawGenre) {
+    final normalized = _normalizeGenre(rawGenre);
+    if (normalized.isEmpty) return '';
+    final translated = t(normalized);
+    return translated == normalized
+        ? _formatGenreLabel(normalized)
+        : translated;
+  }
+
   @override
   void initState() {
     super.initState();
-    _genreCounts = {
-      'pop': 0,
-      'rock': 0,
-      'indie': 0,
-      'jazz': 0,
-    };
+    _genreCounts = <String, int>{};
     _curatedPlaylistTitle = t('analyzing');
     _countdownText = t('calculating');
-    _computeAnalytics();
+    unawaited(_computeAnalytics());
+
+    // This lightweight refresh lets a Siri-triggered recording update the map
+    // while the Analytics page happens to be open.
+    _mapRefreshTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(_refreshMapPinsOnly()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _mapRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Offset _latLngToMapOffset(double lat, double lng) {
-    double dx = ((lng + 180) / 360).clamp(0.0, 1.0);
-    double dy = ((90 - lat) / 180).clamp(0.0, 1.0);
+    final double dx = ((lng + 180) / 360).clamp(0.0, 1.0);
+    final double dy = ((90 - lat) / 180).clamp(0.0, 1.0);
     return Offset(dx, dy);
   }
 
+  Map<String, dynamic> _decodeHistoryAnalyticsEntry(String rawItem) {
+    Map<String, dynamic> record = <String, dynamic>{};
+    String songText = rawItem;
 
+    if (rawItem.trimLeft().startsWith('{')) {
+      try {
+        final decoded = jsonDecode(rawItem);
+        if (decoded is Map) {
+          record = Map<String, dynamic>.from(decoded);
+          songText = (record['song'] ?? '').toString();
+        }
+      } catch (_) {}
+    }
+
+    String title = (record['title'] ?? '').toString().trim();
+    String artist = (record['artist'] ?? '').toString().trim();
+
+    if ((title.isEmpty || artist.isEmpty) && songText.contains(' - ')) {
+      final parts = songText.split(' - ');
+      if (title.isEmpty && parts.isNotEmpty) {
+        title = parts.first.trim();
+      }
+      if (artist.isEmpty && parts.length > 1) {
+        artist = parts.sublist(1).join(' - ').trim();
+      }
+    } else if (title.isEmpty) {
+      title = songText.trim();
+    }
+
+    record['title'] = title;
+    record['artist'] = artist;
+    return record;
+  }
+
+  String _canonicalArtistKey(String artist) =>
+      artist.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  Future<void> _repairArtistAndEmotionAnalytics(
+    SharedPreferences prefs,
+  ) async {
+    final history = prefs.getStringList('song_history') ?? <String>[];
+    if (history.isEmpty) {
+      final int emotionSchema =
+          prefs.getInt('analytics_emotion_schema_version') ?? 0;
+      if (emotionSchema < 2) {
+        for (final key in const ['happy', 'sad', 'hype', 'romantic']) {
+          await prefs.setInt('analytics_emotion_$key', 0);
+        }
+        await prefs.setInt('analytics_emotion_schema_version', 2);
+      }
+      return;
+    }
+
+    final Map<String, int> historyArtistCounts = <String, int>{};
+    final Map<String, String> artistDisplayNames = <String, String>{};
+    final Map<String, int> historyEmotionCounts = <String, int>{
+      'happy': 0,
+      'sad': 0,
+      'hype': 0,
+      'romantic': 0,
+    };
+
+    for (final raw in history) {
+      final record = _decodeHistoryAnalyticsEntry(raw);
+      final title = (record['title'] ?? '').toString().trim();
+      final artist = (record['artist'] ?? '').toString().trim();
+      final genre = _normalizeGenre(record['genre']?.toString());
+      final savedEmotion = record['emotion']?.toString();
+
+      if (artist.isNotEmpty) {
+        final key = _canonicalArtistKey(artist);
+        if (key.isNotEmpty) {
+          historyArtistCounts[key] = (historyArtistCounts[key] ?? 0) + 1;
+          artistDisplayNames.putIfAbsent(key, () => artist);
+        }
+      }
+
+      final emotion = _resolveSongEmotion(
+        title: title,
+        artist: artist,
+        backendEmotion: savedEmotion,
+        genre: genre,
+      );
+      historyEmotionCounts[emotion] =
+          (historyEmotionCounts[emotion] ?? 0) + 1;
+    }
+
+    // Repair the historical "everything is happy" bug once. Existing history
+    // is reclassified with the same rules now used for new recognitions.
+    final int emotionSchema =
+        prefs.getInt('analytics_emotion_schema_version') ?? 0;
+    if (emotionSchema < 2) {
+      for (final key in const ['happy', 'sad', 'hype', 'romantic']) {
+        await prefs.setInt(
+          'analytics_emotion_$key',
+          historyEmotionCounts[key] ?? 0,
+        );
+      }
+      await prefs.setInt('analytics_emotion_schema_version', 2);
+    }
+
+    // Merge history-derived counts into the permanent artist map using max()
+    // rather than addition, so history and permanent analytics are not double
+    // counted. This repairs older data while preserving sessions whose history
+    // may already have been cleared.
+    Map<String, dynamic> persistedArtists = <String, dynamic>{};
+    final artistJson = prefs.getString('analytics_artist_counts');
+    if (artistJson != null) {
+      try {
+        final decoded = jsonDecode(artistJson);
+        if (decoded is Map) {
+          persistedArtists = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {}
+    }
+
+    final Map<String, int> mergedCounts = <String, int>{};
+    final Map<String, String> mergedDisplay = <String, String>{};
+
+    persistedArtists.forEach((name, rawCount) {
+      final key = _canonicalArtistKey(name);
+      if (key.isEmpty) return;
+      final count = rawCount is num ? rawCount.toInt() : 0;
+      mergedCounts[key] = max(mergedCounts[key] ?? 0, count).toInt();
+      mergedDisplay.putIfAbsent(key, () => name);
+    });
+
+    historyArtistCounts.forEach((key, count) {
+      mergedCounts[key] = max(mergedCounts[key] ?? 0, count).toInt();
+      mergedDisplay[key] = artistDisplayNames[key] ?? mergedDisplay[key] ?? key;
+    });
+
+    final repairedArtistMap = <String, int>{};
+    mergedCounts.forEach((key, count) {
+      repairedArtistMap[mergedDisplay[key] ?? key] = count;
+    });
+    await prefs.setString(
+      'analytics_artist_counts',
+      jsonEncode(repairedArtistMap),
+    );
+  }
+
+  List<Offset> _decodePinList(Iterable<String> encodedPins) {
+    final offsets = <Offset>[];
+
+    // Intentionally preserve duplicates. Multiple uses from the exact same
+    // location should remain separate records and are allowed to paint on top
+    // of one another on the world map.
+    for (final raw in encodedPins) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map) continue;
+        final latValue = decoded['lat'];
+        final lngValue = decoded['lng'];
+        if (latValue is! num || lngValue is! num) continue;
+
+        offsets.add(
+          _latLngToMapOffset(latValue.toDouble(), lngValue.toDouble()),
+        );
+      } catch (_) {}
+    }
+    return offsets;
+  }
+
+  List<_AcousticUsagePin> _usagePinsFromLocations(
+    Iterable<_AcousticLocationUsage> usages,
+  ) {
+    return usages
+        .map(
+          (usage) => _AcousticUsagePin(
+            offset: _latLngToMapOffset(
+              usage.latitude,
+              usage.longitude,
+            ),
+            count: max(1, usage.count),
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> _refreshMapPinsOnly() async {
+    final prefs = await SharedPreferences.getInstance();
+    final activeSinging = prefs.getBool('is_currently_singing') ?? false;
+    final activeRaw =
+        prefs.getStringList('active_singing_locations') ?? <String>[];
+    final usageLocations = await _loadAcousticLocationUsage(prefs);
+
+    final activeOffsets = _decodePinList(activeRaw);
+    final memoryOffsets = _usagePinsFromLocations(usageLocations);
+
+    if (!mounted) return;
+    if (_isCurrentlySinging == activeSinging &&
+        listEquals(_livePinLocations, activeOffsets) &&
+        listEquals(_memoryPinLocations, memoryOffsets)) {
+      return;
+    }
+
+    setState(() {
+      _isCurrentlySinging = activeSinging;
+      _livePinLocations = activeOffsets;
+      _memoryPinLocations = memoryOffsets;
+    });
+  }
 
   Future<void> _launchStreamingLink() async {
     final playlistData = _curatePlaylistByMajorityEmotion(_majorityEmotion);
@@ -4016,122 +4884,289 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     }
   }
 
-  Future<void> _computeAnalytics() async {
+  Future<void> _computeAnalytics({bool allowGenreBackfill = true}) async {
     final prefs = await SharedPreferences.getInstance();
 
+    await _repairArtistAndEmotionAnalytics(prefs);
+
     _preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
-    bool activeSinging = prefs.getBool('is_currently_singing') ?? false;
 
-    List<String> rawCoordinates = prefs.getStringList('active_singing_locations') ?? [];
-    List<Offset> calculatedOffsets = [];
+    final bool activeSinging =
+        prefs.getBool('is_currently_singing') ?? false;
+    final activeRaw =
+        prefs.getStringList('active_singing_locations') ?? <String>[];
+    final usageLocations = await _loadAcousticLocationUsage(prefs);
 
-    for (String rawCoord in rawCoordinates) {
+    final calculatedLiveOffsets = _decodePinList(activeRaw);
+    final calculatedMemoryOffsets =
+        _usagePinsFromLocations(usageLocations);
+
+    final Map<String, int> emotionMap = <String, int>{
+      'happy': prefs.getInt('analytics_emotion_happy') ?? 0,
+      'sad': prefs.getInt('analytics_emotion_sad') ?? 0,
+      'hype': prefs.getInt('analytics_emotion_hype') ?? 0,
+      'romantic': prefs.getInt('analytics_emotion_romantic') ?? 0,
+    };
+
+    final Map<String, int> artistMap = <String, int>{};
+    final String? artistJson = prefs.getString('analytics_artist_counts');
+    if (artistJson != null) {
       try {
-        final data = jsonDecode(rawCoord);
-        double lat = (data['lat'] as num).toDouble();
-        double lng = (data['lng'] as num).toDouble();
-        calculatedOffsets.add(_latLngToMapOffset(lat, lng));
+        final decoded = jsonDecode(artistJson);
+        if (decoded is Map) {
+          decoded.forEach((key, value) {
+            if (value is num && value.toInt() > 0) {
+              artistMap[key.toString()] = value.toInt();
+            }
+          });
+        }
       } catch (_) {}
     }
 
-    // --- Permanent counters (survive "Clear History") ---
-    Map<String, int> emotionMap = {'happy': 0, 'sad': 0, 'hype': 0, 'romantic': 0};
-    for (String key in emotionMap.keys.toList()) {
-      emotionMap[key] = prefs.getInt('analytics_emotion_$key') ?? 0;
-    }
-
-    Map<String, int> artistMap = {};
-    final String? artistJson = prefs.getString('analytics_artist_counts');
-    if (artistJson != null) {
-      final decoded = jsonDecode(artistJson) as Map<String, dynamic>;
-      decoded.forEach((key, value) => artistMap[key] = (value as num).toInt());
-    }
-
-    Map<String, int> rawGenreMap = {};
+    final Map<String, int> rawGenreMap = <String, int>{};
     final String? genreJson = prefs.getString('analytics_genre_counts');
     if (genreJson != null) {
-      final decoded = jsonDecode(genreJson) as Map<String, dynamic>;
-      decoded.forEach((key, value) => rawGenreMap[key] = (value as num).toInt());
-    }
-    final defaultFallbacks = ['pop', 'rock', 'indie', 'jazz'];
-    for (String fallback in defaultFallbacks) {
-      rawGenreMap.putIfAbsent(fallback, () => 0);
-    }
-
-    var sortedRawGenres = rawGenreMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    var top4Genres = sortedRawGenres.take(4);
-
-    Map<String, int> top4GenreCounts = {};
-    for (var entry in top4Genres) {
-      top4GenreCounts[entry.key] = entry.value;
+      try {
+        final decoded = jsonDecode(genreJson);
+        if (decoded is Map) {
+          decoded.forEach((key, value) {
+            if (value is! num || value.toInt() <= 0) return;
+            final genre = _normalizeGenre(key.toString());
+            if (genre.isEmpty) return;
+            rawGenreMap[genre] =
+                (rawGenreMap[genre] ?? 0) + value.toInt();
+          });
+        }
+      } catch (_) {}
     }
 
-    var sortedArtists = artistMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final sortedRawGenres = rawGenreMap.entries.toList()
+      ..sort((a, b) {
+        final countCompare = b.value.compareTo(a.value);
+        return countCompare != 0
+            ? countCompare
+            : a.key.compareTo(b.key);
+      });
 
-    List<String> topArtistsList = sortedArtists.map((e) => e.key).take(3).toList();
+    final Map<String, int> top4GenreCounts = <String, int>{
+      for (final entry in sortedRawGenres.take(4)) entry.key: entry.value,
+    };
 
-    String calculatedMajority = 'happy';
-    if (emotionMap.values.any((v) => v > 0)) {
-      var dominant = emotionMap.entries.reduce((a, b) => a.value > b.value ? a : b);
-      if (dominant.value <= 1 && topArtistsList.isNotEmpty) {
+    final sortedArtists = artistMap.entries.toList()
+      ..sort((a, b) {
+        final countCompare = b.value.compareTo(a.value);
+        return countCompare != 0
+            ? countCompare
+            : a.key.toLowerCase().compareTo(b.key.toLowerCase());
+      });
+    final topArtistsList =
+        sortedArtists.take(3).map((entry) => entry.key).toList();
+
+    String calculatedMajority = 'fallback';
+    final positiveEmotions = emotionMap.entries
+        .where((entry) => entry.value > 0)
+        .toList();
+    if (positiveEmotions.isNotEmpty) {
+      positiveEmotions.sort((a, b) => b.value.compareTo(a.value));
+      calculatedMajority = positiveEmotions.first.key;
+      if (positiveEmotions.length > 1 &&
+          positiveEmotions[0].value == positiveEmotions[1].value) {
         calculatedMajority = 'fallback';
-      } else {
-        calculatedMajority = dominant.key;
       }
-    } else {
-      calculatedMajority = 'fallback';
     }
 
-    // Streak is computed from a permanent list of session dates, not from
-    // song_history, so it doesn't reset when history is cleared.
-    List<String> rawSessionDates = prefs.getStringList('analytics_session_dates') ?? [];
-    List<DateTime> sessionDates = rawSessionDates
-        .map((s) => DateTime.tryParse(s))
+    final rawSessionDates =
+        prefs.getStringList('analytics_session_dates') ?? <String>[];
+    final sessionDates = rawSessionDates
+        .map(DateTime.tryParse)
         .whereType<DateTime>()
         .toList();
+    final calculatedStreak = _calculateStreak(sessionDates);
 
-    int calculatedStreak = _calculateStreak(sessionDates);
-
+    if (!mounted) return;
     setState(() {
       _singingStreak = calculatedStreak;
       _topArtists = topArtistsList;
       _emotionCounts = emotionMap;
       _genreCounts = top4GenreCounts;
       _isCurrentlySinging = activeSinging;
-      _livePinLocations = calculatedOffsets;
+      _livePinLocations = calculatedLiveOffsets;
+      _memoryPinLocations = calculatedMemoryOffsets;
       _majorityEmotion = calculatedMajority;
     });
 
     await _handleBiWeeklyPlaylistRotation(prefs);
+
+    // Older history entries did not save genre. Backfill a limited number in
+    // the background once, then refresh this page. New songs already arrive
+    // with real backend/catalog genre and do not need this path.
+    if (allowGenreBackfill && !_genreBackfillStarted) {
+      _genreBackfillStarted = true;
+      unawaited(_backfillLegacyHistoryGenres());
+    }
+  }
+
+  Future<void> _backfillLegacyHistoryGenres() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('analytics_genre_backfill_v2') ?? false) return;
+
+    final history = prefs.getStringList('song_history') ?? <String>[];
+    if (history.isEmpty) {
+      await prefs.setBool('analytics_genre_backfill_v2', true);
+      return;
+    }
+
+    final updatedHistory = List<String>.from(history);
+    final targets = <Map<String, dynamic>>[];
+
+    for (int i = 0; i < history.length && targets.length < 40; i++) {
+      final record = _decodeHistoryAnalyticsEntry(history[i]);
+      final existingGenre = _normalizeGenre(record['genre']?.toString());
+      if (existingGenre.isNotEmpty) continue;
+
+      final title = (record['title'] ?? '').toString().trim();
+      final artist = (record['artist'] ?? '').toString().trim();
+      if (title.isEmpty) continue;
+
+      targets.add({
+        'index': i,
+        'record': record,
+        'title': title,
+        'artist': artist,
+      });
+    }
+
+    const int batchSize = 4;
+    for (int offset = 0; offset < targets.length; offset += batchSize) {
+      final batch = targets.skip(offset).take(batchSize).toList();
+      final metadata = await Future.wait(
+        batch.map(
+          (target) => fetchSongMetadataForSong(
+            target['title'].toString(),
+            target['artist'].toString(),
+          ),
+        ),
+      );
+
+      for (int j = 0; j < batch.length; j++) {
+        final target = batch[j];
+        final record =
+            Map<String, dynamic>.from(target['record'] as Map);
+        final genre = _normalizeGenre(metadata[j].genre);
+        if (genre.isNotEmpty) {
+          record['genre'] = genre;
+        }
+        final savedEmotion = _normalizeEmotion(record['emotion']?.toString());
+        if (savedEmotion.isEmpty) {
+          record['emotion'] = _resolveSongEmotion(
+            title: target['title'].toString(),
+            artist: target['artist'].toString(),
+            genre: genre,
+          );
+        }
+        updatedHistory[target['index'] as int] = jsonEncode(record);
+      }
+    }
+
+    if (targets.isNotEmpty) {
+      await prefs.setStringList('song_history', updatedHistory);
+    }
+
+    // Build genre counts from all history records that now have a known genre.
+    final historyGenreCounts = <String, int>{};
+    for (final raw in updatedHistory) {
+      final record = _decodeHistoryAnalyticsEntry(raw);
+      final genre = _normalizeGenre(record['genre']?.toString());
+      if (genre.isEmpty) continue;
+      historyGenreCounts[genre] = (historyGenreCounts[genre] ?? 0) + 1;
+    }
+
+    // Preserve permanent specific-genre counts from sessions whose history was
+    // cleared, while taking the higher current-history count for each genre.
+    final merged = <String, int>{};
+    final existingJson = prefs.getString('analytics_genre_counts');
+    if (existingJson != null) {
+      try {
+        final decoded = jsonDecode(existingJson);
+        if (decoded is Map) {
+          decoded.forEach((key, value) {
+            final genre = _normalizeGenre(key.toString());
+            if (genre.isNotEmpty && value is num && value.toInt() > 0) {
+              merged[genre] = value.toInt();
+            }
+          });
+        }
+      } catch (_) {}
+    }
+
+    historyGenreCounts.forEach((genre, count) {
+      merged[genre] = max(merged[genre] ?? 0, count).toInt();
+    });
+
+    await prefs.setString('analytics_genre_counts', jsonEncode(merged));
+    await prefs.setBool('analytics_genre_backfill_v2', true);
+
+    if (mounted) {
+      await _computeAnalytics(allowGenreBackfill: false);
+    }
+  }
+
+  String _compactPlaylistTitle(String rawTitle) {
+    var title = rawTitle
+        .replaceAll(' Essentials Mix', ' Mix')
+        .replaceAll(' Essentials', '')
+        .replaceAll('Best of ', '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    if (title.length <= 24) return title;
+
+    if (title.toLowerCase().endsWith(' mix')) {
+      final base = title.substring(0, title.length - 4).trim();
+      final shortened = base.length > 17 ? '${base.substring(0, 17).trim()}…' : base;
+      return '$shortened Mix';
+    }
+    return '${title.substring(0, 23).trim()}…';
   }
 
   Future<void> _handleBiWeeklyPlaylistRotation(SharedPreferences prefs) async {
-    final int fourteenDaysInMs = 14 * 24 * 60 * 60 * 1000;
-    int now = DateTime.now().millisecondsSinceEpoch;
+    const int fourteenDaysInMs = 14 * 24 * 60 * 60 * 1000;
+    final int now = DateTime.now().millisecondsSinceEpoch;
 
     int? lastGeneratedTime = prefs.getInt('playlist_timestamp');
     String? savedPlaylist = prefs.getString('saved_curated_playlist');
 
-    var freshPlaylistData = _curatePlaylistByMajorityEmotion(_majorityEmotion);
+    final freshPlaylistData =
+        _curatePlaylistByMajorityEmotion(_majorityEmotion);
 
-    String selectedTitle = freshPlaylistData['title']!;
-    if (lastGeneratedTime == null || savedPlaylist == null || (now - lastGeneratedTime > fourteenDaysInMs)) {
+    String selectedTitle =
+        _compactPlaylistTitle(freshPlaylistData['title'] ?? 'Feel-Good Mix');
+
+    if (lastGeneratedTime == null ||
+        savedPlaylist == null ||
+        now - lastGeneratedTime > fourteenDaysInMs) {
       await prefs.setInt('playlist_timestamp', now);
       await prefs.setString('saved_curated_playlist', selectedTitle);
       lastGeneratedTime = now;
     } else {
-      selectedTitle = savedPlaylist;
+      // This also migrates previously saved long titles immediately instead of
+      // making the user wait for the next 14-day rotation.
+      selectedTitle = _compactPlaylistTitle(savedPlaylist);
+      if (selectedTitle != savedPlaylist) {
+        await prefs.setString('saved_curated_playlist', selectedTitle);
+      }
     }
 
-    int timeLeft = fourteenDaysInMs - (now - lastGeneratedTime);
-    int daysLeft = timeLeft ~/ (24 * 60 * 60 * 1000);
-    int hoursLeft = (timeLeft % (24 * 60 * 60 * 1000)) ~/ (60 * 60 * 1000);
+    final int timeLeft =
+        max(0, fourteenDaysInMs - (now - lastGeneratedTime)).toInt();
+    final int daysLeft = timeLeft ~/ (24 * 60 * 60 * 1000);
+    final int hoursLeft =
+        (timeLeft % (24 * 60 * 60 * 1000)) ~/ (60 * 60 * 1000);
 
+    if (!mounted) return;
     setState(() {
       _curatedPlaylistTitle = selectedTitle;
-      _streamingUrl = freshPlaylistData['url']!;
+      _streamingUrl = freshPlaylistData['url'] ?? '';
       _countdownText = daysLeft > 0
           ? "${t('next_drop')}: \n ${daysLeft}d ${hoursLeft}h"
           : t('refreshing_soon');
@@ -4167,50 +5202,138 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Map<String, String> _curatePlaylistByMajorityEmotion(String emotion) {
-  final normalizedEmotion = emotion.toLowerCase().trim();
+    final normalizedEmotion = emotion.toLowerCase().trim();
 
-  final Map<String, Map<String, String>> emotionPlaylists = {
-    'sad': {
-      'title': 'Nostaligic Mix',
-      'query': 'Sad Indie',
-    },
-    'hype': {
-      'title': 'Pump Up Mix',
-      'query': 'Workout Hits',
-    },
-    'romantic': {
-      'title': 'Romance Essentials',
-      'query': 'Love Songs Essentials',
-    },
-    'happy': {
-      'title': 'Feel-Good Mix',
-      'query': 'Happy Hits',
-    },
-  };
+    final Map<String, Map<String, String>> emotionPlaylists = {
+      'sad': {
+        'title': 'Nostalgic Mix',
+        'query': 'Sad Indie',
+      },
+      'hype': {
+        'title': 'Pump-Up Mix',
+        'query': 'Workout Hits',
+      },
+      'romantic': {
+        'title': 'Romance Mix',
+        'query': 'Love Songs Essentials',
+      },
+      'happy': {
+        'title': 'Feel-Good Mix',
+        'query': 'Happy Hits',
+      },
+    };
 
-  String title = emotionPlaylists[normalizedEmotion]?['title'] ?? 'Feel-Good Mix';
-  String query = emotionPlaylists[normalizedEmotion]?['query'] ?? 'Happy Hits';
+    String title =
+        emotionPlaylists[normalizedEmotion]?['title'] ?? 'Feel-Good Mix';
+    String query =
+        emotionPlaylists[normalizedEmotion]?['query'] ?? 'Happy Hits';
 
-  // Handle fallback, balanced, empty, or unmapped mood states dynamically
-  if (normalizedEmotion == 'balanced' ||
-      normalizedEmotion.isEmpty ||
-      normalizedEmotion == 'fallback' ||
-      !emotionPlaylists.containsKey(normalizedEmotion)) {
-    if (_topArtists.isNotEmpty) {
-      final topArtistName = _topArtists.first.trim();
-      title = "Best of $topArtistName Essentials Mix";
-      query = "$topArtistName Essentials";
+    if (normalizedEmotion == 'balanced' ||
+        normalizedEmotion.isEmpty ||
+        normalizedEmotion == 'fallback' ||
+        !emotionPlaylists.containsKey(normalizedEmotion)) {
+      if (_topArtists.isNotEmpty) {
+        final topArtistName = _topArtists.first.trim();
+        title = '$topArtistName Mix';
+        query = '$topArtistName Essentials';
+      }
     }
+
+    title = _compactPlaylistTitle(title);
+    final encodedQuery = Uri.encodeComponent(query);
+
+    final url = (_preferredApp == 'apple_music')
+        ? 'https://music.apple.com/us/search?term=$encodedQuery'
+        : 'https://open.spotify.com/search/$encodedQuery/playlists';
+
+    return {'title': title, 'url': url};
   }
 
-  final encodedQuery = Uri.encodeComponent(query);
 
-  final url = (_preferredApp == 'apple_music')
-      ? "https://music.apple.com/us/search?term=$encodedQuery"
-      : "https://open.spotify.com/search/$encodedQuery/playlists";
-
-  return {"title": title, "url": url};
-}
+  Widget _buildAcousticMapPin(
+    Offset pinOffset, {
+    bool live = false,
+    int count = 1,
+    double size = 26,
+  }) {
+    final safeCount = max(1, count);
+    final usageSize = live
+        ? size
+        : min(34.0, 20.0 + (sqrt(safeCount.toDouble()) * 2.5));
+    final usageOpacity = live
+        ? 1.0
+        : min(0.96, 0.58 + (log(safeCount + 1) * 0.10));
+    return Align(
+      alignment: FractionalOffset(pinOffset.dx, pinOffset.dy),
+      child: live
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black38,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    t('live_pin_label'),
+                    style: const TextStyle(
+                      fontSize: 8,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Icon(Icons.location_on, color: Colors.redAccent, size: size),
+              ],
+            )
+          : Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  Icons.location_on,
+                  color: Colors.redAccent.withOpacity(usageOpacity),
+                  size: usageSize,
+                ),
+                if (safeCount > 1)
+                  Positioned(
+                    right: -7,
+                    top: -6,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 18),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1),
+                      ),
+                      child: Text(
+                        safeCount > 99 ? '99+' : '$safeCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
 
 void _showShareCardModal(BuildContext context) {
   final themeColor = Theme.of(context).colorScheme.primary;
@@ -4431,7 +5554,7 @@ void _showShareCardModal(BuildContext context) {
                             )
                           else
                             Column(
-                              children: _genreCounts.entries.take(3).map((genre) {
+                              children: _genreCounts.entries.take(4).map((genre) {
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 3.0),
                                   child: Row(
@@ -4439,7 +5562,7 @@ void _showShareCardModal(BuildContext context) {
                                       Expanded(
                                         flex: 3,
                                         child: Text(
-                                          t(genre.key),
+                                          _genreLabel(genre.key),
                                           style: const TextStyle(fontSize: 11, color: Colors.white),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -4507,43 +5630,22 @@ void _showShareCardModal(BuildContext context) {
                                       ),
                                     ),
                                   ),
-                                  if (_isCurrentlySinging && _livePinLocations.isNotEmpty)
-                                    ..._livePinLocations.map((pinOffset) {
-                                      return Align(
-                                        alignment: FractionalOffset(
-                                          pinOffset.dx,
-                                          pinOffset.dy,
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: Colors.redAccent,
-                                                borderRadius: BorderRadius.circular(8),
-                                                boxShadow: const [
-                                                  BoxShadow(
-                                                    color: Colors.black38,
-                                                    blurRadius: 4,
-                                                    offset: Offset(0, 2),
-                                                  )
-                                                ],
-                                              ),
-                                              child: Text(
-                                                t('live_pin_label'),
-                                                style: const TextStyle(
-                                                  fontSize: 8,
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                            const Icon(Icons.location_on, color: Colors.redAccent, size: 28),
-                                          ],
-                                        ),
-                                      );
-                                    }),
+                                  ..._memoryPinLocations.map(
+                                    (usagePin) => _buildAcousticMapPin(
+                                      usagePin.offset,
+                                      count: usagePin.count,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  if (_isCurrentlySinging &&
+                                      _livePinLocations.isNotEmpty)
+                                    ..._livePinLocations.map(
+                                      (pinOffset) => _buildAcousticMapPin(
+                                        pinOffset,
+                                        live: true,
+                                        size: 30,
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
@@ -4862,13 +5964,15 @@ void _showShareCardModal(BuildContext context) {
                               const SizedBox(height: 4),
                               InkWell(
                                 onTap: _launchStreamingLink,
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
+                                child: SizedBox(
+                                  width: double.infinity,
                                   child: Text(
                                     _curatedPlaylistTitle,
                                     textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      fontSize: 15,
+                                      fontSize: 14,
                                       fontWeight: FontWeight.bold,
                                       color: themeColor,
                                       decoration: TextDecoration.underline,
@@ -4931,35 +6035,22 @@ void _showShareCardModal(BuildContext context) {
                                     ),
                                   ),
                                 ),
-                                if (_isCurrentlySinging && _livePinLocations.isNotEmpty)
-                                  ..._livePinLocations.map((pinOffset) {
-                                    return Align(
-                                      alignment: FractionalOffset(
-                                        pinOffset.dx,
-                                        pinOffset.dy,
+                                ..._memoryPinLocations.map(
+                                    (usagePin) => _buildAcousticMapPin(
+                                      usagePin.offset,
+                                      count: usagePin.count,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  if (_isCurrentlySinging &&
+                                      _livePinLocations.isNotEmpty)
+                                    ..._livePinLocations.map(
+                                      (pinOffset) => _buildAcousticMapPin(
+                                        pinOffset,
+                                        live: true,
+                                        size: 30,
                                       ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.redAccent,
-                                              borderRadius: BorderRadius.circular(8),
-                                              boxShadow: const [
-                                                BoxShadow(color: Colors.black38, blurRadius: 4, offset: Offset(0, 2))
-                                              ],
-                                            ),
-                                            child: const Text(
-                                              "LIVE",
-                                              style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold),
-                                            ),
-                                          ),
-                                          const Icon(Icons.location_on, color: Colors.redAccent, size: 32),
-                                        ],
-                                      ),
-                                    );
-                                  }),
+                                    ),
                               ],
                             ),
                           ),
@@ -4989,7 +6080,7 @@ void _showShareCardModal(BuildContext context) {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  t(sortedGenres[i].key),
+                                  _genreLabel(sortedGenres[i].key),
                                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                                 Text(
@@ -5328,7 +6419,7 @@ class SpotifyService {
 
   /// Searches in small concurrent batches to stay responsive without sending
   /// a large burst of Spotify requests for a long Reczt history.
-  Future<bool> createPlaylistFromHistory(
+  Future<String?> createPlaylistFromHistory(
     String token,
     List<String> songQueries,
     String Function(String) t,
@@ -5349,10 +6440,8 @@ class SpotifyService {
         trackUris.addAll(results.whereType<String>());
       }
 
-      if (trackUris.isEmpty) return false;
+      if (trackUris.isEmpty) return null;
 
-      // Spotify's current API creates a playlist for the authenticated user at
-      // /me/playlists; the old /users/{id}/playlists endpoint was removed.
       final playlistRes = await http.post(
         Uri.parse('https://api.spotify.com/v1/me/playlists'),
         headers: headers,
@@ -5363,12 +6452,13 @@ class SpotifyService {
         }),
       ).timeout(const Duration(seconds: 15));
 
-      if (playlistRes.statusCode != 201) return false;
-      final playlistId = jsonDecode(playlistRes.body)['id']?.toString();
-      if (playlistId == null || playlistId.isEmpty) return false;
+      if (playlistRes.statusCode != 201) return null;
+      final decodedPlaylist = jsonDecode(playlistRes.body);
+      final playlistId = decodedPlaylist is Map
+          ? decodedPlaylist['id']?.toString()
+          : null;
+      if (playlistId == null || playlistId.isEmpty) return null;
 
-      // Spotify now calls these "items" rather than the deprecated /tracks
-      // endpoint. Add in chunks of 100, the playlist API's usual request cap.
       for (int i = 0; i < trackUris.length; i += 100) {
         final uris = trackUris.skip(i).take(100).toList();
         final addRes = await http.post(
@@ -5379,18 +6469,19 @@ class SpotifyService {
           body: jsonEncode({'uris': uris}),
         ).timeout(const Duration(seconds: 15));
         if (addRes.statusCode != 201 && addRes.statusCode != 200) {
-          return false;
+          return null;
         }
       }
 
-      return true;
+      // Returning the ID lets the History page immediately deep-link the user
+      // to the playlist that Reczt just created.
+      return playlistId;
     } catch (e) {
       debugPrint('Spotify playlist creation failed: $e');
-      return false;
+      return null;
     }
   }
-}
-// Updated _exportToSpotify method inside _HistoryPageState
+}// Updated _exportToSpotify method inside _HistoryPageState
 
 // LOCALIZED SEARCH HISTORY & PLAYBACK PAGE
 // ----------------------------------------------------
@@ -5517,24 +6608,32 @@ class _HistoryPageState extends State<HistoryPage> {
 
 String _parseSongTitle(dynamic rawItem) {
   String str = rawItem.toString();
-  if (str.startsWith('{')) {
+  if (str.trimLeft().startsWith('{')) {
     try {
       final parsed = jsonDecode(str);
-      str = parsed['song']?.toString() ?? str;
+      if (parsed is Map) {
+        final explicitTitle = parsed['title']?.toString().trim() ?? '';
+        if (explicitTitle.isNotEmpty) return explicitTitle;
+        str = parsed['song']?.toString() ?? str;
+      }
     } catch (_) {}
   }
   if (str.contains(' - ')) {
     return str.split(' - ').first.trim();
   }
-  return str;
+  return str.trim();
 }
 
 String _parseArtist(dynamic rawItem) {
   String str = rawItem.toString();
-  if (str.startsWith('{')) {
+  if (str.trimLeft().startsWith('{')) {
     try {
       final parsed = jsonDecode(str);
-      str = parsed['song']?.toString() ?? str;
+      if (parsed is Map) {
+        final explicitArtist = parsed['artist']?.toString().trim() ?? '';
+        if (explicitArtist.isNotEmpty) return explicitArtist;
+        str = parsed['song']?.toString() ?? str;
+      }
     } catch (_) {}
   }
   if (str.contains(' - ')) {
@@ -5610,6 +6709,24 @@ Future<void> _togglePlayClip(String? path) async {
   }
 }
 
+  Future<void> _openCreatedSpotifyPlaylist(String playlistId) async {
+    final nativeUri = Uri.parse('spotify:playlist:$playlistId');
+    try {
+      if (await canLaunchUrl(nativeUri)) {
+        await launchUrl(nativeUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (_) {}
+
+    // Spotify's HTTPS playlist link is also a universal link, so devices with
+    // Spotify installed can still hand it directly to the app.
+    final webUri =
+        Uri.parse('https://open.spotify.com/playlist/$playlistId');
+    if (await canLaunchUrl(webUri)) {
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _exportToSpotify() async {
     final selectedTitles = _selectedItems
         .map((item) {
@@ -5617,6 +6734,7 @@ Future<void> _togglePlayClip(String? path) async {
           final artist = _parseArtist(item);
           return artist.isEmpty ? title : '$title $artist';
         })
+        .where((query) => query.trim().isNotEmpty)
         .toList();
 
     if (selectedTitles.isEmpty) return;
@@ -5643,16 +6761,26 @@ Future<void> _togglePlayClip(String? path) async {
       );
     }
 
-    final success = await spotifyService.createPlaylistFromHistory(token, selectedTitles, t);
+    final playlistId = await spotifyService.createPlaylistFromHistory(
+      token,
+      selectedTitles,
+      t,
+    );
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success ? t('playlist_success') : t('playlist_error'),
-          ),
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          playlistId != null
+              ? t('playlist_success')
+              : t('playlist_error'),
         ),
-      );
+      ),
+    );
+
+    if (playlistId != null) {
+      await _openCreatedSpotifyPlaylist(playlistId);
     }
   }
 
@@ -5802,9 +6930,24 @@ Widget _buildHistoryTile(int index) {
           },
         ),
         title: Text(songTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(
-          t('tap_to_play_preferred'),
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (artist.isNotEmpty)
+              Text(
+                '${t('by')} $artist',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            Text(
+              t('tap_to_play_preferred'),
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
