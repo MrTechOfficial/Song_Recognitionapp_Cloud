@@ -13,7 +13,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -21,7 +20,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';  
 
 
 
@@ -32,6 +31,90 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// Single source of truth for the Reczt App Store link. Previously this
 /// was redeclared locally in several functions — consolidated here.
 const String reczAppStoreUrl = "https://apps.apple.com/app/id123456789";
+
+
+/// Native iOS channel used to share a true tappable Link Presentation card.
+/// If the native iOS helper is not installed, sharing falls back to a normal
+/// text + URL share so the feature still works on every platform.
+const MethodChannel _recztRichShareChannel = MethodChannel('reczt/rich_share');
+
+/// Captures a Flutter preview widget only for use as LPLinkMetadata artwork.
+/// The PNG is NOT shared as an attachment; on iOS it becomes the image inside
+/// the tappable rich-link card.
+Future<String?> _captureRichSharePreview(
+  GlobalKey previewKey,
+  String fileName,
+) async {
+  try {
+    final boundary =
+        previewKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) return null;
+
+    final image = await boundary.toImage(pixelRatio: 3.0);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) return null;
+
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/$fileName');
+    await file.writeAsBytes(byteData.buffer.asUint8List(), flush: true);
+    return file.path;
+  } catch (e) {
+    debugPrint('Error preparing rich-share preview: $e');
+    return null;
+  }
+}
+
+Rect? _shareOriginForContext(BuildContext context) {
+  try {
+    final renderObject = context.findRenderObject();
+    if (renderObject is RenderBox && renderObject.hasSize) {
+      return renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    }
+  } catch (_) {}
+  return null;
+}
+
+/// Shares Reczt as an interactive rich link on iOS.
+///
+/// On iOS, the native helper presents UIActivityViewController with
+/// LPLinkMetadata so Messages can display a polished, tappable card whose
+/// destination is [reczAppStoreUrl]. On all other platforms (and as an iOS
+/// safety fallback), this shares the same message plus the Reczt URL.
+Future<void> shareRecztInteractiveCard({
+  required BuildContext context,
+  required String title,
+  required String message,
+  String? previewImagePath,
+}) async {
+  final uri = Uri.parse(reczAppStoreUrl);
+
+  if (!kIsWeb && Platform.isIOS) {
+    try {
+      await _recztRichShareChannel.invokeMethod<void>('shareRichLink', {
+        'title': title,
+        'message': message,
+        'url': uri.toString(),
+        'previewImagePath': previewImagePath,
+      });
+      return;
+    } on MissingPluginException {
+      debugPrint(
+        'Reczt rich-share iOS helper is not registered; using URL-share fallback.',
+      );
+    } on PlatformException catch (e) {
+      debugPrint('Native rich-share failed (${e.code}); using fallback.');
+    } catch (e) {
+      debugPrint('Native rich-share failed: $e');
+    }
+  }
+
+  final origin = _shareOriginForContext(context);
+  await Share.share(
+    '$message\n\n${uri.toString()}',
+    subject: title,
+    sharePositionOrigin: origin,
+  );
+}
 
 /// Fetches the current device location for acoustic-map pin tracking.
 /// Returns null if location services or permissions are unavailable.
@@ -56,53 +139,90 @@ Future<Position?> getCurrentDeviceLocation() async {
   }
 }
 
-/// Fetches album artwork for a song/artist query via the iTunes Search API.
-Future<String?> fetchAlbumArtwork(String query) async {
+/// Lightweight metadata returned by the iTunes Search API.
+/// Reczt uses this only as a metadata fallback after recognition; recognition
+/// itself still comes from your existing backend / ACRCloud pipeline.
+class _SongLookupMetadata {
+  final String? artworkUrl;
+  final String? genre;
+
+  const _SongLookupMetadata({this.artworkUrl, this.genre});
+}
+
+String _normalizeGenre(String? rawGenre) {
+  final value = (rawGenre ?? '').toLowerCase().trim();
+  if (value.isEmpty) return 'other';
+  if (value.contains('rock')) return 'rock';
+  if (value.contains('jazz') || value.contains('blues')) return 'jazz';
+  if (value.contains('alternative') || value.contains('indie') || value.contains('singer/songwriter')) return 'indie';
+  if (value.contains('hip-hop') || value.contains('hip hop') || value.contains('rap')) return 'rap';
+  if (value.contains('classical') || value.contains('orchestra')) return 'classical';
+  if (value.contains('reggae')) return 'reggae';
+  if (value.contains('r&b') || value.contains('rnb') || value.contains('soul')) return 'r&b';
+  if (value.contains('pop')) return 'pop';
+  return 'other';
+}
+
+String _normalizeEmotion(String? rawEmotion) {
+  final value = (rawEmotion ?? '').toLowerCase().trim();
+  if (value.contains('sad') || value.contains('melanch') || value.contains('blue')) return 'sad';
+  if (value.contains('hype') || value.contains('energetic') || value.contains('excited') || value.contains('party')) return 'hype';
+  if (value.contains('romantic') || value.contains('love') || value.contains('tender')) return 'romantic';
+  return 'happy';
+}
+
+/// Fetches artwork and a real catalog genre rather than guessing genre from
+/// words in the song title. The call is short-timeout so it never holds up
+/// recognition for long if Apple's metadata service is unavailable.
+Future<_SongLookupMetadata> fetchSongMetadata(String query) async {
   try {
     final encoded = Uri.encodeComponent(query);
-    final url = Uri.parse('https://itunes.apple.com/search?term=$encoded&entity=song&limit=1');
-    final response = await http.get(url);
+    final url = Uri.parse(
+      'https://itunes.apple.com/search?term=$encoded&entity=song&limit=5',
+    );
+    final response = await http.get(url).timeout(const Duration(seconds: 8));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      if (data['results'] != null && (data['results'] as List).isNotEmpty) {
-        String artwork = data['results'][0]['artworkUrl100'] ?? '';
-        return artwork.isEmpty ? null : artwork.replaceAll('100x100bb', '600x600bb');
+      final results = data['results'];
+      if (results is List && results.isNotEmpty) {
+        final first = Map<String, dynamic>.from(results.first as Map);
+        final artwork = (first['artworkUrl100'] ?? '').toString();
+        final rawGenre = first['primaryGenreName']?.toString();
+        return _SongLookupMetadata(
+          artworkUrl: artwork.isEmpty
+              ? null
+              : artwork.replaceAll('100x100bb', '600x600bb'),
+          genre: rawGenre == null ? null : _normalizeGenre(rawGenre),
+        );
       }
     }
   } catch (e) {
-    debugPrint('Error fetching album cover: $e');
+    debugPrint('Error fetching song metadata: $e');
   }
-  return null;
+  return const _SongLookupMetadata();
 }
 
-/// Infers a rough genre bucket from a song title when the backend doesn't supply one.
-String inferGenreFromTitle(String title) {
-  final lowerTitle = title.toLowerCase();
-  if (lowerTitle.contains('rock') || lowerTitle.contains('band')) return 'rock';
-  if (lowerTitle.contains('jazz') || lowerTitle.contains('blues')) return 'jazz';
-  if (lowerTitle.contains('indie') || lowerTitle.contains('acoustic')) return 'indie';
-  if (lowerTitle.contains('rap') || lowerTitle.contains('hip hop')) return 'rap';
-  if (lowerTitle.contains('classical') || lowerTitle.contains('orchestra')) return 'classical';
-  if (lowerTitle.contains('reggae')) return 'reggae';
-  if (lowerTitle.contains('r&b') || lowerTitle.contains('rnb')) return 'r&b';
-  return 'pop';
+/// Kept as a compatibility helper for the existing QuickShare code.
+Future<String?> fetchAlbumArtwork(String query) async {
+  return (await fetchSongMetadata(query)).artworkUrl;
 }
 
-/// Refines a backend-provided emotion using simple title keyword checks,
-/// matching the heuristic the analytics page used to apply on its own.
-String refineEmotionFromTitle(String title, String backendEmotion) {
-  final lowerTitle = title.toLowerCase();
-  if (lowerTitle.contains('sad') || lowerTitle.contains('blue') || lowerTitle.contains('alone')) return 'sad';
-  if (lowerTitle.contains('party') || lowerTitle.contains('dance') || lowerTitle.contains('hype')) return 'hype';
-  if (lowerTitle.contains('love') || lowerTitle.contains('heart')) return 'romantic';
-  return backendEmotion.isNotEmpty ? backendEmotion : 'happy';
-}
+/// Compatibility wrappers retained so older call sites do not break.
+/// Analytics no longer guesses genre or emotion from title keywords.
+String inferGenreFromTitle(String title) => 'other';
+String refineEmotionFromTitle(String title, String backendEmotion) =>
+    _normalizeEmotion(backendEmotion);
 
 // --------------------------------------------------------------------
 // 🔔 LOCAL NOTIFICATIONS (offline-queue "song found" alert)
 // --------------------------------------------------------------------
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
+Future<void>? _notificationInitializationFuture;
+
+Future<void> ensureLocalNotificationsInitialized() {
+  return _notificationInitializationFuture ??= initLocalNotifications();
+}
 
 Future<void> initLocalNotifications() async {
   const AndroidInitializationSettings androidInit =
@@ -131,6 +251,7 @@ Future<void> initLocalNotifications() async {
 /// song recorded while offline is successfully matched after connectivity
 /// is restored.
 Future<void> showQueuedSongFoundNotification(String lang) async {
+  await ensureLocalNotificationsInitialized();
   final String body =
       localizedStrings[lang]?['queued_song_found'] ?? localizedStrings['en']!['queued_song_found']!;
   const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
@@ -156,14 +277,17 @@ Future<void> showQueuedSongFoundNotification(String lang) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initLocalNotifications();
-  
+
   final prefs = await SharedPreferences.getInstance();
   final int? savedColorValue = prefs.getInt('theme_seed_color');
-  final Color initialSeedColor = savedColorValue != null ? Color(savedColorValue) : Colors.deepPurple;
+  final Color initialSeedColor =
+      savedColorValue != null ? Color(savedColorValue) : Colors.deepPurple;
   final String initialLang = prefs.getString('preferred_language') ?? 'en';
 
   runApp(MyApp(currentLang: initialLang, seedColor: initialSeedColor));
+  // Notification setup no longer blocks the first frame. Any queued-song
+  // notification still awaits this same Future before it is shown.
+  unawaited(ensureLocalNotificationsInitialized());
 }
 
 // --------------------------------------------------------------------
@@ -271,6 +395,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'processing_saved_recording': 'Processing Saved Recording...',
     'queued_song_found': 'Reczt has found your queued song!',
     
+  
+    'waiting_for_voice': 'Waiting for your voice...',
+    'signal_good': 'Good signal',
+    'sing_louder': 'Sing a little louder',
+    'top_guesses_title': 'Top guesses',
+    'top_guesses_subtitle': 'I\'m not completely sure. Tap the song you meant.',
+    'confidence': 'match',
+    'retry_search': 'Retry last recording',
+    'search_timed_out': 'Search took too long. Please retry.',
+    'stop_recording': 'Stop recording',
+    'other': 'Other',
   },
   'es': {
     'app_title': 'Identificador de Canciones',
@@ -370,6 +505,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Abriendo búsqueda en Apple Music para',
     'processing_saved_recording': 'Procesando grabación guardada...',
     'queued_song_found': '¡Reczt ha encontrado tu canción en espera!',
+  
+    'waiting_for_voice': 'Esperando tu voz...',
+    'signal_good': 'Buena señal',
+    'sing_louder': 'Canta un poco más fuerte',
+    'top_guesses_title': 'Mejores opciones',
+    'top_guesses_subtitle': 'No estoy completamente seguro. Toca la canción que querías.',
+    'confidence': 'coincidencia',
+    'retry_search': 'Reintentar la última grabación',
+    'search_timed_out': 'La búsqueda tardó demasiado. Inténtalo de nuevo.',
+    'stop_recording': 'Detener grabación',
+    'other': 'Otro',
   },
   'fr': {
     'app_title': 'Identificateur de Chansons',
@@ -469,6 +615,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Ouverture de la recherche Apple Music pour',
     'processing_saved_recording': 'Traitement de l\'enregistrement sauvegardé...',
     'queued_song_found': 'Reczt a trouvé votre chanson en attente !',
+  
+    'waiting_for_voice': 'En attente de votre voix...',
+    'signal_good': 'Bon signal',
+    'sing_louder': 'Chantez un peu plus fort',
+    'top_guesses_title': 'Meilleures suggestions',
+    'top_guesses_subtitle': 'Je ne suis pas totalement sûr. Touchez la chanson que vous vouliez.',
+    'confidence': 'correspondance',
+    'retry_search': 'Réessayer le dernier enregistrement',
+    'search_timed_out': 'La recherche a pris trop de temps. Réessayez.',
+    'stop_recording': 'Arrêter l’enregistrement',
+    'other': 'Autre',
   },
   'de': {
     'app_title': 'Song-Erkennung',
@@ -568,6 +725,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apple-Music-Suche wird geöffnet für',
     'processing_saved_recording': 'Gespeicherte Aufnahme wird verarbeitet...',
     'queued_song_found': 'Reczt hat deinen wartenden Song gefunden!',
+  
+    'waiting_for_voice': 'Warte auf deine Stimme...',
+    'signal_good': 'Gutes Signal',
+    'sing_louder': 'Sing etwas lauter',
+    'top_guesses_title': 'Beste Treffer',
+    'top_guesses_subtitle': 'Ich bin mir nicht ganz sicher. Tippe auf den gemeinten Song.',
+    'confidence': 'Treffer',
+    'retry_search': 'Letzte Aufnahme erneut versuchen',
+    'search_timed_out': 'Die Suche hat zu lange gedauert. Bitte erneut versuchen.',
+    'stop_recording': 'Aufnahme stoppen',
+    'other': 'Andere',
   },
   'it': {
     'app_title': 'Riconoscimento Brani',
@@ -667,6 +835,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apertura ricerca Apple Music per',
     'processing_saved_recording': 'Elaborazione registrazione salvata...',
     'queued_song_found': 'Reczt ha trovato la tua canzone in coda!',
+  
+    'waiting_for_voice': 'In attesa della tua voce...',
+    'signal_good': 'Segnale buono',
+    'sing_louder': 'Canta un po’ più forte',
+    'top_guesses_title': 'Migliori ipotesi',
+    'top_guesses_subtitle': 'Non sono del tutto sicuro. Tocca la canzone che intendevi.',
+    'confidence': 'corrispondenza',
+    'retry_search': 'Riprova l’ultima registrazione',
+    'search_timed_out': 'La ricerca ha impiegato troppo tempo. Riprova.',
+    'stop_recording': 'Interrompi registrazione',
+    'other': 'Altro',
   },
   'pt': {
     'app_title': 'Identificador de Músicas',
@@ -766,6 +945,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Abrindo busca no Apple Music para',
     'processing_saved_recording': 'Processando gravação salva...',
     'queued_song_found': 'O Reczt encontrou sua música pendente!',
+  
+    'waiting_for_voice': 'Aguardando sua voz...',
+    'signal_good': 'Bom sinal',
+    'sing_louder': 'Cante um pouco mais alto',
+    'top_guesses_title': 'Melhores opções',
+    'top_guesses_subtitle': 'Não tenho certeza completa. Toque na música que você quis dizer.',
+    'confidence': 'correspondência',
+    'retry_search': 'Tentar novamente a última gravação',
+    'search_timed_out': 'A busca demorou demais. Tente novamente.',
+    'stop_recording': 'Parar gravação',
+    'other': 'Outro',
   },
   'ja': {
     'app_title': '楽曲識別アプリ',
@@ -866,6 +1056,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apple Musicで検索を開いています：',
     'processing_saved_recording': '保存された録音を処理中...',
     'queued_song_found': 'Recztがキューに入っていた曲を見つけました！',
+  
+    'waiting_for_voice': '声を待っています…',
+    'signal_good': '良い音量です',
+    'sing_louder': 'もう少し大きな声で歌ってください',
+    'top_guesses_title': '候補',
+    'top_guesses_subtitle': '完全には特定できませんでした。該当する曲をタップしてください。',
+    'confidence': '一致',
+    'retry_search': '最後の録音を再検索',
+    'search_timed_out': '検索に時間がかかりすぎました。もう一度お試しください。',
+    'stop_recording': '録音を停止',
+    'other': 'その他',
   },
   'ko': {
     'app_title': '음악 검색 식별기',
@@ -966,6 +1167,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apple Music에서 검색 여는 중:',
     'processing_saved_recording': '저장된 녹음 처리 중...',
     'queued_song_found': 'Reczt가 대기열에 있던 노래를 찾았습니다!',
+  
+    'waiting_for_voice': '목소리를 기다리는 중...',
+    'signal_good': '신호가 좋아요',
+    'sing_louder': '조금 더 크게 불러 주세요',
+    'top_guesses_title': '추천 후보',
+    'top_guesses_subtitle': '완전히 확신할 수 없어요. 원하던 곡을 눌러 주세요.',
+    'confidence': '일치',
+    'retry_search': '마지막 녹음 다시 검색',
+    'search_timed_out': '검색 시간이 너무 오래 걸렸어요. 다시 시도해 주세요.',
+    'stop_recording': '녹음 중지',
+    'other': '기타',
   },
   'zh': {
     'app_title': '歌曲识别器',
@@ -1066,6 +1278,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': '正在打开 Apple Music 搜索：',
     'processing_saved_recording': '正在处理已保存的录音...',
     'queued_song_found': 'Reczt 已找到你排队等待的歌曲！',
+  
+    'waiting_for_voice': '正在等待你的声音…',
+    'signal_good': '声音信号良好',
+    'sing_louder': '请唱得再大声一点',
+    'top_guesses_title': '最可能的歌曲',
+    'top_guesses_subtitle': '我还不能完全确定。请点选你想找的歌曲。',
+    'confidence': '匹配',
+    'retry_search': '重试上次录音',
+    'search_timed_out': '搜索时间过长，请重试。',
+    'stop_recording': '停止录音',
+    'other': '其他',
   },
   'hi': {
     'app_title': 'गाना पहचानें',
@@ -1166,6 +1389,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'इसके लिए Apple Music खोज खोली जा रही है:',
     'processing_saved_recording': 'सहेजी गई रिकॉर्डिंग को संसाधित किया जा रहा है...',
     'queued_song_found': 'Reczt ने आपके कतार में रखे गाने को ढूंढ लिया है!',
+  
+    'waiting_for_voice': 'आपकी आवाज़ का इंतज़ार है...',
+    'signal_good': 'अच्छा सिग्नल',
+    'sing_louder': 'थोड़ा और तेज़ गाएँ',
+    'top_guesses_title': 'सबसे संभावित विकल्प',
+    'top_guesses_subtitle': 'मैं पूरी तरह निश्चित नहीं हूँ। अपनी गीत वाली पसंद पर टैप करें।',
+    'confidence': 'मिलान',
+    'retry_search': 'पिछली रिकॉर्डिंग फिर खोजें',
+    'search_timed_out': 'खोज में बहुत समय लग गया। कृपया फिर कोशिश करें।',
+    'stop_recording': 'रिकॉर्डिंग रोकें',
+    'other': 'अन्य',
   },
   'ru': {
     'app_title': 'Распознавание Музыки',
@@ -1266,6 +1500,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Открытие поиска в Apple Music для',
     'processing_saved_recording': 'Обработка сохранённой записи...',
     'queued_song_found': 'Reczt нашёл вашу песню из очереди!',
+  
+    'waiting_for_voice': 'Жду ваш голос...',
+    'signal_good': 'Хороший сигнал',
+    'sing_louder': 'Пойте немного громче',
+    'top_guesses_title': 'Лучшие варианты',
+    'top_guesses_subtitle': 'Я не совсем уверен. Нажмите на нужную песню.',
+    'confidence': 'совпадение',
+    'retry_search': 'Повторить поиск последней записи',
+    'search_timed_out': 'Поиск занял слишком много времени. Попробуйте снова.',
+    'stop_recording': 'Остановить запись',
+    'other': 'Другое',
   },
   'tr': {
     'app_title': 'Şarkı Tanıma',
@@ -1366,6 +1611,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Şunun için Apple Music araması açılıyor:',
     'processing_saved_recording': 'Kaydedilen kayıt işleniyor...',
     'queued_song_found': 'Reczt, kuyruktaki şarkınızı buldu!',
+  
+    'waiting_for_voice': 'Sesiniz bekleniyor...',
+    'signal_good': 'İyi sinyal',
+    'sing_louder': 'Biraz daha yüksek sesle söyleyin',
+    'top_guesses_title': 'En iyi tahminler',
+    'top_guesses_subtitle': 'Tam olarak emin değilim. Aradığınız şarkıya dokunun.',
+    'confidence': 'eşleşme',
+    'retry_search': 'Son kaydı yeniden ara',
+    'search_timed_out': 'Arama çok uzun sürdü. Lütfen tekrar deneyin.',
+    'stop_recording': 'Kaydı durdur',
+    'other': 'Diğer',
   },
   'ar': {
     'app_title': 'محدد الأغاني',
@@ -1466,6 +1722,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'جارٍ فتح بحث Apple Music عن',
     'processing_saved_recording': 'جارٍ معالجة التسجيل المحفوظ...',
     'queued_song_found': 'لقد عثر Reczt على أغنيتك المنتظرة في قائمة الانتظار!',
+  
+    'waiting_for_voice': 'بانتظار صوتك...',
+    'signal_good': 'الإشارة جيدة',
+    'sing_louder': 'غنِّ بصوت أعلى قليلًا',
+    'top_guesses_title': 'أفضل الاحتمالات',
+    'top_guesses_subtitle': 'لست متأكدًا تمامًا. اضغط على الأغنية التي تقصدها.',
+    'confidence': 'تطابق',
+    'retry_search': 'إعادة محاولة آخر تسجيل',
+    'search_timed_out': 'استغرق البحث وقتًا طويلًا. حاول مرة أخرى.',
+    'stop_recording': 'إيقاف التسجيل',
+    'other': 'أخرى',
   },
   'nl': {
     'app_title': 'Nummer Herkenner',
@@ -1566,6 +1833,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apple Music-zoekopdracht wordt geopend voor',
     'processing_saved_recording': 'Opgeslagen opname wordt verwerkt...',
     'queued_song_found': 'Reczt heeft je wachtende nummer gevonden!',
+  
+    'waiting_for_voice': 'Wachten op je stem...',
+    'signal_good': 'Goed signaal',
+    'sing_louder': 'Zing iets harder',
+    'top_guesses_title': 'Beste gokjes',
+    'top_guesses_subtitle': 'Ik weet het niet helemaal zeker. Tik op het nummer dat je bedoelde.',
+    'confidence': 'match',
+    'retry_search': 'Laatste opname opnieuw zoeken',
+    'search_timed_out': 'Het zoeken duurde te lang. Probeer het opnieuw.',
+    'stop_recording': 'Opname stoppen',
+    'other': 'Overig',
   },
   'pl': {
     'app_title': 'Rozpoznawanie Muzyki',
@@ -1666,6 +1944,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Otwieranie wyszukiwania Apple Music dla',
     'processing_saved_recording': 'Przetwarzanie zapisanego nagrania...',
     'queued_song_found': 'Reczt znalazł Twoją oczekującą piosenkę!',
+  
+    'waiting_for_voice': 'Czekam na Twój głos...',
+    'signal_good': 'Dobry sygnał',
+    'sing_louder': 'Zaśpiewaj trochę głośniej',
+    'top_guesses_title': 'Najlepsze typy',
+    'top_guesses_subtitle': 'Nie mam całkowitej pewności. Dotknij właściwej piosenki.',
+    'confidence': 'dopasowanie',
+    'retry_search': 'Ponów ostatnie nagranie',
+    'search_timed_out': 'Wyszukiwanie trwało zbyt długo. Spróbuj ponownie.',
+    'stop_recording': 'Zatrzymaj nagrywanie',
+    'other': 'Inne',
   },
 };
 
@@ -1700,8 +1989,11 @@ class MyApp extends StatelessWidget {
 }
 
 enum EnvironmentMode {
-  quiet(duration: 6, icon: Icons.king_bed, key: 'quiet_room'),
-  loud(duration: 8, icon: Icons.volume_up, key: 'loud_room'),
+  // ACRCloud humming/cover recognition generally benefits from a longer
+  // melodic sample. Reczt still stops early when it has captured enough
+  // usable singing, but these are the safe maximum listen windows.
+  quiet(duration: 10, icon: Icons.king_bed, key: 'quiet_room'),
+  loud(duration: 12, icon: Icons.volume_up, key: 'loud_room'),
   Outdoors(duration: 12, icon: Icons.forest, key: 'Outdoors');
 
   final int duration;
@@ -1713,6 +2005,173 @@ enum EnvironmentMode {
     required this.icon,
     required this.key,
   });
+}
+
+/// Normalized candidate shape used by the app regardless of whether your
+/// backend returns its existing flattened response or raw-ish ACRCloud humming
+/// metadata. Scores are normalized to 0.0-1.0 when present.
+class _SongMatchCandidate {
+  final Map<String, dynamic> raw;
+  final String title;
+  final String artist;
+  final double? confidence;
+  final String? genre;
+  final String? emotion;
+  final String? spotifyUrl;
+  final String? appleMusicUrl;
+  final String? coverUrl;
+
+  const _SongMatchCandidate({
+    required this.raw,
+    required this.title,
+    required this.artist,
+    required this.confidence,
+    this.genre,
+    this.emotion,
+    this.spotifyUrl,
+    this.appleMusicUrl,
+    this.coverUrl,
+  });
+
+  factory _SongMatchCandidate.fromMap(Map<String, dynamic> item) {
+    String title = (item['title'] ?? item['name'] ?? '').toString().trim();
+
+    String artist = '';
+    final dynamic rawArtist = item['artist'];
+    if (rawArtist != null) {
+      artist = rawArtist.toString().trim();
+    }
+    if (artist.isEmpty && item['artists'] is List) {
+      final artists = item['artists'] as List;
+      if (artists.isNotEmpty) {
+        final first = artists.first;
+        if (first is Map) {
+          artist = (first['name'] ?? '').toString().trim();
+        } else {
+          artist = first.toString().trim();
+        }
+      }
+    }
+
+    double? score;
+    for (final key in const [
+      'confidence',
+      'score',
+      'humming_score',
+      'hummingScore',
+      'match_score',
+      'confidence_score',
+      'matchConfidence',
+      'acrcloud_score',
+      'similarity',
+    ]) {
+      final dynamic value = item[key];
+      if (value == null) continue;
+      final parsed =
+          value is num ? value.toDouble() : double.tryParse(value.toString());
+      if (parsed != null) {
+        final normalizedScore = parsed > 1.0 ? parsed / 100.0 : parsed;
+        score = normalizedScore.clamp(0.0, 1.0).toDouble();
+        break;
+      }
+    }
+
+    String? genre;
+    final dynamic rawGenre = item['genre'];
+    if (rawGenre != null && rawGenre.toString().trim().isNotEmpty) {
+      genre = _normalizeGenre(rawGenre.toString());
+    } else if (item['genres'] is List && (item['genres'] as List).isNotEmpty) {
+      final first = (item['genres'] as List).first;
+      final value = first is Map ? first['name'] : first;
+      if (value != null) genre = _normalizeGenre(value.toString());
+    }
+
+    final String? emotion = item['emotion']?.toString();
+
+    String? spotifyUrl = item['spotify_url']?.toString();
+    String? appleMusicUrl = item['apple_music_url']?.toString();
+    String? coverUrl =
+        (item['cover_url'] ?? item['album_art'] ?? item['artwork_url'])?.toString();
+
+    final externalMetadata = item['external_metadata'];
+    if (externalMetadata is Map) {
+      final spotify = externalMetadata['spotify'];
+      if ((spotifyUrl == null || spotifyUrl.isEmpty) && spotify is Map) {
+        final track = spotify['track'];
+        final id = track is Map ? track['id'] : spotify['id'];
+        if (id != null && id.toString().isNotEmpty) {
+          spotifyUrl = 'https://open.spotify.com/track/${id.toString()}';
+        }
+      }
+      final apple = externalMetadata['apple_music'];
+      if ((appleMusicUrl == null || appleMusicUrl.isEmpty) && apple is Map) {
+        final url = apple['url'] ?? apple['link'];
+        if (url != null) appleMusicUrl = url.toString();
+      }
+    }
+
+    return _SongMatchCandidate(
+      raw: item,
+      title: title.isEmpty ? 'Unknown Title' : title,
+      artist: artist.isEmpty ? 'Unknown Artist' : artist,
+      confidence: score,
+      genre: genre,
+      emotion: emotion,
+      spotifyUrl: spotifyUrl,
+      appleMusicUrl: appleMusicUrl,
+      coverUrl: coverUrl,
+    );
+  }
+}
+
+List<Map<String, dynamic>> _extractRecognitionResults(Map<String, dynamic> data) {
+  final direct = data['results'];
+  if (direct is List) {
+    return direct
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  final metadata = data['metadata'];
+  if (metadata is Map) {
+    final humming = metadata['humming'];
+    if (humming is List) {
+      return humming
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    final music = metadata['music'];
+    if (music is List) {
+      return music
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+  }
+
+  final humming = data['humming'];
+  if (humming is List) {
+    return humming
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  return [data];
+}
+
+bool _backendResponseSucceeded(Map<String, dynamic> data) {
+  if (data['success'] == true) return true;
+  final status = data['status'];
+  if (status is Map) {
+    final code = status['code'];
+    if (code == 0 || code?.toString() == '0') return true;
+  }
+  return data['results'] is List ||
+      data['metadata'] is Map ||
+      data['humming'] is List;
 }
 
 class AudioRecorderScreen extends StatefulWidget {
@@ -1746,29 +2205,22 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
-    _errorPlayer = AudioPlayer();
 
-    _loadSavedMode();
-    _loadPreferences();
-    _checkPendingOfflineQueue();
+    unawaited(_loadStartupState());
 
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen((results) {
       if (!results.contains(ConnectivityResult.none)) {
-        _checkPendingOfflineQueue();
+        unawaited(_checkPendingOfflineQueue());
       }
     });
 
     if (!kIsWeb) {
-      _initSiriListener();
+      // One MethodChannel handler owns every Siri entry point. Registering a
+      // second handler on the same channel replaces the first one.
+      unawaited(_initSiriListener());
+      unawaited(_checkColdStartSiri());
     }
-
-    _siriChannel.setMethodCallHandler((call) async {
-      if (call.method == 'startSiriRecognition') {
-        _checkAndStartSiriRecording();
-      }
-    });
-
-    _checkColdStartSiri();
   }
   
   String _getDisplayStatusText() {
@@ -1776,7 +2228,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       return _customStatusText!;
     }
     if (_isRecording) {
-      return '${t('listening')} (${_secondsRemaining}s)';
+      if (!_voiceDetected && _voiceWaitSeconds < _maxVoiceWaitSeconds) {
+        return t('waiting_for_voice');
+      }
+      final signalText = _currentAmplitudeDb >= _voiceThresholdDb
+          ? t('signal_good')
+          : t('sing_louder');
+      return '$signalText • ${_secondsRemaining}s';
     }
     return t(_statusTextKey);
   }
@@ -1787,7 +2245,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     if (launchedFromSiri) {
       await prefs.setBool('launchedFromSiri', false);
-      _checkAndStartSiriRecording();
+      unawaited(_checkAndStartSiriRecording());
     }
   }
 
@@ -1800,7 +2258,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
         if (await _audioRecorder.hasPermission()) {
           if (mounted && !_isRecording) {
-            _startRecording();
+            unawaited(_startRecording());
           }
         }
       }
@@ -1812,12 +2270,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _autoStopTimer?.cancel();
     _countdownTimer?.cancel();
+    _amplitudeSubscription?.cancel();
     _connectivitySubscription?.cancel();
+    if (!kIsWeb) {
+      _siriChannel.setMethodCallHandler(null);
+    }
     _audioRecorder.dispose();
     _dingPlayer.dispose();
-    _errorPlayer.dispose();
     super.dispose();
   }
 
@@ -1825,26 +2285,43 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _checkAndStartSiriRecording();
-        _checkPendingOfflineQueue();
+        unawaited(_checkAndStartSiriRecording());
+        unawaited(_checkPendingOfflineQueue());
       });
     }
   }
 
   late final AudioPlayer _dingPlayer;
-  late final AudioPlayer _errorPlayer;
   late final AudioRecorder _audioRecorder;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  StreamSubscription<Amplitude>? _amplitudeSubscription;
 
   bool _isRecording = false;
+  bool _isStoppingRecording = false;
   bool _isLoading = false;
   bool _autoPlayEnabled = true;
+  bool _offlineQueueProcessing = false;
+
+  // Live microphone quality state. This drives the animated voice meter and
+  // lets the countdown wait briefly for the user to actually begin singing.
+  double _micLevel = 0.0;
+  double _currentAmplitudeDb = -60.0;
+  bool _voiceDetected = false;
+  int _voiceWaitSeconds = 0;
+  int _usableVoiceMilliseconds = 0;
+  bool _autoStopRequested = false;
+  static const int _maxVoiceWaitSeconds = 4;
+
+  // Retry / ambiguous-result state. Top guesses are only surfaced when
+  // Auto Play is OFF so hands-free use is never interrupted.
+  String? _lastFailedAudioPath;
+  String? _pendingGuessAudioPath;
+  List<_SongMatchCandidate> _topGuesses = <_SongMatchCandidate>[];
   // Normalized map coordinates for locations displayed while singing.
   final List<Offset> _livePinLocations = <Offset>[];
 
   EnvironmentMode _selectedMode = EnvironmentMode.Outdoors;
   int _secondsRemaining = 12;
-  Timer? _autoStopTimer;
   Timer? _countdownTimer;
 
   String _preferredMusicApp = 'spotify';
@@ -1882,13 +2359,18 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   final String _backendUrl =
       'https://song-recognitionapp-cloud.onrender.com/recognize';
 
-  final String _errorSoundUrl =
-      'https://assets.mixkit.co/active_storage/sfx/2873/2873-preview.mp3';
-
   String t(String key) {
     return localizedStrings[_selectedLanguage]?[key] ??
         localizedStrings['en']![key] ??
         key;
+  }
+
+  Future<void> _loadStartupState() async {
+    await _loadSavedMode();
+    await _loadPreferences();
+    if (mounted) {
+      await _checkPendingOfflineQueue();
+    }
   }
 
   Future<void> _loadPreferences() async {
@@ -1898,6 +2380,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     final int? savedColorValue = prefs.getInt('theme_seed_color');
     final bool? savedAutoPlay = prefs.getBool('auto_play_enabled');
 
+    if (!mounted) return;
     setState(() {
       _preferredMusicApp = savedApp ?? 'spotify';
       _selectedLanguage = savedLang ?? 'en';
@@ -2045,30 +2528,39 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     );
   }
 
-  void _initSiriListener() {
+  Future<void> _initSiriListener() async {
     _siriChannel.setMethodCallHandler((call) async {
-      if (call.method == 'onSiriTrigger' || call.method == 'triggerSiriRecord') {
-        _triggerAutoRecordingFromSiri();
+      switch (call.method) {
+        case 'onSiriTrigger':
+        case 'triggerSiriRecord':
+          _triggerAutoRecordingFromSiri();
+          break;
+        case 'startSiriRecognition':
+          await _checkAndStartSiriRecording();
+          break;
       }
     });
 
-    _siriChannel.invokeMethod<String>('getInitialUrl').then((url) {
+    try {
+      final url = await _siriChannel.invokeMethod<String>('getInitialUrl');
       if (url != null && url.isNotEmpty) {
         _triggerAutoRecordingFromSiri();
+        return;
       }
-    });
-
-    _siriChannel.invokeMethod<bool>('checkSiriTrigger').then((triggered) {
+      final triggered =
+          await _siriChannel.invokeMethod<bool>('checkSiriTrigger');
       if (triggered == true) {
         _triggerAutoRecordingFromSiri();
       }
-    });
+    } catch (e) {
+      debugPrint('Siri listener unavailable: $e');
+    }
   }
 
   void _triggerAutoRecordingFromSiri() {
     Future.delayed(const Duration(milliseconds: 300), () {
       if (!_isRecording && !_isLoading && mounted) {
-        _startRecording(playDing: true);
+        unawaited(_startRecording(playDing: true));
       }
     });
   }
@@ -2080,7 +2572,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     final savedIndex = prefs.getInt('selected_environment_mode');
     if (savedIndex != null &&
         savedIndex >= 0 &&
-        savedIndex < EnvironmentMode.values.length) {
+        savedIndex < EnvironmentMode.values.length &&
+        mounted) {
       setState(() {
         _selectedMode = EnvironmentMode.values[savedIndex];
         _secondsRemaining = _selectedMode.duration;
@@ -2097,12 +2590,28 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     await prefs.setInt('selected_environment_mode', mode.index);
   }
 
+  Future<void> _deleteLocalFile(String? path) async {
+    if (kIsWeb || path == null || path.isEmpty) return;
+    try {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      debugPrint('Could not delete temporary audio file: $e');
+    }
+  }
+
   Future<String?> _preserveAudioClip(String tempPath) async {
     if (kIsWeb) return null;
     try {
+      final source = File(tempPath);
+      if (!await source.exists()) return null;
       final appDir = await getApplicationDocumentsDirectory();
-      final String fileName = 'clip_${DateTime.now().millisecondsSinceEpoch}.wav';
-      final File savedFile = await File(tempPath).copy('${appDir.path}/$fileName');
+      final String fileName =
+          'clip_${DateTime.now().microsecondsSinceEpoch}.wav';
+      final File savedFile =
+          await source.copy('${appDir.path}/$fileName');
       return savedFile.path;
     } catch (e) {
       debugPrint('Error preserving audio clip: $e');
@@ -2110,314 +2619,699 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     }
   }
 
-  Future<void> _saveToHistory(String songEntry, {String? audioPath, String? albumCover}) async {
+  Future<void> _saveToHistory(
+    String songEntry, {
+    String? audioPath,
+    String? albumCover,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> history = prefs.getStringList('song_history') ?? [];
-    
+    final List<String> history = prefs.getStringList('song_history') ?? [];
+
     final Map<String, dynamic> historyObj = {
       'song': songEntry,
       'audioPath': audioPath ?? '',
       'albumCover': albumCover ?? '',
     };
-    
+
     history.insert(0, jsonEncode(historyObj));
     await prefs.setStringList('song_history', history);
   }
 
   Future<void> _playSingleDing() async {
     try {
-      final player = AudioPlayer();
-      await player.play(AssetSource('ding.mp3'));
+      await _dingPlayer.stop();
+      await _dingPlayer.play(AssetSource('ding.mp3'));
     } catch (e) {
       debugPrint('Error playing ding sound: $e');
     }
   }
 
   Future<void> _playErrorCue() async {
+    // Keep failure feedback entirely local. The previous remote MP3 could fail
+    // precisely when the network was already having trouble.
     try {
-      await _errorPlayer.play(UrlSource(_errorSoundUrl));
-      await HapticFeedback.vibrate();
-    } catch (e) {
-      debugPrint('Error playing failure sound: $e');
+      await SystemSound.play(SystemSoundType.alert);
+    } catch (_) {}
+    try {
+      await HapticFeedback.mediumImpact();
+    } catch (_) {}
+  }
+
+  double get _voiceThresholdDb {
+    switch (_selectedMode) {
+      case EnvironmentMode.quiet:
+        return -45.0;
+      case EnvironmentMode.loud:
+        return -35.0;
+      case EnvironmentMode.Outdoors:
+        return -37.0;
     }
   }
 
-  Future<void> _saveToOfflineQueue(String path) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
-    pendingQueue.add(path);
-    await prefs.setStringList('pending_offline_songs', pendingQueue);
+  int get _targetUsableVoiceMilliseconds {
+    switch (_selectedMode) {
+      case EnvironmentMode.quiet:
+        return 7500;
+      case EnvironmentMode.loud:
+        return 8500;
+      case EnvironmentMode.Outdoors:
+        return 9000;
+    }
   }
 
-  Future<void> _checkPendingOfflineQueue() async {
-    try {
-      final connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult.contains(ConnectivityResult.none)) {
+  double get _dynamicConfidenceThreshold {
+    // ACRCloud humming scores are commonly returned on a 0-1 scale. We keep
+    // these thresholds intentionally moderate and only use them to decide
+    // whether to ASK the user among multiple guesses when Auto Play is off.
+    switch (_selectedMode) {
+      case EnvironmentMode.quiet:
+        return 0.58;
+      case EnvironmentMode.loud:
+        return 0.62;
+      case EnvironmentMode.Outdoors:
+        return 0.64;
+    }
+  }
+
+  RecordConfig _recordConfigForCurrentEnvironment() {
+    return RecordConfig(
+      encoder: AudioEncoder.wav,
+      sampleRate: 44100,
+      numChannels: 1,
+      autoGain: true,
+      noiseSuppress: _selectedMode != EnvironmentMode.quiet,
+      echoCancel: _selectedMode == EnvironmentMode.loud,
+    );
+  }
+
+  void _startAmplitudeMonitoring() {
+    _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = _audioRecorder
+        .onAmplitudeChanged(const Duration(milliseconds: 140))
+        .listen((amplitude) {
+      if (!mounted || !_isRecording) return;
+
+      final double rawDb = amplitude.current.isFinite
+          ? amplitude.current
+          : -60.0;
+      final double normalized =
+          ((rawDb + 60.0) / 50.0).clamp(0.0, 1.0).toDouble();
+      final bool usableVoice = rawDb >= _voiceThresholdDb;
+
+      if (usableVoice) {
+        _voiceDetected = true;
+        _usableVoiceMilliseconds += 140;
+      }
+
+      setState(() {
+        _currentAmplitudeDb = rawDb;
+        _micLevel = normalized;
+      });
+
+      if (!_autoStopRequested &&
+          _voiceDetected &&
+          _usableVoiceMilliseconds >= _targetUsableVoiceMilliseconds) {
+        _autoStopRequested = true;
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && _isRecording && !_isStoppingRecording) {
+            unawaited(_stopAndSendRecording());
+          }
+        });
+      }
+    });
+  }
+
+  void _startSmartCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || !_isRecording) {
+        timer.cancel();
         return;
       }
 
-      final prefs = await SharedPreferences.getInstance();
-      List<String> pendingQueue = prefs.getStringList('pending_offline_songs') ?? [];
-      if (pendingQueue.isNotEmpty) {
-        final String path = pendingQueue.removeAt(0);
-        await prefs.setStringList('pending_offline_songs', pendingQueue);
+      // Do not waste the first few seconds if the user triggered Reczt before
+      // they were ready to sing. After four seconds we count down anyway so
+      // noisy environments can never leave recording open indefinitely.
+      if (!_voiceDetected && _voiceWaitSeconds < _maxVoiceWaitSeconds) {
+        setState(() {
+          _voiceWaitSeconds++;
+        });
+        return;
+      }
 
-        await _sendAudioToBackend(path, isFromOfflineQueue: true);
+      if (_secondsRemaining > 0) {
+        setState(() {
+          _secondsRemaining--;
+        });
+      }
+      if (_secondsRemaining <= 0) {
+        timer.cancel();
+        if (!_isStoppingRecording) {
+          unawaited(_stopAndSendRecording());
+        }
+      }
+    });
+  }
+
+  bool _shouldOfferTopGuesses(List<_SongMatchCandidate> candidates) {
+    if (_autoPlayEnabled || candidates.isEmpty) return false;
+    final double? top = candidates.first.confidence;
+    if (top == null) return false;
+
+    if (top < _dynamicConfidenceThreshold) return true;
+
+    if (candidates.length > 1) {
+      final second = candidates[1].confidence;
+      if (second != null && top < 0.92 && (top - second).abs() < 0.06) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<String?> _saveToOfflineQueue(String sourcePath) async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> pendingQueue =
+        prefs.getStringList('pending_offline_songs') ?? [];
+
+    String queuedPath = sourcePath;
+    if (!kIsWeb) {
+      try {
+        final source = File(sourcePath);
+        if (!await source.exists()) return null;
+        final appDir = await getApplicationDocumentsDirectory();
+        queuedPath =
+            '${appDir.path}/offline_${DateTime.now().microsecondsSinceEpoch}.wav';
+        await source.copy(queuedPath);
+      } catch (e) {
+        debugPrint('Error persisting offline recording: $e');
+        return null;
+      }
+    }
+
+    if (!pendingQueue.contains(queuedPath)) {
+      pendingQueue.add(queuedPath);
+      await prefs.setStringList('pending_offline_songs', pendingQueue);
+    }
+    return queuedPath;
+  }
+
+  Future<void> _checkPendingOfflineQueue() async {
+    if (_offlineQueueProcessing || _isRecording || _isLoading) return;
+
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult.contains(ConnectivityResult.none)) return;
+
+    _offlineQueueProcessing = true;
+    try {
+      while (mounted && !_isRecording && !_isLoading) {
+        final prefs = await SharedPreferences.getInstance();
+        final List<String> queue =
+            prefs.getStringList('pending_offline_songs') ?? [];
+        if (queue.isEmpty) break;
+
+        final String path = queue.first;
+        if (!kIsWeb && !await File(path).exists()) {
+          queue.removeAt(0);
+          await prefs.setStringList('pending_offline_songs', queue);
+          continue;
+        }
+
+        final online = await Connectivity().checkConnectivity();
+        if (online.contains(ConnectivityResult.none)) break;
+
+        final bool processed =
+            await _sendAudioToBackend(path, isFromOfflineQueue: true);
+        if (!processed) break;
+
+        final freshPrefs = await SharedPreferences.getInstance();
+        final List<String> freshQueue =
+            freshPrefs.getStringList('pending_offline_songs') ?? [];
+        freshQueue.remove(path);
+        await freshPrefs.setStringList('pending_offline_songs', freshQueue);
+        await _deleteLocalFile(path);
       }
     } catch (e) {
       debugPrint('Error checking offline queue: $e');
+    } finally {
+      _offlineQueueProcessing = false;
+    }
+  }
+
+  Future<void> _clearAmbiguousResult({bool deleteAudio = true}) async {
+    final path = _pendingGuessAudioPath;
+    _pendingGuessAudioPath = null;
+    if (mounted) {
+      setState(() {
+        _topGuesses = <_SongMatchCandidate>[];
+      });
+    } else {
+      _topGuesses = <_SongMatchCandidate>[];
+    }
+    if (deleteAudio) {
+      await _deleteLocalFile(path);
     }
   }
 
   Future<void> _stopAndSendRecording() async {
-    _autoStopTimer?.cancel();
+    if (_isStoppingRecording || !_isRecording) return;
+    _isStoppingRecording = true;
     _countdownTimer?.cancel();
+    await _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = null;
     _isExplicitlyPausedForRecording = false;
     await _endLiveSingingTracking();
 
     try {
-      setState(() {
-        _isRecording = false;
-        _isLoading = true;
-        _statusTextKey = 'searching';
-        _customStatusText = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _micLevel = 0.0;
+          _isLoading = true;
+          _statusTextKey = 'searching';
+          _customStatusText = null;
+        });
+      }
 
       final path = await _audioRecorder.stop();
 
       if (path != null && path.isNotEmpty) {
         final connectivityResult = await Connectivity().checkConnectivity();
         if (connectivityResult.contains(ConnectivityResult.none)) {
-          await _saveToOfflineQueue(path);
-          setState(() {
-            _isLoading = false;
-            _customStatusText = t('offline_saved');
-          });
+          final queuedPath = await _saveToOfflineQueue(path);
+          await _deleteLocalFile(path);
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _customStatusText = queuedPath != null
+                  ? t('offline_saved')
+                  : t('connection_failed');
+            });
+          }
           return;
         }
 
-        await _sendAudioToBackend(path);
+        final bool processed = await _sendAudioToBackend(path);
+        if (processed) {
+          if (_lastFailedAudioPath == path) _lastFailedAudioPath = null;
+          await _deleteLocalFile(path);
+        }
       } else {
-        setState(() {
-          _isLoading = false;
-          _customStatusText = t('error_empty_path');
-        });
-        _playErrorCue();
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _customStatusText = t('error_empty_path');
+          });
+        }
+        unawaited(_playErrorCue());
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _customStatusText = '${t('error_stopping')}: $e';
-      });
-      _playErrorCue();
-    }
-  }
-
-  Future<void> _sendAudioToBackend(String path, {bool isFromOfflineQueue = false}) async {
-  final uri = Uri.parse(_backendUrl);
-  var request = http.MultipartRequest('POST', uri);
-  request.fields['language'] = _selectedLanguage;
-  request.fields['vocal_isolation'] = 'true'; 
-  request.fields['environment'] = _selectedMode.name; 
-
-  try {
-    if (kIsWeb) {
-      final response = await http.get(Uri.parse(path));
-      final bytes = response.bodyBytes;
-      request.files.add(
-        http.MultipartFile.fromBytes('file', bytes, filename: 'recording.wav'),
-      );
-    } else {
-      request.files.add(await http.MultipartFile.fromPath('file', path));
-      if (path.startsWith('Offline Search')) {
-        await Future.delayed(const Duration(seconds: 1));
+      if (mounted) {
         setState(() {
           _isLoading = false;
-          _songTitle = 'Queued Song Match';
-          _artist = 'Discovered Offline';
-          _statusTextKey = 'match_found';
+          _customStatusText = '${t('error_stopping')}: $e';
         });
-        await _saveToHistory('Queued Song Match - Discovered Offline');
-        _checkPendingOfflineQueue();
-        return;
       }
+      unawaited(_playErrorCue());
+    } finally {
+      _isStoppingRecording = false;
+    }
+  }
+
+  Future<void> _retryLastRecording() async {
+    final String? path = _lastFailedAudioPath;
+    if (path == null || path.isEmpty || _isLoading || _isRecording) return;
+    if (!kIsWeb && !await File(path).exists()) {
+      _lastFailedAudioPath = null;
+      if (mounted) setState(() {});
+      return;
     }
 
-    var streamedResponse = await request.send();
-    var response = await http.Response.fromStream(streamedResponse);
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _customStatusText = null;
+        _statusTextKey = 'searching';
+      });
+    }
 
-    setState(() {
-      _isLoading = false;
-    });
+    final bool processed = await _sendAudioToBackend(path);
+    if (processed) {
+      _lastFailedAudioPath = null;
+      await _deleteLocalFile(path);
+      if (mounted) setState(() {});
+    }
+  }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+  Future<bool> _sendAudioToBackend(
+    String path, {
+    bool isFromOfflineQueue = false,
+  }) async {
+    final uri = Uri.parse(_backendUrl);
+    final request = http.MultipartRequest('POST', uri);
+    request.fields['language'] = _selectedLanguage;
+    request.fields['vocal_isolation'] = 'true';
+    request.fields['environment'] = _selectedMode.name;
 
-      if (data['success'] == true) {
-        final List<Map<String, dynamic>> rawResults = data['results'] != null
-            ? List<Map<String, dynamic>>.from(data['results'])
-            : [data];
-
-        final filteredResults =
-            LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
-          results: rawResults,
-          selectedLanguage: _selectedLanguage,
-          getLanguage: (item) => item['language']?.toString() ?? 'en',
-          mode: _selectedMode,
+    try {
+      if (kIsWeb) {
+        final sourceResponse =
+            await http.get(Uri.parse(path)).timeout(const Duration(seconds: 12));
+        final bytes = sourceResponse.bodyBytes;
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: 'recording.wav',
+          ),
         );
+      } else {
+        request.files.add(await http.MultipartFile.fromPath('file', path));
+      }
 
-        final validResults = filteredResults.where((item) {
-          return LanguageMatcher.isValidOriginalSong(item);
-        }).toList();
+      final streamedResponse =
+          await request.send().timeout(const Duration(seconds: 25));
+      final response = await http.Response.fromStream(streamedResponse)
+          .timeout(const Duration(seconds: 8));
 
-if (validResults.isNotEmpty) {
-  final topMatch = validResults.first;
-  final String title = topMatch['title'] ?? 'Unknown Title';
-  final String artist = topMatch['artist'] ?? 'Unknown Artist';
-  final String backendEmotion = topMatch['emotion'] ?? 'happy'; // Extract emotion from backend if available
-  final String emotion = refineEmotionFromTitle(title, backendEmotion);
-  final String genre = inferGenreFromTitle(title);
+      if (mounted && !isFromOfflineQueue) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
 
-  setState(() {
-    _songTitle = title;
-    _artist = artist;
-    _spotifyUrl = topMatch['spotify_url'];
-    _appleMusicUrl = topMatch['apple_music_url'];
-    _statusTextKey = 'match_found';
-    _customStatusText = null;
-  });
-  
-  final preservedClipPath = await _preserveAudioClip(path);
-  final String? albumArt = await fetchAlbumArtwork('$title $artist');
-  if (mounted) {
-    setState(() {
-      _albumArtUrl = albumArt;
-    });
-  }
-
-  // --- SAVE TO HISTORY (Temporary display log) ---
-  await _saveToHistory('$title - $artist', audioPath: preservedClipPath, albumCover: albumArt);
-
-  // --- SAVE TO ANALYTICS (Permanent counters, independent of history) ---
-  await recordSessionToAnalytics(
-    songTitle: title,
-    artistName: artist,
-    primaryEmotion: emotion,
-    genre: genre,
-    latitude: _sessionLocation?.latitude,
-    longitude: _sessionLocation?.longitude,
-  );
-
-  _checkPendingOfflineQueue();
-
-  if (isFromOfflineQueue) {
-    unawaited(showQueuedSongFoundNotification(_selectedLanguage));
-  }
-  // ... rest of autoPlay logic ...
-
-          if (_autoPlayEnabled) {
-            if (_preferredMusicApp == 'apple_music' &&
-                _appleMusicUrl != null &&
-                _appleMusicUrl!.isNotEmpty) {
-              _openMusicUrl(_appleMusicUrl!);
-            } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
-              _openSpotifyNative(_spotifyUrl!);
+      if (response.statusCode != 200) {
+        final bool retryable =
+            response.statusCode >= 500 || response.statusCode == 429;
+        if (mounted) {
+          setState(() {
+            _customStatusText =
+                '${t('server_error')}: ${response.statusCode}';
+            if (!isFromOfflineQueue) {
+              _lastFailedAudioPath = retryable ? path : null;
             }
-          }
-        } else {
-          _playErrorCue();
+          });
+        }
+        unawaited(_playErrorCue());
+        // For an offline queue, permanent 4xx responses are consumed so a bad
+        // item cannot block every recording behind it. Retryable errors stay queued.
+        return !retryable;
+      }
+
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map) {
+        throw FormatException('Recognition response was not an object');
+      }
+      final data = Map<String, dynamic>.from(decoded);
+
+      if (!_backendResponseSucceeded(data)) {
+        if (mounted) {
+          setState(() {
+            _customStatusText = t('error_no_lyrics');
+          });
+        }
+        unawaited(_playErrorCue());
+        return true;
+      }
+
+      final List<Map<String, dynamic>> rawResults =
+          _extractRecognitionResults(data);
+
+      final filteredResults =
+          LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
+        results: rawResults,
+        selectedLanguage: _selectedLanguage,
+        getLanguage: (item) => item['language']?.toString() ?? '',
+        mode: _selectedMode,
+      );
+
+      final candidates = filteredResults
+          .where(LanguageMatcher.isValidOriginalSong)
+          .map(_SongMatchCandidate.fromMap)
+          .where((candidate) =>
+              candidate.title.trim().isNotEmpty &&
+              candidate.title != 'Unknown Title')
+          .toList();
+
+      candidates.sort((a, b) {
+        final aScore = a.confidence;
+        final bScore = b.confidence;
+        if (aScore == null && bScore == null) return 0;
+        if (aScore == null) return 1;
+        if (bScore == null) return -1;
+        return bScore.compareTo(aScore);
+      });
+
+      if (candidates.isEmpty) {
+        if (mounted) {
           setState(() {
             _songTitle = null;
             _artist = null;
             _spotifyUrl = null;
             _appleMusicUrl = null;
-            _customStatusText = t('error_no_lyrics'); // <-- Localized error
+            _topGuesses = <_SongMatchCandidate>[];
+            _customStatusText = t('error_no_lyrics');
           });
         }
-      } else {
-        _playErrorCue();
+        unawaited(_playErrorCue());
+        return true;
+      }
+
+      // Your requested behavior: ambiguity UI is NEVER allowed to interrupt
+      // hands-free Auto Play. It is also skipped for background offline-queue
+      // processing because nobody may be looking at the screen then.
+      if (!isFromOfflineQueue && _shouldOfferTopGuesses(candidates)) {
+        final preservedPath = await _preserveAudioClip(path);
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _songTitle = null;
+            _artist = null;
+            _spotifyUrl = null;
+            _appleMusicUrl = null;
+            _topGuesses = candidates.take(3).toList();
+            _pendingGuessAudioPath = preservedPath;
+            _customStatusText = t('top_guesses_subtitle');
+          });
+        }
+        return true;
+      }
+
+      final preservedPath = await _preserveAudioClip(path);
+      await _finalizeCandidate(
+        candidates.first,
+        audioPath: preservedPath,
+        isFromOfflineQueue: isFromOfflineQueue,
+        allowAutoPlay: _autoPlayEnabled && !isFromOfflineQueue,
+      );
+
+      if (!isFromOfflineQueue) {
+        unawaited(_checkPendingOfflineQueue());
+      }
+      return true;
+    } on TimeoutException {
+      if (mounted) {
         setState(() {
-          // Bypasses raw backend English strings and enforces localized string
-          _customStatusText = t('error_no_lyrics'); 
+          if (!isFromOfflineQueue) {
+            _isLoading = false;
+            _lastFailedAudioPath = path;
+          }
+          _customStatusText = t('search_timed_out');
         });
       }
-    } else {
-      _playErrorCue();
+      unawaited(_playErrorCue());
+      return false;
+    } catch (e) {
+      debugPrint('Recognition request failed: $e');
+      if (mounted) {
+        setState(() {
+          if (!isFromOfflineQueue) {
+            _isLoading = false;
+            _lastFailedAudioPath = path;
+          }
+          _customStatusText = '${t('connection_failed')}: $e';
+        });
+      }
+      unawaited(_playErrorCue());
+      return false;
+    }
+  }
+
+  Future<void> _selectTopGuess(_SongMatchCandidate candidate) async {
+    if (_autoPlayEnabled || _isLoading) return;
+    final audioPath = _pendingGuessAudioPath;
+    _pendingGuessAudioPath = null;
+
+    if (mounted) {
       setState(() {
-        _customStatusText = '${t('server_error')}: ${response.statusCode}';
+        _isLoading = true;
+        _topGuesses = <_SongMatchCandidate>[];
+        _customStatusText = null;
       });
     }
-  } catch (e) {
-    _playErrorCue();
-    setState(() {
-      _isLoading = false;
-      _customStatusText = '${t('connection_failed')}: $e';
+
+    await _finalizeCandidate(
+      candidate,
+      audioPath: audioPath,
+      isFromOfflineQueue: false,
+      allowAutoPlay: false,
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _finalizeCandidate(
+    _SongMatchCandidate candidate, {
+    required String? audioPath,
+    required bool isFromOfflineQueue,
+    required bool allowAutoPlay,
+  }) async {
+    final String title = candidate.title;
+    final String artist = candidate.artist == 'Unknown Artist'
+        ? t('unknown_artist')
+        : candidate.artist;
+
+    if (mounted) {
+      setState(() {
+        _songTitle = title;
+        _artist = artist;
+        _spotifyUrl = candidate.spotifyUrl;
+        _appleMusicUrl = candidate.appleMusicUrl;
+        _albumArtUrl = candidate.coverUrl;
+        _topGuesses = <_SongMatchCandidate>[];
+        _statusTextKey = 'match_found';
+        _customStatusText = null;
+        _isLoading = false;
+      });
+    }
+
+    final metadata = await fetchSongMetadata('$title $artist');
+    final String? albumArt =
+        (candidate.coverUrl != null && candidate.coverUrl!.isNotEmpty)
+            ? candidate.coverUrl
+            : metadata.artworkUrl;
+    final String genre = candidate.genre != null && candidate.genre != 'other'
+        ? candidate.genre!
+        : (metadata.genre ?? 'other');
+    final String emotion = _normalizeEmotion(candidate.emotion);
+
+    if (mounted) {
+      setState(() {
+        _albumArtUrl = albumArt;
+      });
+    }
+
+    await _saveToHistory(
+      '$title - $artist',
+      audioPath: audioPath,
+      albumCover: albumArt,
+    );
+
+    await recordSessionToAnalytics(
+      songTitle: title,
+      artistName: artist,
+      primaryEmotion: emotion,
+      genre: genre,
+      latitude: _sessionLocation?.latitude,
+      longitude: _sessionLocation?.longitude,
+    );
+
+    if (isFromOfflineQueue) {
+      unawaited(showQueuedSongFoundNotification(_selectedLanguage));
+    }
+
+    if (allowAutoPlay && _autoPlayEnabled) {
+      if (_preferredMusicApp == 'apple_music' &&
+          _appleMusicUrl != null &&
+          _appleMusicUrl!.isNotEmpty) {
+        unawaited(_openMusicUrl(_appleMusicUrl!));
+      } else if (_spotifyUrl != null && _spotifyUrl!.isNotEmpty) {
+        unawaited(_openSpotifyNative(_spotifyUrl!));
+      }
+    }
+  }
+
+  Future<void> recordSessionToAnalytics({
+    required String songTitle,
+    required String artistName,
+    required String primaryEmotion,
+    required String genre,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final int totalSongs = (prefs.getInt('analytics_total_songs') ?? 0) + 1;
+    await prefs.setInt('analytics_total_songs', totalSongs);
+
+    final int emotionCount =
+        (prefs.getInt('analytics_emotion_$primaryEmotion') ?? 0) + 1;
+    await prefs.setInt('analytics_emotion_$primaryEmotion', emotionCount);
+
+    final String? artistJson = prefs.getString('analytics_artist_counts');
+    Map<String, dynamic> artistMap = {};
+    if (artistJson != null) {
+      try {
+        artistMap = jsonDecode(artistJson) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+    artistMap[artistName] = (artistMap[artistName] ?? 0) + 1;
+    await prefs.setString('analytics_artist_counts', jsonEncode(artistMap));
+
+    final String? genreJson = prefs.getString('analytics_genre_counts');
+    Map<String, dynamic> genreMap = {};
+    if (genreJson != null) {
+      try {
+        genreMap = jsonDecode(genreJson) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+    genreMap[genre] = (genreMap[genre] ?? 0) + 1;
+    await prefs.setString('analytics_genre_counts', jsonEncode(genreMap));
+
+    // A streak only needs one entry per calendar day. The old implementation
+    // appended one timestamp per SONG, which could grow SharedPreferences
+    // indefinitely for frequent users.
+    final List<String> sessionDates =
+        prefs.getStringList('analytics_session_dates') ?? [];
+    final now = DateTime.now();
+    final dayStamp = DateTime(now.year, now.month, now.day).toIso8601String();
+    final hasToday = sessionDates.any((raw) {
+      final parsed = DateTime.tryParse(raw);
+      return parsed != null &&
+          parsed.year == now.year &&
+          parsed.month == now.month &&
+          parsed.day == now.day;
     });
+    if (!hasToday) {
+      sessionDates.add(dayStamp);
+      await prefs.setStringList('analytics_session_dates', sessionDates);
+    }
+
+    if (latitude != null && longitude != null) {
+      final List<String> memories =
+          prefs.getStringList('acoustic_memories') ?? [];
+      memories.add(jsonEncode({
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'title': songTitle,
+        'lat': latitude,
+        'lng': longitude,
+        'timestamp': DateTime.now().toIso8601String(),
+      }));
+      await prefs.setStringList('acoustic_memories', memories);
+    }
   }
-}
- 
-Future<void> recordSessionToAnalytics({
-  required String songTitle,
-  required String artistName,
-  required String primaryEmotion,
-  required String genre,
-  double? latitude,
-  double? longitude,
-}) async {
-  final prefs = await SharedPreferences.getInstance();
 
-  // 1. Increment total song count
-  int totalSongs = (prefs.getInt('analytics_total_songs') ?? 0) + 1;
-  await prefs.setInt('analytics_total_songs', totalSongs);
-
-  // 2. Increment specific emotion count
-  int emotionCount = (prefs.getInt('analytics_emotion_$primaryEmotion') ?? 0) + 1;
-  await prefs.setInt('analytics_emotion_$primaryEmotion', emotionCount);
-
-  // 3. Increment artist play count in a persistent JSON map
-  final String? artistJson = prefs.getString('analytics_artist_counts');
-  Map<String, dynamic> artistMap = {};
-  if (artistJson != null) {
-    artistMap = jsonDecode(artistJson) as Map<String, dynamic>;
-  }
-  artistMap[artistName] = (artistMap[artistName] ?? 0) + 1;
-  await prefs.setString('analytics_artist_counts', jsonEncode(artistMap));
-
-  // 4. Increment genre count in a persistent JSON map
-  final String? genreJson = prefs.getString('analytics_genre_counts');
-  Map<String, dynamic> genreMap = {};
-  if (genreJson != null) {
-    genreMap = jsonDecode(genreJson) as Map<String, dynamic>;
-  }
-  genreMap[genre] = (genreMap[genre] ?? 0) + 1;
-  await prefs.setString('analytics_genre_counts', jsonEncode(genreMap));
-
-  // 5. Track this session's date for streak calculation.
-  // Stored independently of song_history so "Clear History" doesn't erase it.
-  final List<String> sessionDates = prefs.getStringList('analytics_session_dates') ?? [];
-  sessionDates.add(DateTime.now().toIso8601String());
-  await prefs.setStringList('analytics_session_dates', sessionDates);
-
-  // 6. Persist an acoustic memory pin if a location was captured while singing.
-  if (latitude != null && longitude != null) {
-    final List<String> memories = prefs.getStringList('acoustic_memories') ?? [];
-    memories.add(jsonEncode({
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'title': songTitle,
-      'lat': latitude,
-      'lng': longitude,
-      'timestamp': DateTime.now().toIso8601String(),
-    }));
-    await prefs.setStringList('acoustic_memories', memories);
-  }
-}
   Future<void> _openSpotifyNative(String url) async {
     String finalUrl = url;
     if (url.startsWith('spotify:track:')) {
       final trackId = url.replaceFirst('spotify:track:', '');
       finalUrl = 'spotify:track:$trackId';
     }
-    _openMusicUrl(finalUrl);
+    await _openMusicUrl(finalUrl);
   }
 
   Future<void> _openMusicUrl(String url) async {
@@ -2427,9 +3321,8 @@ Future<void> recordSessionToAnalytics({
     }
   }
 
-  /// Marks the user as actively singing and captures their current
-  /// location so the analytics acoustic map can show a live pin.
-  /// Runs in the background so it never delays the mic starting.
+  /// Marks the user as actively singing and captures their current location
+  /// so the analytics acoustic map can show a live pin.
   Future<void> _beginLiveSingingTracking() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_currently_singing', true);
@@ -2447,7 +3340,6 @@ Future<void> recordSessionToAnalytics({
     }
   }
 
-  /// Clears the live-singing indicator once recording stops.
   Future<void> _endLiveSingingTracking() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_currently_singing', false);
@@ -2455,62 +3347,177 @@ Future<void> recordSessionToAnalytics({
   }
 
   Future<void> _startRecording({bool playDing = true}) async {
-    if (_isRecording || _isLoading) return;
+    if (_isRecording || _isLoading || _isStoppingRecording) return;
 
-    if (playDing) {
-      _playSingleDing();
-      await Future.delayed(const Duration(milliseconds: 800));
-    }
-
-    setState(() {
-      _isRecording = true;
-      _secondsRemaining = _selectedMode.duration;
-      _songTitle = null;
-      _artist = null;
-      _albumArtUrl = null;
-      _customStatusText = null;
-    });
-    unawaited(_beginLiveSingingTracking());
-
-    _countdownTimer?.cancel();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsRemaining > 0) {
+    if (!await _audioRecorder.hasPermission()) {
+      if (mounted) {
         setState(() {
-          _secondsRemaining--;
+          _customStatusText = t('mic_denied');
         });
       }
-      if (_secondsRemaining == 0) {
-        timer.cancel();
-        _stopAndSendRecording();
-      }
-    });
+      return;
+    }
+
+    // Starting a brand-new search means the user no longer needs an old
+    // failed temp file or an unselected ambiguous singing clip.
+    final oldFailedPath = _lastFailedAudioPath;
+    _lastFailedAudioPath = null;
+    await _deleteLocalFile(oldFailedPath);
+    await _clearAmbiguousResult(deleteAudio: true);
+
+    if (playDing) {
+      await _playSingleDing();
+      await Future.delayed(const Duration(milliseconds: 550));
+    }
+
+    String filePath = '';
+    if (!kIsWeb) {
+      final directory = await getTemporaryDirectory();
+      filePath =
+          '${directory.path}/recording_${DateTime.now().microsecondsSinceEpoch}.wav';
+    }
 
     try {
-      String filePath = '';
-      if (!kIsWeb) {
-        final directory = await getTemporaryDirectory();
-        filePath = '${directory.path}/recording.wav';
-      }
-
       await _audioRecorder.start(
-        RecordConfig(
-          encoder: AudioEncoder.wav,
-          noiseSuppress: true,
-          echoCancel: true,
-          autoGain: true,
-        ),
+        _recordConfigForCurrentEnvironment(),
         path: filePath,
       );
+
+      if (!mounted) return;
+      setState(() {
+        _isRecording = true;
+        _secondsRemaining = _selectedMode.duration;
+        _voiceWaitSeconds = 0;
+        _voiceDetected = false;
+        _usableVoiceMilliseconds = 0;
+        _autoStopRequested = false;
+        _currentAmplitudeDb = -60.0;
+        _micLevel = 0.0;
+        _songTitle = null;
+        _artist = null;
+        _albumArtUrl = null;
+        _spotifyUrl = null;
+        _appleMusicUrl = null;
+        _sessionLocation = null;
+        _customStatusText = null;
+      });
+
+      unawaited(_beginLiveSingingTracking());
+      _startAmplitudeMonitoring();
+      _startSmartCountdown();
     } catch (e) {
       debugPrint('Error starting recording: $e');
-      setState(() {
-        _isRecording = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _customStatusText = '${t('connection_failed')}: $e';
+        });
+      }
+      await _deleteLocalFile(filePath);
     }
+  }
+
+  Widget _buildVoiceVisualizer(Color color) {
+    const multipliers = <double>[0.35, 0.65, 0.9, 0.55, 1.0, 0.55, 0.9, 0.65, 0.35];
+    return Semantics(
+      label: _getDisplayStatusText(),
+      child: SizedBox(
+        height: 34,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: multipliers.map((factor) {
+            final height = 5.0 + (_micLevel * 25.0 * factor);
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              width: 4,
+              height: height,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopGuessesCard() {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.primary;
+    return Card(
+      elevation: 5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    t('top_guesses_title'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              t('top_guesses_subtitle'),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 8),
+            ..._topGuesses.map((candidate) {
+              final confidence = candidate.confidence == null
+                  ? null
+                  : (candidate.confidence! * 100).round();
+              final displayArtist = candidate.artist == 'Unknown Artist'
+                  ? t('unknown_artist')
+                  : candidate.artist;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: color.withOpacity(0.12),
+                  child: Icon(Icons.music_note, color: color),
+                ),
+                title: Text(
+                  candidate.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  confidence == null
+                      ? displayArtist
+                      : '$displayArtist • $confidence% ${t('confidence')}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _selectTopGuess(candidate),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
   }
 
 @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reczt'),
@@ -2591,7 +3598,6 @@ Future<void> recordSessionToAnalytics({
                   Column(
                     children: EnvironmentMode.values.map((mode) {
                       final isSelected = _selectedMode == mode;
-                      final primaryColor = Theme.of(context).colorScheme.primary;
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6.0),
                         child: InkWell(
@@ -2606,12 +3612,13 @@ Future<void> recordSessionToAnalytics({
                                 horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? primaryColor.withOpacity(0.1)
-                                  : Colors.grey.shade100,
+                                  ? primaryColor.withOpacity(0.12)
+                                  : theme.colorScheme.surfaceContainerHighest
+                                      .withOpacity(isDarkMode ? 0.45 : 0.65),
                               border: Border.all(
                                 color: isSelected
                                     ? primaryColor
-                                    : Colors.grey.shade300,
+                                    : theme.colorScheme.outlineVariant,
                                 width: isSelected ? 2 : 1,
                               ),
                               borderRadius: BorderRadius.circular(12),
@@ -2622,7 +3629,7 @@ Future<void> recordSessionToAnalytics({
                                   mode.icon,
                                   color: isSelected
                                       ? primaryColor
-                                      : Colors.grey.shade600,
+                                      : theme.colorScheme.onSurfaceVariant,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -2635,7 +3642,7 @@ Future<void> recordSessionToAnalytics({
                                           : FontWeight.normal,
                                       color: isSelected
                                           ? primaryColor
-                                          : Colors.black87,
+                                          : theme.colorScheme.onSurface,
                                     ),
                                   ),
                                 ),
@@ -2645,7 +3652,7 @@ Future<void> recordSessionToAnalytics({
                                   decoration: BoxDecoration(
                                     color: isSelected
                                         ? primaryColor
-                                        : Colors.grey.shade300,
+                                        : theme.colorScheme.surfaceContainerHigh,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -2655,7 +3662,7 @@ Future<void> recordSessionToAnalytics({
                                       fontWeight: FontWeight.bold,
                                       color: isSelected
                                           ? Colors.white
-                                          : Colors.black87,
+                                          : theme.colorScheme.onSurface,
                                     ),
                                   ),
                                 ),
@@ -2671,31 +3678,76 @@ Future<void> recordSessionToAnalytics({
                     _getDisplayStatusText(),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w500),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                  const SizedBox(height: 30),
+                  if (_isRecording) ...[
+                    const SizedBox(height: 10),
+                    _buildVoiceVisualizer(primaryColor),
+                  ],
+                  const SizedBox(height: 22),
                   if (_isLoading)
                     const CircularProgressIndicator()
                   else
-                    GestureDetector(
-                      onTap: () {
-                        if (_isRecording) {
-                          _stopAndSendRecording();
-                        } else {
-                          _startRecording(playDing: true);
-                        }
-                      },
-                      child: CircleAvatar(
-                        radius: 50,
-                        backgroundColor:
-                            _isRecording ? Colors.red : Theme.of(context).colorScheme.primary,
-                        child: Icon(
-                          _isRecording ? Icons.stop : Icons.mic,
-                          size: 50,
-                          color: Colors.white,
+                    Semantics(
+                      button: true,
+                      label: _isRecording ? t('stop_recording') : t('listening'),
+                      child: GestureDetector(
+                        onTap: () {
+                          if (_isRecording) {
+                            unawaited(_stopAndSendRecording());
+                          } else {
+                            unawaited(_startRecording(playDing: true));
+                          }
+                        },
+                        child: SizedBox(
+                          width: 128,
+                          height: 128,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 140),
+                                width: 106 + (_isRecording ? _micLevel * 20 : 0),
+                                height: 106 + (_isRecording ? _micLevel * 20 : 0),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: (_isRecording ? Colors.red : primaryColor)
+                                      .withOpacity(_isRecording
+                                          ? 0.10 + (_micLevel * 0.12)
+                                          : 0.10),
+                                ),
+                              ),
+                              CircleAvatar(
+                                radius: 50,
+                                backgroundColor:
+                                    _isRecording ? Colors.red : primaryColor,
+                                child: Icon(
+                                  _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                                  size: 50,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
+                  if (!_isRecording &&
+                      !_isLoading &&
+                      _lastFailedAudioPath != null) ...[
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () => unawaited(_retryLastRecording()),
+                      icon: const Icon(Icons.refresh),
+                      label: Text(t('retry_search')),
+                    ),
+                  ],
+                  if (!_autoPlayEnabled && _topGuesses.isNotEmpty) ...[
+                    const SizedBox(height: 22),
+                    _buildTopGuessesCard(),
+                  ],
                   const SizedBox(height: 30),
                   if (_songTitle != null && _artist != null) ...[
                     Card(
@@ -3081,7 +4133,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       _curatedPlaylistTitle = selectedTitle;
       _streamingUrl = freshPlaylistData['url']!;
       _countdownText = daysLeft > 0
-          ? "${t('next_drop')}: ${daysLeft}d ${hoursLeft}h"
+          ? "${t('next_drop')}: \n ${daysLeft}d ${hoursLeft}h"
           : t('refreshing_soon');
     });
   }
@@ -3119,24 +4171,24 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   final Map<String, Map<String, String>> emotionPlaylists = {
     'sad': {
-      'title': 'Sad Indie\n& Melancholy Mix',
+      'title': 'Nostaligic Mix',
       'query': 'Sad Indie',
     },
     'hype': {
-      'title': 'Hype Workout\n& Energy Boost',
+      'title': 'Pump Up Mix',
       'query': 'Workout Hits',
     },
     'romantic': {
-      'title': 'Love Songs\n& Romance Essentials',
+      'title': 'Romance Essentials',
       'query': 'Love Songs Essentials',
     },
     'happy': {
-      'title': 'Feel-Good Happy\nHits Mix',
+      'title': 'Feel-Good Mix',
       'query': 'Happy Hits',
     },
   };
 
-  String title = emotionPlaylists[normalizedEmotion]?['title'] ?? 'Feel-Good Happy Hits Mix';
+  String title = emotionPlaylists[normalizedEmotion]?['title'] ?? 'Feel-Good Mix';
   String query = emotionPlaylists[normalizedEmotion]?['query'] ?? 'Happy Hits';
 
   // Handle fallback, balanced, empty, or unmapped mood states dynamically
@@ -3182,6 +4234,12 @@ void _showShareCardModal(BuildContext context) {
     (sum, key) => sum + (_emotionCounts[key] ?? 0).toDouble(),
   );
   final activeKeys = _emotionCounts.keys.where((key) => (_emotionCounts[key] ?? 0) > 0).toList();
+  final int modalMaxGenreCount = _genreCounts.values.isEmpty
+      ? 1
+      : _genreCounts.values
+          .reduce((a, b) => a > b ? a : b)
+          .clamp(1, 1 << 30)
+          .toInt();
   double getEmotionPct(String key) {
     if (totalCounts == 0) return 0;
     return ((_emotionCounts[key] ?? 0).toDouble() / totalCounts) * 100;
@@ -3213,28 +4271,21 @@ void _showShareCardModal(BuildContext context) {
     }).toList();
   }
 
-  // Capture RepaintBoundary as an image and trigger native share
+  // Share the analytics preview as a tappable Reczt rich-link card.
+  // The captured PNG is used only as Link Presentation artwork on iOS; it is
+  // no longer sent to the recipient as a standalone photo attachment.
   Future<void> captureAndShare() async {
-    try {
-      final boundary = previewCardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
+    final previewPath = await _captureRichSharePreview(
+      previewCardKey,
+      'reczt_analytics_link_preview.png',
+    );
 
-      final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-
-      final pngBytes = byteData.buffer.asUint8List();
-      final tempDir = await getTemporaryDirectory();
-      final file = await File('${tempDir.path}/analytics_card.png').create();
-      await file.writeAsBytes(pngBytes);
-
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: t('analytics_share_text'),
-      );
-    } catch (e) {
-      debugPrint('Error sharing graphics card: $e');
-    }
+    await shareRecztInteractiveCard(
+      context: context,
+      title: t('analytics_title'),
+      message: t('analytics_share_text'),
+      previewImagePath: previewPath,
+    );
   }
 
   showModalBottomSheet(
@@ -3398,7 +4449,7 @@ void _showShareCardModal(BuildContext context) {
                                       Expanded(
                                         flex: 7,
                                         child: LinearProgressIndicator(
-                                          value: genre.value / 10,
+                                          value: genre.value / modalMaxGenreCount,
                                           backgroundColor: Colors.white12,
                                           color: themeColor,
                                           minHeight: 6,
@@ -4063,18 +5114,157 @@ void _showShareCardModal(BuildContext context) {
   }
 }
 
+int _rotateRight32(int value, int amount) {
+  final v = value & 0xFFFFFFFF;
+  return ((v >> amount) | (v << (32 - amount))) & 0xFFFFFFFF;
+}
+
+/// Small self-contained SHA-256 implementation used only to generate Spotify's
+/// PKCE code challenge. Keeping it here avoids requiring another pubspec
+/// dependency just for OAuth.
+List<int> _sha256Digest(List<int> input) {
+  const k = <int>[
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+    0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+    0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+    0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+    0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+  ];
+
+  final bytes = List<int>.from(input)..add(0x80);
+  while (bytes.length % 64 != 56) {
+    bytes.add(0);
+  }
+  final bitLength = input.length * 8;
+  for (int shift = 56; shift >= 0; shift -= 8) {
+    bytes.add((bitLength >> shift) & 0xFF);
+  }
+
+  int h0 = 0x6a09e667;
+  int h1 = 0xbb67ae85;
+  int h2 = 0x3c6ef372;
+  int h3 = 0xa54ff53a;
+  int h4 = 0x510e527f;
+  int h5 = 0x9b05688c;
+  int h6 = 0x1f83d9ab;
+  int h7 = 0x5be0cd19;
+
+  for (int offset = 0; offset < bytes.length; offset += 64) {
+    final w = List<int>.filled(64, 0);
+    for (int i = 0; i < 16; i++) {
+      final j = offset + i * 4;
+      w[i] = ((bytes[j] << 24) |
+              (bytes[j + 1] << 16) |
+              (bytes[j + 2] << 8) |
+              bytes[j + 3]) &
+          0xFFFFFFFF;
+    }
+    for (int i = 16; i < 64; i++) {
+      final s0 = _rotateRight32(w[i - 15], 7) ^
+          _rotateRight32(w[i - 15], 18) ^
+          (w[i - 15] >> 3);
+      final s1 = _rotateRight32(w[i - 2], 17) ^
+          _rotateRight32(w[i - 2], 19) ^
+          (w[i - 2] >> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) & 0xFFFFFFFF;
+    }
+
+    int a = h0;
+    int b = h1;
+    int c = h2;
+    int d = h3;
+    int e = h4;
+    int f = h5;
+    int g = h6;
+    int h = h7;
+
+    for (int i = 0; i < 64; i++) {
+      final s1 = _rotateRight32(e, 6) ^
+          _rotateRight32(e, 11) ^
+          _rotateRight32(e, 25);
+      final ch = (e & f) ^ ((~e) & g);
+      final temp1 = (h + s1 + ch + k[i] + w[i]) & 0xFFFFFFFF;
+      final s0 = _rotateRight32(a, 2) ^
+          _rotateRight32(a, 13) ^
+          _rotateRight32(a, 22);
+      final maj = (a & b) ^ (a & c) ^ (b & c);
+      final temp2 = (s0 + maj) & 0xFFFFFFFF;
+
+      h = g;
+      g = f;
+      f = e;
+      e = (d + temp1) & 0xFFFFFFFF;
+      d = c;
+      c = b;
+      b = a;
+      a = (temp1 + temp2) & 0xFFFFFFFF;
+    }
+
+    h0 = (h0 + a) & 0xFFFFFFFF;
+    h1 = (h1 + b) & 0xFFFFFFFF;
+    h2 = (h2 + c) & 0xFFFFFFFF;
+    h3 = (h3 + d) & 0xFFFFFFFF;
+    h4 = (h4 + e) & 0xFFFFFFFF;
+    h5 = (h5 + f) & 0xFFFFFFFF;
+    h6 = (h6 + g) & 0xFFFFFFFF;
+    h7 = (h7 + h) & 0xFFFFFFFF;
+  }
+
+  final output = <int>[];
+  for (final word in [h0, h1, h2, h3, h4, h5, h6, h7]) {
+    output
+      ..add((word >> 24) & 0xFF)
+      ..add((word >> 16) & 0xFF)
+      ..add((word >> 8) & 0xFF)
+      ..add(word & 0xFF);
+  }
+  return output;
+}
+
+String _randomPkceString(int length) {
+  const chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  final random = Random.secure();
+  return List.generate(length, (_) => chars[random.nextInt(chars.length)]).join();
+}
+
+String _base64UrlWithoutPadding(List<int> bytes) =>
+    base64Url.encode(bytes).replaceAll('=', '');
+
 class SpotifyService {
   static const String clientId = 'b2a0f02419ce44b5a443785d92681273';
   static const String redirectUri = 'reczt://callback';
-  static const String scopes = 'playlist-modify-public playlist-modify-private';
+  static const String scopes =
+      'playlist-modify-public playlist-modify-private';
 
-  /// Triggers OAuth authorization flow and returns an access token
+  /// Spotify removed Implicit Grant support for mobile apps. Reczt now uses
+  /// Authorization Code + PKCE, which needs no client secret inside the app.
   Future<String?> authenticate() async {
+    final verifier = _randomPkceString(64);
+    final challenge = _base64UrlWithoutPadding(
+      _sha256Digest(utf8.encode(verifier)),
+    );
+    final state = _randomPkceString(32);
+
     final authUrl = Uri.https('accounts.spotify.com', '/authorize', {
       'client_id': clientId,
-      'response_type': 'token',
+      'response_type': 'code',
       'redirect_uri': redirectUri,
       'scope': scopes,
+      'code_challenge_method': 'S256',
+      'code_challenge': challenge,
+      'state': state,
       'show_dialog': 'true',
     });
 
@@ -4084,18 +5274,63 @@ class SpotifyService {
         callbackUrlScheme: 'reczt',
       );
 
-      // Convert fragment parameters (#access_token=...) into standard query parameters
-      final parsedUri = Uri.parse(result.replaceAll('#', '?'));
-      return parsedUri.queryParameters['access_token'];
+      final parsedUri = Uri.parse(result);
+      if (parsedUri.queryParameters['state'] != state) return null;
+      if (parsedUri.queryParameters['error'] != null) return null;
+      final code = parsedUri.queryParameters['code'];
+      if (code == null || code.isEmpty) return null;
+
+      final tokenResponse = await http.post(
+        Uri.parse('https://accounts.spotify.com/api/token'),
+        headers: const {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {
+          'client_id': clientId,
+          'grant_type': 'authorization_code',
+          'code': code,
+          'redirect_uri': redirectUri,
+          'code_verifier': verifier,
+        },
+      ).timeout(const Duration(seconds: 20));
+
+      if (tokenResponse.statusCode != 200) return null;
+      final data = jsonDecode(tokenResponse.body);
+      return data['access_token']?.toString();
     } catch (e) {
+      debugPrint('Spotify PKCE authorization failed: $e');
       return null;
     }
   }
 
-  /// Searches track URIs concurrently and creates a new playlist
+  Future<String?> _searchTrackUri(
+    String queryText,
+    Map<String, String> headers,
+  ) async {
+    final query = Uri.encodeComponent(queryText);
+    final searchRes = await http.get(
+      Uri.parse(
+        'https://api.spotify.com/v1/search?q=$query&type=track&limit=1',
+      ),
+      headers: headers,
+    ).timeout(const Duration(seconds: 12));
+
+    if (searchRes.statusCode == 200) {
+      final decoded = jsonDecode(searchRes.body);
+      final tracks = decoded is Map ? decoded['tracks'] : null;
+      final items = tracks is Map ? tracks['items'] : null;
+      if (items is List && items.isNotEmpty && items.first is Map) {
+        return (items.first as Map)['uri']?.toString();
+      }
+    }
+    return null;
+  }
+
+  /// Searches in small concurrent batches to stay responsive without sending
+  /// a large burst of Spotify requests for a long Reczt history.
   Future<bool> createPlaylistFromHistory(
-    String token, 
-    List<String> songTitles, 
+    String token,
+    List<String> songQueries,
     String Function(String) t,
   ) async {
     final headers = {
@@ -4104,59 +5339,53 @@ class SpotifyService {
     };
 
     try {
-      // 1. Get User Profile ID
-      final userRes = await http.get(
-        Uri.parse('https://api.spotify.com/v1/me'), 
-        headers: headers,
-      );
-      if (userRes.statusCode != 200) return false;
-      final userId = jsonDecode(userRes.body)['id'];
-
-      // 2. Parallelize Spotify URI searches using Future.wait
-      final searchFutures = songTitles.map((title) async {
-        final query = Uri.encodeComponent(title);
-        final searchRes = await http.get(
-          Uri.parse('https://api.spotify.com/v1/search?q=$query&type=track&limit=1'),
-          headers: headers,
+      final List<String> trackUris = [];
+      const batchSize = 5;
+      for (int i = 0; i < songQueries.length; i += batchSize) {
+        final batch = songQueries.skip(i).take(batchSize);
+        final results = await Future.wait(
+          batch.map((query) => _searchTrackUri(query, headers)),
         );
-
-        if (searchRes.statusCode == 200) {
-          final items = jsonDecode(searchRes.body)['tracks']['items'] as List;
-          if (items.isNotEmpty) {
-            return items.first['uri'] as String;
-          }
-        }
-        return null;
-      });
-
-      final searchResults = await Future.wait(searchFutures);
-      final List<String> trackUris = searchResults.whereType<String>().toList();
+        trackUris.addAll(results.whereType<String>());
+      }
 
       if (trackUris.isEmpty) return false;
 
-      // 3. Create New Playlist
+      // Spotify's current API creates a playlist for the authenticated user at
+      // /me/playlists; the old /users/{id}/playlists endpoint was removed.
       final playlistRes = await http.post(
-        Uri.parse('https://api.spotify.com/v1/users/$userId/playlists'),
+        Uri.parse('https://api.spotify.com/v1/me/playlists'),
         headers: headers,
         body: jsonEncode({
           'name': t('playlist_name'),
           'description': t('playlist_desc'),
           'public': true,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (playlistRes.statusCode != 201) return false;
-      final playlistId = jsonDecode(playlistRes.body)['id'];
+      final playlistId = jsonDecode(playlistRes.body)['id']?.toString();
+      if (playlistId == null || playlistId.isEmpty) return false;
 
-      // 4. Add Found Tracks to the Playlist
-      final addRes = await http.post(
-        Uri.parse('https://api.spotify.com/v1/playlists/$playlistId/tracks'),
-        headers: headers,
-        body: jsonEncode({'uris': trackUris}),
-      );
+      // Spotify now calls these "items" rather than the deprecated /tracks
+      // endpoint. Add in chunks of 100, the playlist API's usual request cap.
+      for (int i = 0; i < trackUris.length; i += 100) {
+        final uris = trackUris.skip(i).take(100).toList();
+        final addRes = await http.post(
+          Uri.parse(
+            'https://api.spotify.com/v1/playlists/$playlistId/items',
+          ),
+          headers: headers,
+          body: jsonEncode({'uris': uris}),
+        ).timeout(const Duration(seconds: 15));
+        if (addRes.statusCode != 201 && addRes.statusCode != 200) {
+          return false;
+        }
+      }
 
-      return addRes.statusCode == 201;
+      return true;
     } catch (e) {
+      debugPrint('Spotify playlist creation failed: $e');
       return false;
     }
   }
@@ -4226,23 +5455,65 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _clearHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('song_history');
-    if (!mounted) return;
+    final audioFiles = _history
+        .map(_parseAudioPath)
+        .whereType<String>()
+        .where((path) => path.isNotEmpty)
+        .toList();
 
+    await _clipPlayer.stop();
+    await prefs.remove('song_history');
+
+    if (!kIsWeb) {
+      for (final path in audioFiles) {
+        try {
+          final file = File(path);
+          if (await file.exists()) await file.delete();
+        } catch (e) {
+          debugPrint('Could not delete saved singing clip: $e');
+        }
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
       _history.clear();
       _selectedItems.clear();
+      _isPlayingClip = false;
+      _currentlyPlayingPath = null;
     });
   }
-Future<void> _deleteHistoryItem(int index) async {
-  final prefs = await SharedPreferences.getInstance();
-  final itemToRemove = _history[index];
-  setState(() {
-    _history.removeAt(index);
-    _selectedItems.remove(itemToRemove);
-  });
-  await prefs.setStringList('song_history', _history);
-}
+
+  Future<void> _deleteHistoryItem(int index) async {
+    if (index < 0 || index >= _history.length) return;
+    final prefs = await SharedPreferences.getInstance();
+    final itemToRemove = _history[index];
+    final audioPath = _parseAudioPath(itemToRemove);
+
+    if (_currentlyPlayingPath == audioPath) {
+      await _clipPlayer.stop();
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _history.removeAt(index);
+      _selectedItems.remove(itemToRemove);
+      if (_currentlyPlayingPath == audioPath) {
+        _currentlyPlayingPath = null;
+        _isPlayingClip = false;
+      }
+    });
+    await prefs.setStringList('song_history', _history);
+
+    if (!kIsWeb && audioPath != null && audioPath.isNotEmpty) {
+      try {
+        final file = File(audioPath);
+        if (await file.exists()) await file.delete();
+      } catch (e) {
+        debugPrint('Could not delete singing clip: $e');
+      }
+    }
+  }
 
 String _parseSongTitle(dynamic rawItem) {
   String str = rawItem.toString();
@@ -4295,10 +5566,11 @@ String? _parseAlbumCover(String rawItem) {
   return null;
 }
 
-Future<void> _openSongInPreferredApp(String title) async {
+Future<void> _openSongInPreferredApp(String title, [String artist = '']) async {
   final prefs = await SharedPreferences.getInstance();
   final preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
-  final encoded = Uri.encodeComponent(title);
+  final query = artist.trim().isEmpty ? title : '$title $artist';
+  final encoded = Uri.encodeComponent(query);
 
   final Uri targetUrl = preferredApp == 'apple_music'
       ? Uri.parse("https://music.apple.com/us/search?term=$encoded")
@@ -4311,6 +5583,13 @@ Future<void> _openSongInPreferredApp(String title) async {
 
 Future<void> _togglePlayClip(String? path) async {
   if (path == null || path.isEmpty) return;
+  if (!kIsWeb) {
+    try {
+      if (!await File(path).exists()) return;
+    } catch (_) {
+      return;
+    }
+  }
 
   if (_isPlayingClip && _currentlyPlayingPath == path) {
     await _clipPlayer.pause();
@@ -4333,7 +5612,11 @@ Future<void> _togglePlayClip(String? path) async {
 
   Future<void> _exportToSpotify() async {
     final selectedTitles = _selectedItems
-        .map((item) => _parseSongTitle(item))
+        .map((item) {
+          final title = _parseSongTitle(item);
+          final artist = _parseArtist(item);
+          return artist.isEmpty ? title : '$title $artist';
+        })
         .toList();
 
     if (selectedTitles.isEmpty) return;
@@ -4375,7 +5658,11 @@ Future<void> _togglePlayClip(String? path) async {
 
   Future<void> _exportToAppleMusic() async {
     final selectedTitles = _selectedItems
-        .map((item) => _parseSongTitle(item))
+        .map((item) {
+          final title = _parseSongTitle(item);
+          final artist = _parseArtist(item);
+          return artist.isEmpty ? title : '$title $artist';
+        })
         .toList();
 
     if (selectedTitles.isEmpty) return;
@@ -4482,8 +5769,11 @@ Future<void> _togglePlayClip(String? path) async {
 Widget _buildHistoryTile(int index) {
   final rawItem = _history[index];
   final songTitle = _parseSongTitle(rawItem);
+  final artist = _parseArtist(rawItem);
   final audioClipPath = _parseAudioPath(rawItem);
-  final bool clipExists = audioClipPath != null && audioClipPath.isNotEmpty && File(audioClipPath).existsSync();
+  // Avoid synchronous disk I/O while Flutter is building a scrolling list.
+  // The real existence check happens only if the play button is tapped.
+  final bool clipExists = audioClipPath != null && audioClipPath.isNotEmpty;
   final bool isSelected = _selectedItems.contains(rawItem);
 
   return Dismissible(
@@ -4499,7 +5789,7 @@ Widget _buildHistoryTile(int index) {
     child: Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       child: ListTile(
-        onTap: () => _openSongInPreferredApp(songTitle),
+        onTap: () => _openSongInPreferredApp(songTitle, artist),
         leading: IconButton(
           icon: Icon(
             isSelected ? Icons.check_circle : Icons.check_circle_outline,
@@ -4613,11 +5903,37 @@ Widget _buildHistoryTile(int index) {
 // LANGUAGE & STRICT METADATA MATCHING UTILITY
 // ----------------------------------------------------
 class LanguageMatcher {
+  static const Map<String, String> _aliases = {
+    'english': 'en', 'eng': 'en',
+    'spanish': 'es', 'español': 'es', 'spa': 'es',
+    'french': 'fr', 'français': 'fr', 'fra': 'fr', 'fre': 'fr',
+    'german': 'de', 'deutsch': 'de', 'deu': 'de', 'ger': 'de',
+    'italian': 'it', 'italiano': 'it', 'ita': 'it',
+    'portuguese': 'pt', 'português': 'pt', 'por': 'pt',
+    'japanese': 'ja', '日本語': 'ja', 'jpn': 'ja',
+    'korean': 'ko', '한국어': 'ko', 'kor': 'ko',
+    'chinese': 'zh', 'mandarin': 'zh', '中文': 'zh', 'zho': 'zh', 'chi': 'zh',
+    'hindi': 'hi', 'हिन्दी': 'hi', 'hin': 'hi',
+    'russian': 'ru', 'русский': 'ru', 'rus': 'ru',
+    'turkish': 'tr', 'türkçe': 'tr', 'tur': 'tr',
+    'arabic': 'ar', 'العربية': 'ar', 'ara': 'ar',
+    'dutch': 'nl', 'nederlands': 'nl', 'nld': 'nl', 'dut': 'nl',
+    'polish': 'pl', 'polski': 'pl', 'pol': 'pl',
+    'unknown': '', 'undetermined': '', 'und': '',
+  };
+
   static String normalizeLanguage(String lang) {
-    final cleaned = lang.toLowerCase().trim();
-    if (cleaned.startsWith('en') || cleaned == 'english') return 'en';
-    if (cleaned.startsWith('es') || cleaned == 'spanish') return 'es';
-    return cleaned.length >= 2 ? cleaned.substring(0, 2) : cleaned;
+    final cleaned = lang.toLowerCase().trim().replaceAll('_', '-');
+    if (cleaned.isEmpty) return '';
+    final alias = _aliases[cleaned];
+    if (alias != null) return alias;
+    if (cleaned == 'zxx' || cleaned == 'un') return cleaned;
+
+    final firstPart = cleaned.split('-').first;
+    final partAlias = _aliases[firstPart];
+    if (partAlias != null) return partAlias;
+    if (RegExp(r'^[a-z]{2}$').hasMatch(firstPart)) return firstPart;
+    return '';
   }
 
   static bool isLanguageMatch({
@@ -4627,39 +5943,64 @@ class LanguageMatcher {
   }) {
     final userCode = normalizeLanguage(userLanguage);
     final trackCode = normalizeLanguage(trackLanguage);
-    if (userCode == trackCode) return true;
-    if (allowUnknown && (trackCode == 'un' || trackCode == 'zxx' || trackCode.isEmpty)) {
+    if (userCode.isNotEmpty && userCode == trackCode) return true;
+    if (allowUnknown &&
+        (trackCode.isEmpty || trackCode == 'un' || trackCode == 'zxx')) {
       return true;
     }
     return false;
   }
 
   static bool isValidOriginalSong(Map<String, dynamic> trackData) {
-    final String title = (trackData['title'] ?? '').toString().toLowerCase();
-    final String artist = (trackData['artist'] ?? '').toString().toLowerCase();
-    final String album = (trackData['album'] ?? '').toString().toLowerCase();
+    final String title = (trackData['title'] ?? trackData['name'] ?? '')
+        .toString()
+        .toLowerCase();
 
-    final List<String> blockedKeywords = [
-      'cover',
-      'karaoke',
-      'tribute',
-      'remake',
-      'in the style of',
-      'instrumental version',
-      'tribute to'
-    ];
-
-    for (String word in blockedKeywords) {
-      if (title.contains(word) || artist.contains(word)) {
-        return false;
+    String artist = (trackData['artist'] ?? '').toString().toLowerCase();
+    if (artist.isEmpty && trackData['artists'] is List) {
+      final artists = trackData['artists'] as List;
+      if (artists.isNotEmpty) {
+        final first = artists.first;
+        artist = (first is Map ? first['name'] : first)
+                ?.toString()
+                .toLowerCase() ??
+            '';
       }
     }
 
-    if (album.isNotEmpty && album == title) {
-      return false;
+    String album = '';
+    final rawAlbum = trackData['album'];
+    if (rawAlbum is Map) {
+      album = (rawAlbum['name'] ?? rawAlbum['title'] ?? '')
+          .toString()
+          .toLowerCase();
+    } else if (rawAlbum != null) {
+      album = rawAlbum.toString().toLowerCase();
     }
 
-    return true;
+    final combined = '$title $artist $album';
+    const stronglyBlocked = <String>[
+      'karaoke',
+      'tribute',
+      'in the style of',
+      'instrumental version',
+      'sound alike',
+      'sound-alike',
+    ];
+    for (final phrase in stronglyBlocked) {
+      if (combined.contains(phrase)) return false;
+    }
+
+    // Avoid false positives such as a legitimate song whose title simply
+    // contains the word "cover". Only reject cover/remake when they look like
+    // edition descriptors.
+    final descriptor = RegExp(
+      r'(\(|\[|\-|–|—|:)\s*(cover|remake)(\s+version)?\b|\b(cover|remake)\s+version\b',
+      caseSensitive: false,
+    );
+    if (descriptor.hasMatch(combined)) return false;
+
+    return title.trim().isNotEmpty;
   }
 
   static List<T> filterResultsByLanguage<T extends Map<String, dynamic>>({
@@ -4668,19 +6009,13 @@ class LanguageMatcher {
     required String Function(T) getLanguage,
     required EnvironmentMode mode,
   }) {
-    final matchedResults = results.where((item) {
-      final trackLang = getLanguage(item);
-
-      final bool langOk = isLanguageMatch(
+    return results.where((item) {
+      return isLanguageMatch(
         userLanguage: selectedLanguage,
-        trackLanguage: trackLang,
+        trackLanguage: getLanguage(item),
         allowUnknown: true,
       );
-
-      return langOk;
     }).toList();
-
-    return matchedResults;
   }
 }
 // --------------------------------------------------------------------
@@ -4847,27 +6182,21 @@ class QuickShareHelper {
     final String displayArtist = artist.isNotEmpty ? artist : tt('unknown_artist');
 
     Future<void> captureAndShare() async {
-      try {
-        final boundary = previewKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-        if (boundary == null) return;
+      final shareText = tt('share_text')
+          .replaceAll('{title}', title)
+          .replaceAll('{artist}', displayArtist);
 
-        final image = await boundary.toImage(pixelRatio: 3.0);
-        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-        if (byteData == null) return;
+      final previewPath = await _captureRichSharePreview(
+        previewKey,
+        'reczt_song_link_preview.png',
+      );
 
-        final pngBytes = byteData.buffer.asUint8List();
-        final tempDir = await getTemporaryDirectory();
-        final file = await File('${tempDir.path}/reczt_song_card.png').create();
-        await file.writeAsBytes(pngBytes);
-
-        final shareText = tt('share_text')
-            .replaceAll('{title}', title)
-            .replaceAll('{artist}', displayArtist);
-
-        await Share.shareXFiles([XFile(file.path)], text: shareText);
-      } catch (e) {
-        debugPrint('Error sharing song graphics card: $e');
-      }
+      await shareRecztInteractiveCard(
+        context: context,
+        title: '$title — $displayArtist',
+        message: shareText,
+        previewImagePath: previewPath,
+      );
     }
 
     if (!context.mounted) return;
@@ -4938,4 +6267,4 @@ class QuickShareHelper {
       },
     );
   }
-}
+} 

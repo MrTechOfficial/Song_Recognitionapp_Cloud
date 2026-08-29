@@ -62,7 +62,6 @@ class SiriBridge {
 
         GeneratedPluginRegistrant.register(with: self)
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-    }
 }
 
 @available(iOS 16.0, *)

@@ -25,6 +25,8 @@ dependencies:
   fl_chart: ^1.2.0
   flutter_web_auth_2: ^3.1.0
   flutter_local_notifications: ^22.3.0
+  reczt_rich_share:
+    path: local_plugins/reczt_rich_share
 
 dev_dependencies:
   flutter_test:
