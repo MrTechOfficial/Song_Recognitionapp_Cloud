@@ -4873,10 +4873,35 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Future<void> _launchStreamingLink() async {
-    final playlistData = _curatePlaylistByMajorityEmotion(_majorityEmotion);
-    final targetUrl = playlistData['url'] ?? _streamingUrl;
-
+    // The title shown in the Vibe Match card and this URL are saved together
+    // by _handleBiWeeklyPlaylistRotation. Do not recalculate here: that could
+    // make a saved title open a different, newly-selected playlist.
+    final targetUrl = _streamingUrl.trim();
     if (targetUrl.isEmpty) return;
+
+    // Spotify universal links normally open the app, but use the native
+    // spotify:playlist deep link first when Spotify is installed so the user
+    // lands directly on the exact playlist rather than a search-results page.
+    if (_preferredApp != 'apple_music') {
+      try {
+        final webUri = Uri.parse(targetUrl);
+        final segments = webUri.pathSegments;
+        final playlistIndex = segments.indexOf('playlist');
+        if (playlistIndex >= 0 && playlistIndex + 1 < segments.length) {
+          final playlistId = segments[playlistIndex + 1].trim();
+          if (playlistId.isNotEmpty) {
+            final nativeUri = Uri.parse('spotify:playlist:$playlistId');
+            if (await canLaunchUrl(nativeUri)) {
+              await launchUrl(
+                nativeUri,
+                mode: LaunchMode.externalApplication,
+              );
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
     final uri = Uri.parse(targetUrl);
     if (await canLaunchUrl(uri)) {
@@ -5134,31 +5159,92 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     final int now = DateTime.now().millisecondsSinceEpoch;
 
     int? lastGeneratedTime = prefs.getInt('playlist_timestamp');
-    String? savedPlaylist = prefs.getString('saved_curated_playlist');
 
-    final freshPlaylistData =
-        _curatePlaylistByMajorityEmotion(_majorityEmotion);
+    final freshPlaylistData = _curatePlaylistFromProfile();
+    final String profileSignature =
+        freshPlaylistData['profile_signature'] ?? 'fallback|';
 
-    String selectedTitle =
-        _compactPlaylistTitle(freshPlaylistData['title'] ?? 'Feel-Good Mix');
+    String? savedSignature =
+        prefs.getString('saved_curated_playlist_profile');
+    String? savedSpotifyTitle =
+        prefs.getString('saved_curated_playlist_spotify_title');
+    String? savedAppleTitle =
+        prefs.getString('saved_curated_playlist_apple_title');
+    String? savedSpotifyUrl =
+        prefs.getString('saved_curated_playlist_spotify_url');
+    String? savedAppleUrl =
+        prefs.getString('saved_curated_playlist_apple_url');
 
-    if (lastGeneratedTime == null ||
-        savedPlaylist == null ||
-        now - lastGeneratedTime > fourteenDaysInMs) {
-      await prefs.setInt('playlist_timestamp', now);
-      await prefs.setString('saved_curated_playlist', selectedTitle);
+    // A recommendation refreshes every two weeks, but it also refreshes
+    // immediately when the user's dominant emotion/genre profile changes.
+    // This keeps the box genuinely responsive to what the user has sung.
+    final bool missingDirectLinks =
+        savedSpotifyTitle == null ||
+        savedAppleTitle == null ||
+        savedSpotifyUrl == null ||
+        savedAppleUrl == null;
+    final bool profileChanged = savedSignature != profileSignature;
+    final bool rotationExpired = lastGeneratedTime == null ||
+        now - lastGeneratedTime > fourteenDaysInMs;
+
+    if (missingDirectLinks || profileChanged || rotationExpired) {
+      savedSpotifyTitle = _compactPlaylistTitle(
+        freshPlaylistData['spotify_title'] ?? 'Happy Hits!',
+      );
+      savedAppleTitle = _compactPlaylistTitle(
+        freshPlaylistData['apple_title'] ?? 'Feeling Happy',
+      );
+      savedSpotifyUrl = freshPlaylistData['spotify_url'] ?? '';
+      savedAppleUrl = freshPlaylistData['apple_url'] ?? '';
+      savedSignature = profileSignature;
       lastGeneratedTime = now;
-    } else {
-      // This also migrates previously saved long titles immediately instead of
-      // making the user wait for the next 14-day rotation.
-      selectedTitle = _compactPlaylistTitle(savedPlaylist);
-      if (selectedTitle != savedPlaylist) {
-        await prefs.setString('saved_curated_playlist', selectedTitle);
-      }
+
+      await prefs.setInt('playlist_timestamp', now);
+      await prefs.setString(
+        'saved_curated_playlist_profile',
+        savedSignature,
+      );
+      await prefs.setString(
+        'saved_curated_playlist_spotify_title',
+        savedSpotifyTitle,
+      );
+      await prefs.setString(
+        'saved_curated_playlist_apple_title',
+        savedAppleTitle,
+      );
+      await prefs.setString(
+        'saved_curated_playlist_spotify_url',
+        savedSpotifyUrl,
+      );
+      await prefs.setString(
+        'saved_curated_playlist_apple_url',
+        savedAppleUrl,
+      );
+
+      // Keep the legacy key populated so users upgrading from older builds do
+      // not lose state if they later run an older version of Reczt.
+      await prefs.setString(
+        'saved_curated_playlist',
+        _preferredApp == 'apple_music'
+            ? savedAppleTitle
+            : savedSpotifyTitle,
+      );
     }
 
-    final int timeLeft =
-        max(0, fourteenDaysInMs - (now - lastGeneratedTime)).toInt();
+    final String selectedTitle = _compactPlaylistTitle(
+      _preferredApp == 'apple_music'
+          ? (savedAppleTitle ?? 'Feeling Happy')
+          : (savedSpotifyTitle ?? 'Happy Hits!'),
+    );
+    final String selectedUrl = _preferredApp == 'apple_music'
+        ? (savedAppleUrl ?? '')
+        : (savedSpotifyUrl ?? '');
+
+    final int safeLastGeneratedTime = lastGeneratedTime ?? now;
+    final int timeLeft = max(
+      0,
+      fourteenDaysInMs - (now - safeLastGeneratedTime),
+    ).toInt();
     final int daysLeft = timeLeft ~/ (24 * 60 * 60 * 1000);
     final int hoursLeft =
         (timeLeft % (24 * 60 * 60 * 1000)) ~/ (60 * 60 * 1000);
@@ -5166,7 +5252,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     if (!mounted) return;
     setState(() {
       _curatedPlaylistTitle = selectedTitle;
-      _streamingUrl = freshPlaylistData['url'] ?? '';
+      _streamingUrl = selectedUrl;
       _countdownText = daysLeft > 0
           ? "${t('next_drop')}: \n ${daysLeft}d ${hoursLeft}h"
           : t('refreshing_soon');
@@ -5201,52 +5287,213 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     return streak;
   }
 
-  Map<String, String> _curatePlaylistByMajorityEmotion(String emotion) {
-    final normalizedEmotion = emotion.toLowerCase().trim();
+  String _dominantGenreForPlaylist() {
+    if (_genreCounts.isEmpty) return '';
+    final entries = _genreCounts.entries.toList()
+      ..sort((a, b) {
+        final countCompare = b.value.compareTo(a.value);
+        return countCompare != 0
+            ? countCompare
+            : a.key.compareTo(b.key);
+      });
+    return _normalizeGenre(entries.first.key);
+  }
 
-    final Map<String, Map<String, String>> emotionPlaylists = {
-      'sad': {
-        'title': 'Nostalgic Mix',
-        'query': 'Sad Indie',
-      },
-      'hype': {
-        'title': 'Pump-Up Mix',
-        'query': 'Workout Hits',
-      },
-      'romantic': {
-        'title': 'Romance Mix',
-        'query': 'Love Songs Essentials',
-      },
-      'happy': {
-        'title': 'Feel-Good Mix',
-        'query': 'Happy Hits',
-      },
-    };
+  /// Selects a real, direct playlist from the user's cumulative singing
+  /// profile. The dominant emotion supplies the vibe while the dominant genre
+  /// supplies musical style. Every returned URL points to an actual playlist,
+  /// never to a search-results page.
+  Map<String, String> _curatePlaylistFromProfile() {
+    final normalizedEmotion = _normalizeEmotion(_majorityEmotion);
+    final emotion = normalizedEmotion.isEmpty ? 'fallback' : normalizedEmotion;
+    final genre = _dominantGenreForPlaylist();
 
-    String title =
-        emotionPlaylists[normalizedEmotion]?['title'] ?? 'Feel-Good Mix';
-    String query =
-        emotionPlaylists[normalizedEmotion]?['query'] ?? 'Happy Hits';
-
-    if (normalizedEmotion == 'balanced' ||
-        normalizedEmotion.isEmpty ||
-        normalizedEmotion == 'fallback' ||
-        !emotionPlaylists.containsKey(normalizedEmotion)) {
-      if (_topArtists.isNotEmpty) {
-        final topArtistName = _topArtists.first.trim();
-        title = '$topArtistName Mix';
-        query = '$topArtistName Essentials';
-      }
+    Map<String, String> recommendation({
+      required String spotifyTitle,
+      required String spotifyUrl,
+      required String appleTitle,
+      required String appleUrl,
+    }) {
+      return {
+        'spotify_title': spotifyTitle,
+        'spotify_url': spotifyUrl,
+        'apple_title': appleTitle,
+        'apple_url': appleUrl,
+        'profile_signature': '$emotion|$genre',
+      };
     }
 
-    title = _compactPlaylistTitle(title);
-    final encodedQuery = Uri.encodeComponent(query);
+    final bool isAlternative =
+        genre == 'alternative' || genre == 'indie';
+    final bool isDance =
+        genre == 'dance' || genre == 'electronic';
+    final bool isHipHop = genre == 'hip-hop/rap';
+    final bool isRnB = genre == 'r&b/soul';
+    final bool isRock = genre == 'rock' || genre == 'metal';
 
-    final url = (_preferredApp == 'apple_music')
-        ? 'https://music.apple.com/us/search?term=$encodedQuery'
-        : 'https://open.spotify.com/search/$encodedQuery/playlists';
+    // Strong emotion + genre combinations come first so the recommendation
+    // reacts to both dimensions rather than simply choosing a generic mood.
+    if (emotion == 'sad' && isAlternative) {
+      return recommendation(
+        spotifyTitle: 'Sad Songs',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DX7qK8ma5wgG1',
+        appleTitle: 'Feeling Blue: Alternative',
+        appleUrl:
+            'https://music.apple.com/us/playlist/feeling-blue-alternative/pl.d3eb403f30e34f2a91095711211e2d14',
+      );
+    }
 
-    return {'title': title, 'url': url};
+    if (emotion == 'romantic') {
+      if (isRnB) {
+        return recommendation(
+          spotifyTitle: 'RNB X',
+          spotifyUrl:
+              'https://open.spotify.com/playlist/37i9dQZF1DX4SBhb3fqCJd',
+          appleTitle: 'R&B Now',
+          appleUrl:
+              'https://music.apple.com/us/playlist/r-b-now/pl.b7ae3e0a28e84c5c96c4284b6a6c70af',
+        );
+      }
+      return recommendation(
+        spotifyTitle: 'Love Pop',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DX50QitC6Oqtn',
+        appleTitle: 'Pure Romance',
+        appleUrl:
+            'https://music.apple.com/us/playlist/pure-romance/pl.2b0180f7fe5846348dda2dd60746cc48',
+      );
+    }
+
+    if (emotion == 'hype') {
+      if (isHipHop) {
+        return recommendation(
+          spotifyTitle: 'RapCaviar',
+          spotifyUrl:
+              'https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd',
+          appleTitle: 'Rap Life',
+          appleUrl:
+              'https://music.apple.com/us/playlist/rap-life/pl.abe8ba42278f4ef490e3a9fc5ec8e8c5',
+        );
+      }
+      if (isDance) {
+        return recommendation(
+          spotifyTitle: 'mint',
+          spotifyUrl:
+              'https://open.spotify.com/playlist/37i9dQZF1DX4dyzvuaRJ0n',
+          appleTitle: 'danceXL',
+          appleUrl:
+              'https://music.apple.com/us/playlist/dancexl/pl.6bf4415b83ce4f3789614ac4c3675740',
+        );
+      }
+      return recommendation(
+        spotifyTitle: 'Beast Mode',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP',
+        appleTitle: 'Pure Workout',
+        appleUrl:
+            'https://music.apple.com/us/playlist/pure-workout/pl.ad0ee1557e3e4feba314fd70f7982766',
+      );
+    }
+
+    if (emotion == 'sad') {
+      return recommendation(
+        spotifyTitle: 'Sad Songs',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DX7qK8ma5wgG1',
+        appleTitle: 'Feeling Blue',
+        appleUrl:
+            'https://music.apple.com/us/playlist/feeling-blue/pl.0f458c8569ef4a39a95f6ad4d6c54ba0',
+      );
+    }
+
+    // When the emotional profile is happy/balanced (or tied), let the actual
+    // most-sung genre drive the choice. This is what makes genre meaningful in
+    // the Vibe Match recommendation rather than merely decorative analytics.
+    if (isAlternative) {
+      return recommendation(
+        spotifyTitle: 'ALT NOW',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DWVqJMsgEN0F4',
+        appleTitle: 'ALT CTRL',
+        appleUrl:
+            'https://music.apple.com/us/playlist/alt-ctrl/pl.0b593f1142b84a50a2c1e7088b3fb683',
+      );
+    }
+    if (isHipHop) {
+      return recommendation(
+        spotifyTitle: 'RapCaviar',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd',
+        appleTitle: 'Rap Life',
+        appleUrl:
+            'https://music.apple.com/us/playlist/rap-life/pl.abe8ba42278f4ef490e3a9fc5ec8e8c5',
+      );
+    }
+    if (isRnB) {
+      return recommendation(
+        spotifyTitle: 'RNB X',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DX4SBhb3fqCJd',
+        appleTitle: 'R&B Now',
+        appleUrl:
+            'https://music.apple.com/us/playlist/r-b-now/pl.b7ae3e0a28e84c5c96c4284b6a6c70af',
+      );
+    }
+    if (genre == 'country') {
+      return recommendation(
+        spotifyTitle: 'Hot Country',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DX1lVhptIYRda',
+        appleTitle: "Today's Country",
+        appleUrl:
+            'https://music.apple.com/us/playlist/todays-country/pl.87bb5b36a9bd49db8c975607452bfa2b',
+      );
+    }
+    if (isDance) {
+      return recommendation(
+        spotifyTitle: 'mint',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DX4dyzvuaRJ0n',
+        appleTitle: 'danceXL',
+        appleUrl:
+            'https://music.apple.com/us/playlist/dancexl/pl.6bf4415b83ce4f3789614ac4c3675740',
+      );
+    }
+    if (isRock) {
+      return recommendation(
+        spotifyTitle: 'Rock Classics',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DWXRqgorJj26U',
+        appleTitle: 'Rock Classics',
+        appleUrl:
+            'https://music.apple.com/us/playlist/rock-classics/pl.ae12fec18a8b471788ee5956ac67b95a',
+      );
+    }
+
+    // Pop, singer/songwriter, folk, jazz, classical, Latin and any specific
+    // catalog genre that does not yet have a dedicated direct-playlist mapping
+    // fall back to the user's dominant emotional vibe rather than an "Other"
+    // genre bucket.
+    if (emotion == 'happy') {
+      return recommendation(
+        spotifyTitle: 'Happy Hits!',
+        spotifyUrl:
+            'https://open.spotify.com/playlist/37i9dQZF1DXdPec7aLTmlC',
+        appleTitle: 'Feeling Happy',
+        appleUrl:
+            'https://music.apple.com/us/playlist/feeling-happy/pl.0d4aee5424c74d29ad15252eeb43d3b1',
+      );
+    }
+
+    return recommendation(
+      spotifyTitle: 'Happy Hits!',
+      spotifyUrl:
+          'https://open.spotify.com/playlist/37i9dQZF1DXdPec7aLTmlC',
+      appleTitle: 'Feeling Happy',
+      appleUrl:
+          'https://music.apple.com/us/playlist/feeling-happy/pl.0d4aee5424c74d29ad15252eeb43d3b1',
+    );
   }
 
 
