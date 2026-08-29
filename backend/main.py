@@ -847,10 +847,12 @@ def recognize_audio(
     language: str = Form("en"),
     vocal_isolation: str = Form("true"),
     environment: str = Form("quiet"),
+    auto_play: str = Form("true"),
 ) -> Dict[str, Any]:
     language = normalize_language(language)
     environment = normalize_environment(environment)
     vocal_isolation_requested = parse_bool(vocal_isolation)
+    auto_play_requested = parse_bool(auto_play)
 
     if not acrcloud_configured() and not (groq_client and GENIUS_ACCESS_TOKEN):
         raise HTTPException(
@@ -894,7 +896,13 @@ def recognize_audio(
             # app handles ordinary ambiguity itself (and only shows Top Guesses
             # when Auto Play is off), but the server rejects near-random matches.
             top_confidence = combined[0].get("confidence") or 0.0
-            if top_confidence < 0.35:
+
+            # Interaction-aware acceptance floor:
+            # Auto Play ON is more forgiving for hands-free use.
+            # Auto Play OFF stays more conservative because the user can see
+            # and choose between ambiguous results.
+            minimum_confidence = 0.28 if auto_play_requested else 0.35
+            if top_confidence < minimum_confidence:
                 return {
                     "success": False,
                     "message": "Recognition confidence was too low. Try again with a clearer melody or lyric phrase.",
