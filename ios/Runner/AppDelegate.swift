@@ -2,57 +2,70 @@ import UIKit
 import Flutter
 import AppIntents
 import AVFoundation
-import UserNotifications
 
-// Helper to bridge Siri events to Flutter
+// Helper to bridge Siri events to Flutter.
 class SiriBridge {
     static var channel: FlutterMethodChannel?
 
     static func sendSiriSignal() {
-        // 1. Set flag for Cold Start
-        // Flutter's shared_preferences expects the "flutter." prefix
-        UserDefaults.standard.set(
-            true,
-        let controller =
-            window?.rootViewController as! FlutterViewController
+        // shared_preferences stores native keys with the "flutter." prefix.
+        UserDefaults.standard.set(true, forKey: "flutter.launchedFromSiri")
 
-        // Initialize MethodChannel
-        // Matches main.dart: com.handsfreefinder/siri
-        let channel = FlutterMethodChannel(
+        // Configure the audio session so Siri releases microphone control.
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.allowBluetooth, .defaultToSpeaker]
+            )
+            try session.setActive(true)
+        } catch {
+            print("Audio session error: \(error)")
+        }
+
+        // Warm-start signal to Flutter.
+        DispatchQueue.main.async {
+            SiriBridge.channel?.invokeMethod(
+                "startSiriRecognition",
+                arguments: nil
+            )
+        }
+    }
+}
+
+@main
+@objc class AppDelegate: FlutterAppDelegate {
+    override func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        let controller = window?.rootViewController as! FlutterViewController
+
+        let siriChannel = FlutterMethodChannel(
             name: "com.handsfreefinder/siri",
             binaryMessenger: controller.binaryMessenger
         )
 
-        SiriBridge.channel = channel
+        SiriBridge.channel = siriChannel
 
-        // Handle incoming calls from Flutter
-        // such as checkSiriTrigger
-        channel.setMethodCallHandler {
-            (call: FlutterMethodCall,
-             result: @escaping FlutterResult) in
-
-            if call.method == "checkSiriTrigger" {
-
-                let launchedFromSiri =
-                    UserDefaults.standard.bool(
-                        forKey: "flutter.launchedFromSiri"
-                    )
+        siriChannel.setMethodCallHandler { call, result in
+            switch call.method {
+            case "checkSiriTrigger":
+                let launchedFromSiri = UserDefaults.standard.bool(
+                    forKey: "flutter.launchedFromSiri"
+                )
 
                 if launchedFromSiri {
-
-                    // Reset flag immediately
                     UserDefaults.standard.set(
                         false,
                         forKey: "flutter.launchedFromSiri"
                     )
-
-                    result(true)
-
-                } else {
-                    result(false)
                 }
 
-            } else {
+                result(launchedFromSiri)
+
+            default:
                 result(FlutterMethodNotImplemented)
             }
         }
@@ -64,14 +77,12 @@ class SiriBridge {
             didFinishLaunchingWithOptions: launchOptions
         )
     }
-} // ← THIS closing brace was missing
-
+}
 
 @available(iOS 16.0, *)
 struct AppShortcuts: AppShortcutsProvider {
-
     static var appShortcuts: [AppShortcut] {
-        return [
+        [
             AppShortcut(
                 intent: IdentifySongIntent(),
                 phrases: [
@@ -85,20 +96,14 @@ struct AppShortcuts: AppShortcutsProvider {
     }
 }
 
-
 @available(iOS 16.0, *)
 struct IdentifySongIntent: AppIntent {
-
-    static var title: LocalizedStringResource =
-        "Identify Song"
-
+    static var title: LocalizedStringResource = "Identify Song"
     static var openAppWhenRun: Bool = true
 
     @MainActor
     func perform() async throws -> some IntentResult {
-
         SiriBridge.sendSiriSignal()
-
         return .result()
     }
 }
