@@ -47,6 +47,10 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
     private var firstPhrases: [String] = []
     private var secondPhrases: [String] = []
 
+    // Number of queued speech segments still being spoken. We only start
+    // listening after the final segment finishes.
+    private var pendingSpeechSegments = 0
+
     private override init() {
         super.init()
         synthesizer.delegate = self
@@ -120,6 +124,118 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
+    /// Pick the most natural installed voice for the current language.
+    ///
+    /// Preference order:
+    /// 1. Exact locale (for example en-US rather than generic English)
+    /// 2. Female voice, when available
+    /// 3. Highest installed voice quality (premium/enhanced/default)
+    ///
+    /// This automatically benefits from any enhanced or premium Apple voices
+    /// the user has installed, while still falling back safely on every iPhone.
+    private func preferredSpeechVoice() -> AVSpeechSynthesisVoice? {
+        let allVoices = AVSpeechSynthesisVoice.speechVoices()
+        let requestedLocale =
+            Locale(identifier: localeIdentifier)
+        let requestedLanguage =
+            requestedLocale.languageCode?.lowercased()
+
+        let compatibleVoices = allVoices.filter { voice in
+            let voiceLocale = Locale(identifier: voice.language)
+            let voiceLanguage =
+                voiceLocale.languageCode?.lowercased()
+
+            return voice.language.caseInsensitiveCompare(localeIdentifier) == .orderedSame
+                || (
+                    requestedLanguage != nil
+                    && voiceLanguage == requestedLanguage
+                )
+        }
+
+        guard !compatibleVoices.isEmpty else {
+            return AVSpeechSynthesisVoice(language: localeIdentifier)
+        }
+
+        return compatibleVoices.max { lhs, rhs in
+            func score(_ voice: AVSpeechSynthesisVoice) -> Int {
+                var total = 0
+
+                // Strongly prefer the exact regional locale.
+                if voice.language.caseInsensitiveCompare(localeIdentifier) == .orderedSame {
+                    total += 1000
+                }
+
+                // Reczt's preferred assistant character is warm/female.
+                if voice.gender == .female {
+                    total += 300
+                }
+
+                // quality.rawValue lets newer premium voices naturally outrank
+                // enhanced/default voices without hard-coding an iOS-version case.
+                total += voice.quality.rawValue * 100
+
+                // A small preference for voices whose names are commonly
+                // associated with Apple's more natural English voices.
+                let warmVoiceNames = [
+                    "ava", "samantha", "zoe", "serena",
+                    "allison", "karen", "moira", "tessa"
+                ]
+                let normalizedName = voice.name.lowercased()
+                if warmVoiceNames.contains(where: { normalizedName.contains($0) }) {
+                    total += 20
+                }
+
+                return total
+            }
+
+            return score(lhs) < score(rhs)
+        }
+    }
+
+    /// Break a long prompt into natural spoken phrases. AVSpeechSynthesizer
+    /// handles punctuation better when each sentence is its own utterance, and
+    /// postUtteranceDelay gives the listener a real conversational pause.
+    private func speechSegments(from prompt: String) -> [String] {
+        let cleaned = prompt
+            .replacingOccurrences(of: ":", with: ": ")
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !cleaned.isEmpty else { return [] }
+
+        let sentencePattern = #"[^.!?。！？]+[.!?。！？]?"#
+        guard
+            let regex = try? NSRegularExpression(
+                pattern: sentencePattern,
+                options: []
+            )
+        else {
+            return [cleaned]
+        }
+
+        let nsRange = NSRange(
+            cleaned.startIndex..<cleaned.endIndex,
+            in: cleaned
+        )
+
+        let pieces = regex.matches(
+            in: cleaned,
+            options: [],
+            range: nsRange
+        ).compactMap { match -> String? in
+            guard let range = Range(match.range, in: cleaned) else {
+                return nil
+            }
+
+            let piece = String(cleaned[range])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            return piece.isEmpty ? nil : piece
+        }
+
+        return pieces.isEmpty ? [cleaned] : pieces
+    }
+
     private func speak(_ prompt: String) {
         stopRecognition()
 
@@ -135,24 +251,55 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
             print("Voice choice speech session error: \(error)")
         }
 
-        let utterance = AVSpeechUtterance(string: prompt)
-        utterance.voice =
-            AVSpeechSynthesisVoice(language: localeIdentifier)
-        utterance.rate = 0.48
-        synthesizer.speak(utterance)
+        let segments = speechSegments(from: prompt)
+        guard !segments.isEmpty else {
+            finish(choice: nil)
+            return
+        }
+
+        let voice = preferredSpeechVoice()
+        pendingSpeechSegments = segments.count
+
+        for (index, segment) in segments.enumerated() {
+            let utterance = AVSpeechUtterance(string: segment)
+            utterance.voice = voice
+
+            // Slightly slower than the system default, with a subtly lower
+            // pitch, sounds calmer and less synthetic.
+            utterance.rate = 0.44
+            utterance.pitchMultiplier = 0.96
+            utterance.volume = 0.95
+
+            // A brief lead-in prevents the first word from feeling clipped.
+            if index == 0 {
+                utterance.preUtteranceDelay = 0.12
+            }
+
+            // Pause long enough for song titles/artists to feel separated,
+            // with a shorter pause just before Reczt begins listening.
+            utterance.postUtteranceDelay =
+                index == segments.count - 1 ? 0.18 : 0.42
+
+            synthesizer.speak(utterance)
+        }
     }
 
     func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didFinish utterance: AVSpeechUtterance
     ) {
-        startListening()
+        pendingSpeechSegments = max(0, pendingSpeechSegments - 1)
+
+        if pendingSpeechSegments == 0 {
+            startListening()
+        }
     }
 
     func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didCancel utterance: AVSpeechUtterance
     ) {
+        pendingSpeechSegments = 0
         finish(choice: nil)
     }
 
@@ -327,6 +474,7 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
             self.pendingResult = nil
             self.firstPhrases = []
             self.secondPhrases = []
+            self.pendingSpeechSegments = 0
 
             try? AVAudioSession.sharedInstance().setActive(
                 false,
