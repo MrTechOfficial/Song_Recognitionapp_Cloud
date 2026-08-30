@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,7 +14,6 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'dart:math';
@@ -31,6 +29,341 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// Single source of truth for the Reczt App Store link. Previously this
 /// was redeclared locally in several functions — consolidated here.
 const String reczAppStoreUrl = "https://apps.apple.com/app/id123456789";
+
+// --------------------------------------------------------------------
+// ⚖️ LEGAL & PRIVACY
+// --------------------------------------------------------------------
+
+// Increment this string whenever the Privacy Policy or Terms change
+// materially. Reczt will then show the legal notice one more time.
+const String recztLegalNoticeVersion = '2026-08-30-v1';
+
+// After the two HTML files are published on a permanent public website,
+// paste their live URLs here. Until then, Reczt always shows the complete
+// built-in copies below, so the in-app legal section is never a broken link.
+const String recztPrivacyPolicyUrl = 'https://mrtechofficial.github.io/Song_Recognitionapp_Cloud/privacy.html';
+const String recztTermsOfUseUrl = 'https://mrtechofficial.github.io/Song_Recognitionapp_Cloud/terms.html';
+
+const String _recztPrivacyPolicyText = r'''Reczt Privacy Policy
+
+Effective Date: August 30, 2026
+
+Reczt (“Reczt,” “we,” “us,” or “our”) is operated by Leslie Kane. This Privacy Policy explains how Reczt handles information when you use the Reczt mobile application and related song-recognition services.
+
+If you have questions about this Privacy Policy, contact us at georgethomasbazos@gmail.com.
+
+1. Summary
+
+Reczt is a general-audience song-recognition app. Reczt does not require a Reczt account. Reczt is free to use and does not contain advertising, subscriptions, or in-app purchases.
+
+Reczt does not sell personal information, does not use personal information for targeted advertising, and does not track users across other companies’ apps or websites for advertising purposes.
+
+Reczt processes limited information needed to recognize songs and provide app features. Some information stays only on your device, while some information is transmitted to service providers to perform song recognition or related functions.
+
+2. Information Reczt Processes
+
+A. Singing and Audio Recordings
+
+When you choose to identify a song, Reczt records audio from your microphone.
+
+The recording is transmitted to Reczt’s recognition backend for the purpose of identifying the song. The backend creates temporary audio files while the recognition request is being processed. Reczt’s backend is designed to delete those temporary files when the recognition request ends and does not intentionally maintain a permanent server-side library of users’ recordings.
+
+For successful recognitions, Reczt may also save a copy of your singing clip locally on your device as part of your Reczt history so you can replay it later. These locally saved clips remain on your device until you delete the relevant history item, clear your history, or remove the app.
+
+B. Song Recognition and Transcription
+
+Reczt may send audio to third-party service providers to identify the song:
+
+- ACRCloud receives audio for audio or humming recognition. ACRCloud states in its terms that uploaded audio or video files are removed after fingerprints are generated, although fingerprints and related metadata may be handled under ACRCloud’s own terms and policies.
+- Groq may receive audio when Reczt uses speech-to-text as a fallback recognition method. Reczt’s Groq organization is configured with Global Zero Data Retention (ZDR). Under Groq’s current ZDR documentation, customer inputs and outputs are not retained for system-reliability or abuse-monitoring purposes. Groq may still retain non-content usage metadata that does not contain customer inputs or outputs.
+- Genius may receive short lyric-search queries derived from a transcription in order to identify possible songs.
+
+Reczt does not intentionally write the content of Groq transcriptions into its own production server logs.
+
+C. Song and Music-Service Information
+
+Reczt may send song titles and artist names to Spotify and Apple services to find canonical song information, links, artwork, genres, or other music metadata.
+
+If you choose to create a Spotify playlist from Reczt history, Reczt uses Spotify’s authorization process to request the permissions needed to create or modify playlists. Reczt does not receive or store your Spotify password. In the current app, the Spotify access token used for playlist creation is used for that authorization session and is not intentionally stored as a persistent Reczt credential.
+
+Your use of Spotify, Apple Music, and other third-party music services is also governed by those providers’ own terms and privacy policies.
+
+D. Location and “Acoustic Memory”
+
+If you grant location permission, Reczt may access your device location when you begin a singing session so the Acoustic Memory map can remember where you have used Reczt.
+
+Acoustic Memory location information is stored locally on your device using compact approximate location buckets rather than maintaining a permanent server-side location history. Reczt’s current recognition request does not send your Acoustic Memory latitude or longitude to Reczt’s recognition backend.
+
+You can deny or revoke Reczt’s location permission through iOS Settings. Reczt’s core song-recognition feature can still function without the Acoustic Memory location feature.
+
+E. Hands-Free Speech Recognition
+
+If Auto Play is enabled and Reczt needs you to choose between two possible song matches, Reczt may ask you to say “first” or “second.”
+
+This feature uses Apple’s Speech framework. Apple states that speech recognition performed with SFSpeechRecognizer may capture your voice audio and send it to Apple’s servers for processing. iOS asks for your permission before Reczt uses this feature.
+
+F. Local App Data
+
+Reczt stores certain information locally on your device so the app can function, including items such as:
+
+- song-recognition history;
+- locally saved singing clips;
+- preferred music service and language;
+- Auto Play and appearance preferences;
+- local analytics such as song counts, artist counts, genre counts, emotion counts, and usage streaks;
+- Acoustic Memory location usage; and
+- pending offline recordings waiting to be recognized when connectivity returns.
+
+This information is used to provide Reczt’s features and is not used for advertising.
+
+G. Technical Information
+
+Reczt and its hosting or network providers may process ordinary technical request information needed to deliver and protect the service, such as IP address, request timing, service status, device/network connectivity information, or error information.
+
+Reczt does not use this information to create advertising profiles.
+
+3. How Reczt Uses Information
+
+Reczt uses information only as reasonably necessary to:
+
+- recognize songs;
+- provide song links, artwork, genre information, and related metadata;
+- create user-requested Spotify playlists;
+- provide local history, analytics, Acoustic Memory, and offline-queue features;
+- provide hands-free song-choice functionality;
+- maintain, secure, troubleshoot, and improve the reliability of Reczt; and
+- comply with applicable law.
+
+4. Service Providers and Third Parties
+
+Depending on the feature you use, information may be processed by service providers including:
+
+- Render — backend hosting and infrastructure;
+- ACRCloud — audio and humming recognition;
+- Groq — fallback speech-to-text transcription;
+- Genius — lyric-based song search;
+- Spotify — music metadata, links, authorization, and playlist creation; and
+- Apple — Apple Music/iTunes metadata, iOS permissions, and Apple Speech Recognition.
+
+These companies process information under their own agreements and privacy practices. Reczt uses these services only for app functionality and does not authorize them to use Reczt data for Reczt advertising.
+
+5. Data Retention and Deletion
+
+Reczt is designed to minimize server-side retention.
+
+- Reczt backend audio: temporary files are designed to be deleted when a recognition request ends.
+- Groq: Reczt has enabled Global ZDR for customer inputs and outputs. Groq may retain non-content usage metadata as described in its documentation.
+- ACRCloud: ACRCloud states that uploaded audio/video files are removed after fingerprint generation; its handling of fingerprints and related metadata is governed by its own terms.
+- Local Reczt history and clips: remain on your device until you delete them or remove the app.
+- Local preferences, analytics, and Acoustic Memory information: generally remain on your device until the app or its local data is removed.
+
+Reczt does not currently maintain a Reczt user account or a server-side user profile that requires a separate account-deletion process.
+
+6. Your Choices
+
+You control whether Reczt can use microphone, location, speech-recognition, Bluetooth, and Siri-related permissions through iOS.
+
+You may:
+
+- deny or revoke permissions in iOS Settings;
+- delete individual saved song-history items;
+- clear saved song history and its associated local clips;
+- revoke Spotify authorization through Spotify if you choose to do so; and
+- delete Reczt from your device to remove Reczt’s locally stored app data, subject to any device backup settings controlled by Apple.
+
+For privacy questions or requests concerning information Reczt may control, contact georgethomasbazos@gmail.com.
+
+7. No Sale, Advertising, or Cross-App Tracking
+
+Reczt does not sell personal information.
+
+Reczt does not contain third-party advertising and does not use personal information for targeted or cross-context behavioral advertising.
+
+8. Cookies
+
+The native Reczt app does not use browser cookies for advertising or analytics. Third-party websites or authorization pages that you choose to open, including Spotify or Apple services, may use cookies or similar technologies under their own policies.
+
+9. Children’s Privacy
+
+Reczt is a general-audience service and is not directed to children under 13.
+
+If you are under 13, you should not use Reczt. Users who are under the age of majority in their jurisdiction should use Reczt only with permission of a parent or legal guardian.
+
+Reczt does not ask users to provide a date of birth and does not knowingly create profiles about children. If you believe a child under 13 has provided personal information to Reczt in a manner that should be deleted, contact georgethomasbazos@gmail.com.
+
+10. International Processing
+
+Some service providers used by Reczt may process information in the United States or other countries. Privacy laws may differ from those in your place of residence.
+
+11. Security
+
+Reczt uses reasonable technical and organizational measures intended to protect information. However, no internet transmission, device, or storage system can be guaranteed to be completely secure.
+
+12. Changes to This Privacy Policy
+
+We may update this Privacy Policy as Reczt changes. If we make a material change, we may provide notice in the app and update the Effective Date above.
+
+13. Contact
+
+Leslie Kane  
+Operator / Publisher of Reczt  
+Email: georgethomasbazos@gmail.com''';
+
+const String _recztTermsOfUseText = r'''Reczt Terms of Use
+
+Effective Date: August 30, 2026
+
+These Terms of Use (“Terms”) govern your use of the Reczt mobile application and related services (“Reczt”). Reczt is operated by Leslie Kane (“we,” “us,” or “our”).
+
+By using Reczt, or by tapping Agree & Continue when the Terms are presented in the app, you agree to these Terms. If you do not agree, do not use Reczt.
+
+Questions about these Terms may be sent to georgethomasbazos@gmail.com.
+
+1. Eligibility and General Audience
+
+Reczt is a general-audience app and is not directed to children under 13.
+
+You must be at least 13 years old to use Reczt. If you are under the age of majority where you live, you may use Reczt only with the permission and supervision of a parent or legal guardian who agrees to these Terms on your behalf.
+
+Some third-party services available through Reczt, including Spotify, may impose their own minimum-age or account-eligibility requirements. You may use those features only if you are eligible under the applicable third-party terms.
+
+2. What Reczt Does
+
+Reczt is designed to help users identify songs by singing, humming, or recording audio and to provide links and related song information.
+
+Reczt may also provide features such as:
+
+- song history and locally saved singing clips;
+- Spotify and Apple Music links;
+- Spotify playlist creation when authorized by the user;
+- local listening analytics and recommendations;
+- Acoustic Memory location features;
+- offline recognition queues; and
+- hands-free song-choice functionality.
+
+Reczt is currently provided free of charge, with no subscriptions, in-app purchases, or advertisements.
+
+3. License to Use Reczt
+
+Subject to these Terms and any applicable Apple license terms, we grant you a limited, personal, non-exclusive, non-transferable, revocable license to use Reczt for lawful personal use.
+
+You may not:
+
+- copy, sell, rent, sublicense, or commercially exploit Reczt except as permitted by law;
+- attempt to interfere with or overload Reczt’s servers or third-party services;
+- use Reczt to violate another person’s intellectual-property, privacy, publicity, or other rights;
+- use Reczt for unlawful, fraudulent, abusive, or harmful purposes;
+- circumvent technical limitations, security measures, rate limits, or service restrictions; or
+- reverse engineer or attempt to derive Reczt source code except to the extent such restriction is prohibited by applicable law.
+
+4. Your Audio and Inputs
+
+You retain any rights you may have in recordings of your own voice.
+
+When you submit audio to Reczt, you authorize Reczt and its service providers to temporarily transmit, process, analyze, and transform that audio only as reasonably necessary to provide song recognition and related app functionality.
+
+You should not use Reczt to submit passwords, financial information, health information, confidential conversations, or other sensitive information.
+
+5. Song Recognition Is Not Guaranteed
+
+Song recognition is probabilistic and may be incorrect.
+
+Reczt may return the wrong song, fail to identify a song, provide incomplete metadata, or offer more than one possible match. The hands-free “first or second” feature is intended to reduce incorrect automatic playback but does not guarantee accuracy.
+
+You are responsible for confirming any result before relying on it.
+
+6. Third-Party Music and Technology Services
+
+Reczt relies on or links to third-party services, which may include ACRCloud, Groq, Genius, Spotify, Apple Music, iTunes/Apple services, Render, and Apple Speech Recognition.
+
+Those services are operated by independent third parties and may be subject to their own terms, privacy policies, account requirements, availability, rate limits, geographic restrictions, or fees imposed by those third parties.
+
+Reczt is not Spotify, Apple, ACRCloud, Groq, Genius, or Render, and use of those names does not imply ownership, sponsorship, or endorsement except where expressly stated.
+
+If you authorize Reczt to create a Spotify playlist, you authorize Reczt to use the permissions displayed by Spotify for that purpose. You remain responsible for your Spotify account and for compliance with Spotify’s terms.
+
+7. Music, Artwork, and Other Third-Party Content
+
+Song names, artist names, album names, artwork, music-service branding, and other third-party content belong to their respective owners.
+
+Reczt does not claim ownership of third-party music or artwork. Any third-party content displayed or linked through Reczt is provided for identification, navigation, or interoperability with the relevant music service.
+
+8. Privacy
+
+Your use of Reczt is subject to the Reczt Privacy Policy, which explains how audio, location, local app data, and third-party services are handled.
+
+By using Reczt, you acknowledge the Privacy Policy and consent to permission-based processing where consent is required by the operating system or applicable law.
+
+9. Apple Terms
+
+If you obtain Reczt through Apple’s App Store, Apple’s applicable App Store terms and Apple’s standard Licensed Application End User License Agreement may also apply to your use of the app.
+
+These Terms supplement, and do not replace, any mandatory rights or obligations that apply under Apple’s terms or applicable law.
+
+10. Availability and Changes
+
+We may modify, suspend, discontinue, or update Reczt or any feature at any time.
+
+Third-party APIs and services can change without notice, and a feature that depends on a third party may stop working or operate differently.
+
+We do not guarantee that Reczt will always be available, uninterrupted, secure, or error-free.
+
+11. Disclaimer of Warranties
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, RECZT IS PROVIDED “AS IS” AND “AS AVAILABLE.”
+
+WE DISCLAIM WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND ANY WARRANTIES ARISING FROM COURSE OF DEALING OR USAGE OF TRADE, EXCEPT WHERE SUCH DISCLAIMERS ARE NOT PERMITTED BY LAW.
+
+Nothing in these Terms limits rights that cannot legally be waived.
+
+12. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, LESLIE KANE AND RECZT WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOSS OF DATA, PROFITS, GOODWILL, OR USE, ARISING FROM OR RELATED TO RECZT OR THIRD-PARTY SERVICES.
+
+TO THE EXTENT LIABILITY CANNOT BE EXCLUDED, OUR TOTAL LIABILITY ARISING OUT OF OR RELATING TO RECZT WILL NOT EXCEED THE GREATER OF (A) THE AMOUNT YOU PAID TO USE RECZT DURING THE 12 MONTHS BEFORE THE EVENT GIVING RISE TO THE CLAIM OR (B) US$50.
+
+Because Reczt is currently free, the US$50 amount may apply where permitted by law.
+
+Some jurisdictions do not allow certain exclusions or limitations, so parts of this section may not apply to you.
+
+13. Your Responsibility for Lawful Use
+
+You are responsible for your use of Reczt and for complying with applicable laws and third-party terms.
+
+You agree not to intentionally misuse the service or submit material in a manner that violates another person’s rights.
+
+14. Suspension or Termination
+
+We may restrict or terminate access to Reczt if reasonably necessary to protect users, Reczt, third-party services, legal rights, or service security, or if these Terms are materially violated.
+
+You may stop using Reczt at any time by deleting the app.
+
+15. Governing Law
+
+These Terms are governed by the laws of the State of New York, without regard to conflict-of-law principles, except where applicable consumer law requires otherwise.
+
+Any dispute that is not subject to a mandatory alternative forum under applicable law may be brought in a court of competent jurisdiction in New York State.
+
+16. Changes to These Terms
+
+We may update these Terms when Reczt changes or when legal or third-party requirements change.
+
+If a change is material, we may provide notice in the app and require you to review or accept the updated Terms before continuing to use Reczt.
+
+17. Severability
+
+If any provision of these Terms is found unenforceable, the remaining provisions will remain in effect to the extent permitted by law.
+
+18. Entire Agreement
+
+These Terms, the Reczt Privacy Policy, and applicable Apple license terms constitute the agreement governing your use of Reczt, except where other mandatory terms apply.
+
+19. Contact
+
+Leslie Kane  
+Operator / Publisher of Reczt  
+Email: georgethomasbazos@gmail.com''';
+
 
 
 /// Native iOS channel used to share a true tappable Link Presentation card.
@@ -542,6 +875,15 @@ void main() async {
 // --------------------------------------------------------------------
 final Map<String, Map<String, String>> localizedStrings = {
   'en': {
+    'legal_privacy': 'Legal & Privacy',
+    'privacy_policy': 'Privacy Policy',
+    'terms_of_use': 'Terms of Use',
+    'open_source_licenses': 'Open-Source Licenses',
+    'legal_notice_title': 'Welcome to Reczt',
+    'legal_notice_body': 'Before using Reczt, please review the Privacy Policy and Terms of Use. By tapping Agree & Continue, you agree to the Terms and acknowledge the Privacy Policy.',
+    'legal_accept': 'Agree & Continue',
+    'legal_close': 'Close',
+    'view_online': 'View Online',
     'app_title': 'Hands-Free Song Identifier',
     'where_are_you': 'Where Are You?',
     'quiet_room': 'A quiet room',
@@ -657,6 +999,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Other',
   },
   'es': {
+    'legal_privacy': 'Legal y privacidad',
+    'privacy_policy': 'Política de privacidad',
+    'terms_of_use': 'Términos de uso',
+    'open_source_licenses': 'Licencias de código abierto',
+    'legal_notice_title': 'Bienvenido a Reczt',
+    'legal_notice_body': 'Antes de usar Reczt, revisa la Política de privacidad y los Términos de uso. Al tocar Aceptar y continuar, aceptas los Términos y reconoces la Política de privacidad.',
+    'legal_accept': 'Aceptar y continuar',
+    'legal_close': 'Cerrar',
+    'view_online': 'Ver en línea',
     'app_title': 'Identificador de Canciones',
     'where_are_you': '¿Dónde estás?',
     'quiet_room': 'Una habitación silenciosa',
@@ -769,6 +1120,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Otro',
   },
   'fr': {
+    'legal_privacy': 'Mentions légales et confidentialité',
+    'privacy_policy': 'Politique de confidentialité',
+    'terms_of_use': 'Conditions d’utilisation',
+    'open_source_licenses': 'Licences open source',
+    'legal_notice_title': 'Bienvenue dans Reczt',
+    'legal_notice_body': 'Avant d’utiliser Reczt, veuillez consulter la Politique de confidentialité et les Conditions d’utilisation. En touchant Accepter et continuer, vous acceptez les Conditions et reconnaissez la Politique de confidentialité.',
+    'legal_accept': 'Accepter et continuer',
+    'legal_close': 'Fermer',
+    'view_online': 'Voir en ligne',
     'app_title': 'Identificateur de Chansons',
     'where_are_you': 'Où êtes-vous ?',
     'quiet_room': 'Une pièce calme',
@@ -881,6 +1241,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Autre',
   },
   'de': {
+    'legal_privacy': 'Rechtliches & Datenschutz',
+    'privacy_policy': 'Datenschutzerklärung',
+    'terms_of_use': 'Nutzungsbedingungen',
+    'open_source_licenses': 'Open-Source-Lizenzen',
+    'legal_notice_title': 'Willkommen bei Reczt',
+    'legal_notice_body': 'Bitte lies vor der Nutzung von Reczt die Datenschutzerklärung und die Nutzungsbedingungen. Mit Zustimmen & Fortfahren akzeptierst du die Bedingungen und bestätigst die Datenschutzerklärung.',
+    'legal_accept': 'Zustimmen & fortfahren',
+    'legal_close': 'Schließen',
+    'view_online': 'Online ansehen',
     'app_title': 'Song-Erkennung',
     'where_are_you': 'Wo bist du?',
     'quiet_room': 'Ein ruhiger Raum',
@@ -993,6 +1362,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Andere',
   },
   'it': {
+    'legal_privacy': 'Note legali e privacy',
+    'privacy_policy': 'Informativa sulla privacy',
+    'terms_of_use': 'Termini di utilizzo',
+    'open_source_licenses': 'Licenze open source',
+    'legal_notice_title': 'Benvenuto in Reczt',
+    'legal_notice_body': 'Prima di usare Reczt, consulta l’Informativa sulla privacy e i Termini di utilizzo. Toccando Accetta e continua, accetti i Termini e prendi atto dell’Informativa sulla privacy.',
+    'legal_accept': 'Accetta e continua',
+    'legal_close': 'Chiudi',
+    'view_online': 'Visualizza online',
     'app_title': 'Riconoscimento Brani',
     'where_are_you': 'Dove ti trovi?',
     'quiet_room': 'Una stanza silenziosa',
@@ -1105,6 +1483,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Altro',
   },
   'pt': {
+    'legal_privacy': 'Legal e privacidade',
+    'privacy_policy': 'Política de Privacidade',
+    'terms_of_use': 'Termos de Uso',
+    'open_source_licenses': 'Licenças de código aberto',
+    'legal_notice_title': 'Bem-vindo ao Reczt',
+    'legal_notice_body': 'Antes de usar o Reczt, revise a Política de Privacidade e os Termos de Uso. Ao tocar em Aceitar e continuar, você aceita os Termos e reconhece a Política de Privacidade.',
+    'legal_accept': 'Aceitar e continuar',
+    'legal_close': 'Fechar',
+    'view_online': 'Ver online',
     'app_title': 'Identificador de Músicas',
     'where_are_you': 'Onde você está?',
     'quiet_room': 'Um quarto silencioso',
@@ -1217,6 +1604,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Outro',
   },
   'ja': {
+    'legal_privacy': '法的情報とプライバシー',
+    'privacy_policy': 'プライバシーポリシー',
+    'terms_of_use': '利用規約',
+    'open_source_licenses': 'オープンソースライセンス',
+    'legal_notice_title': 'Recztへようこそ',
+    'legal_notice_body': 'Recztを使用する前に、プライバシーポリシーと利用規約をご確認ください。「同意して続ける」をタップすると、利用規約に同意し、プライバシーポリシーを確認したものとみなされます。',
+    'legal_accept': '同意して続ける',
+    'legal_close': '閉じる',
+    'view_online': 'オンラインで表示',
     'app_title': '楽曲識別アプリ',
     'where_are_you': 'どこにいますか？',
     'quiet_room': '静かな部屋',
@@ -1330,6 +1726,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'その他',
   },
   'ko': {
+    'legal_privacy': '법률 및 개인정보 보호',
+    'privacy_policy': '개인정보 처리방침',
+    'terms_of_use': '이용약관',
+    'open_source_licenses': '오픈 소스 라이선스',
+    'legal_notice_title': 'Reczt에 오신 것을 환영합니다',
+    'legal_notice_body': 'Reczt를 사용하기 전에 개인정보 처리방침과 이용약관을 확인해 주세요. 동의하고 계속을 누르면 이용약관에 동의하고 개인정보 처리방침을 확인한 것으로 간주됩니다.',
+    'legal_accept': '동의하고 계속',
+    'legal_close': '닫기',
+    'view_online': '온라인에서 보기',
     'app_title': '음악 검색 식별기',
     'where_are_you': '어디에 계신가요?',
     'quiet_room': '조용한 방',
@@ -1443,6 +1848,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '기타',
   },
   'zh': {
+    'legal_privacy': '法律与隐私',
+    'privacy_policy': '隐私政策',
+    'terms_of_use': '使用条款',
+    'open_source_licenses': '开源许可证',
+    'legal_notice_title': '欢迎使用 Reczt',
+    'legal_notice_body': '使用 Reczt 前，请查看隐私政策和使用条款。点击“同意并继续”即表示你同意使用条款并知悉隐私政策。',
+    'legal_accept': '同意并继续',
+    'legal_close': '关闭',
+    'view_online': '在线查看',
     'app_title': '歌曲识别器',
     'where_are_you': '你在哪里？',
     'quiet_room': '安静的房间',
@@ -1556,6 +1970,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '其他',
   },
   'hi': {
+    'legal_privacy': 'कानूनी और गोपनीयता',
+    'privacy_policy': 'गोपनीयता नीति',
+    'terms_of_use': 'उपयोग की शर्तें',
+    'open_source_licenses': 'ओपन-सोर्स लाइसेंस',
+    'legal_notice_title': 'Reczt में आपका स्वागत है',
+    'legal_notice_body': 'Reczt का उपयोग करने से पहले गोपनीयता नीति और उपयोग की शर्तें देखें। सहमत हों और जारी रखें पर टैप करके आप शर्तों से सहमत होते हैं और गोपनीयता नीति को स्वीकार करते हैं।',
+    'legal_accept': 'सहमत हों और जारी रखें',
+    'legal_close': 'बंद करें',
+    'view_online': 'ऑनलाइन देखें',
     'app_title': 'गाना पहचानें',
     'where_are_you': 'आप कहाँ हैं?',
     'quiet_room': 'शांत कमरा',
@@ -1669,6 +2092,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'अन्य',
   },
   'ru': {
+    'legal_privacy': 'Правовая информация и конфиденциальность',
+    'privacy_policy': 'Политика конфиденциальности',
+    'terms_of_use': 'Условия использования',
+    'open_source_licenses': 'Лицензии открытого ПО',
+    'legal_notice_title': 'Добро пожаловать в Reczt',
+    'legal_notice_body': 'Перед использованием Reczt ознакомьтесь с Политикой конфиденциальности и Условиями использования. Нажимая «Согласиться и продолжить», вы принимаете Условия и подтверждаете ознакомление с Политикой конфиденциальности.',
+    'legal_accept': 'Согласиться и продолжить',
+    'legal_close': 'Закрыть',
+    'view_online': 'Открыть онлайн',
     'app_title': 'Распознавание Музыки',
     'where_are_you': 'Где вы находитесь?',
     'quiet_room': 'Тихая комната',
@@ -1782,6 +2214,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Другое',
   },
   'tr': {
+    'legal_privacy': 'Yasal ve Gizlilik',
+    'privacy_policy': 'Gizlilik Politikası',
+    'terms_of_use': 'Kullanım Koşulları',
+    'open_source_licenses': 'Açık Kaynak Lisansları',
+    'legal_notice_title': 'Reczt’e Hoş Geldiniz',
+    'legal_notice_body': 'Reczt’i kullanmadan önce Gizlilik Politikası ve Kullanım Koşullarını inceleyin. Kabul Et ve Devam Et’e dokunarak Koşulları kabul eder ve Gizlilik Politikasını onaylarsınız.',
+    'legal_accept': 'Kabul Et ve Devam Et',
+    'legal_close': 'Kapat',
+    'view_online': 'Çevrimiçi Görüntüle',
     'app_title': 'Şarkı Tanıma',
     'where_are_you': 'Neredesiniz?',
     'quiet_room': 'Sessiz bir oda',
@@ -1895,6 +2336,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Diğer',
   },
   'ar': {
+    'legal_privacy': 'القانون والخصوصية',
+    'privacy_policy': 'سياسة الخصوصية',
+    'terms_of_use': 'شروط الاستخدام',
+    'open_source_licenses': 'تراخيص المصادر المفتوحة',
+    'legal_notice_title': 'مرحبًا بك في Reczt',
+    'legal_notice_body': 'قبل استخدام Reczt، يرجى مراجعة سياسة الخصوصية وشروط الاستخدام. بالضغط على موافق ومتابعة، فإنك توافق على الشروط وتقر بسياسة الخصوصية.',
+    'legal_accept': 'موافق ومتابعة',
+    'legal_close': 'إغلاق',
+    'view_online': 'عرض عبر الإنترنت',
     'app_title': 'محدد الأغاني',
     'where_are_you': 'أين أنت؟',
     'quiet_room': 'غرفة هادئة',
@@ -2008,6 +2458,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'أخرى',
   },
   'nl': {
+    'legal_privacy': 'Juridisch & privacy',
+    'privacy_policy': 'Privacybeleid',
+    'terms_of_use': 'Gebruiksvoorwaarden',
+    'open_source_licenses': 'Open-sourcelicenties',
+    'legal_notice_title': 'Welkom bij Reczt',
+    'legal_notice_body': 'Lees voordat je Reczt gebruikt het Privacybeleid en de Gebruiksvoorwaarden. Door op Akkoord en doorgaan te tikken, ga je akkoord met de voorwaarden en erken je het Privacybeleid.',
+    'legal_accept': 'Akkoord en doorgaan',
+    'legal_close': 'Sluiten',
+    'view_online': 'Online bekijken',
     'app_title': 'Nummer Herkenner',
     'where_are_you': 'Waar ben je?',
     'quiet_room': 'Een stille ruimte',
@@ -2121,6 +2580,15 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Overig',
   },
   'pl': {
+    'legal_privacy': 'Informacje prawne i prywatność',
+    'privacy_policy': 'Polityka prywatności',
+    'terms_of_use': 'Warunki użytkowania',
+    'open_source_licenses': 'Licencje open source',
+    'legal_notice_title': 'Witamy w Reczt',
+    'legal_notice_body': 'Przed użyciem Reczt zapoznaj się z Polityką prywatności i Warunkami użytkowania. Klikając Akceptuję i kontynuuję, akceptujesz Warunki i potwierdzasz zapoznanie się z Polityką prywatności.',
+    'legal_accept': 'Akceptuję i kontynuuję',
+    'legal_close': 'Zamknij',
+    'view_online': 'Wyświetl online',
     'app_title': 'Rozpoznawanie Muzyki',
     'where_are_you': 'Gdzie jesteś?',
     'quiet_room': 'Ciche pomieszczenie',
@@ -3023,9 +3491,122 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     _enhancedSearchTimer = null;
   }
 
+  Future<void> _showLegalDocument({
+    required String title,
+    required String body,
+    String onlineUrl = '',
+  }) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: SelectableText(
+                body,
+                style: const TextStyle(fontSize: 13.5, height: 1.4),
+              ),
+            ),
+          ),
+          actions: [
+            if (onlineUrl.trim().isNotEmpty)
+              TextButton(
+                onPressed: () async {
+                  final uri = Uri.tryParse(onlineUrl);
+                  if (uri != null && await canLaunchUrl(uri)) {
+                    await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+                child: Text(t('view_online')),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(t('legal_close')),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showLegalNoticeIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // On a brand-new install, preferences are chosen first so Reczt can show
+    // this notice in the user's selected app language.
+    final hasInitialPreferences =
+        prefs.getString('preferred_music_app') != null &&
+        prefs.getString('preferred_language') != null;
+    if (!hasInitialPreferences) return;
+
+    final acceptedVersion = prefs.getString('legal_notice_version');
+    if (acceptedVersion == recztLegalNoticeVersion) return;
+
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: Text(t('legal_notice_title')),
+            content: Text(
+              t('legal_notice_body'),
+              style: const TextStyle(height: 1.35),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  _showLegalDocument(
+                    title: t('privacy_policy'),
+                    body: _recztPrivacyPolicyText,
+                    onlineUrl: recztPrivacyPolicyUrl,
+                  );
+                },
+                child: Text(t('privacy_policy')),
+              ),
+              TextButton(
+                onPressed: () {
+                  _showLegalDocument(
+                    title: t('terms_of_use'),
+                    body: _recztTermsOfUseText,
+                    onlineUrl: recztTermsOfUseUrl,
+                  );
+                },
+                child: Text(t('terms_of_use')),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(t('legal_accept')),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (accepted == true) {
+      await prefs.setString(
+        'legal_notice_version',
+        recztLegalNoticeVersion,
+      );
+    }
+  }
+
   Future<void> _loadStartupState() async {
     await _loadSavedMode();
     await _loadPreferences();
+    await _showLegalNoticeIfNeeded();
     if (mounted) {
       await _checkPendingOfflineQueue();
     }
@@ -3165,6 +3746,91 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                           setModalState(() => tempColor = val);
                         }
                       },
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 4),
+                    Center(
+                      child: Text(
+                        t('legal_privacy'),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Center(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 2,
+                        runSpacing: 0,
+                        children: [
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: () {
+                              _showLegalDocument(
+                                title: t('privacy_policy'),
+                                body: _recztPrivacyPolicyText,
+                                onlineUrl: recztPrivacyPolicyUrl,
+                              );
+                            },
+                            child: Text(
+                              t('privacy_policy'),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                          const Text('•', style: TextStyle(fontSize: 10)),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: () {
+                              _showLegalDocument(
+                                title: t('terms_of_use'),
+                                body: _recztTermsOfUseText,
+                                onlineUrl: recztTermsOfUseUrl,
+                              );
+                            },
+                            child: Text(
+                              t('terms_of_use'),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                          const Text('•', style: TextStyle(fontSize: 10)),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: () {
+                              showLicensePage(
+                                context: context,
+                                applicationName: 'Reczt',
+                              );
+                            },
+                            child: Text(
+                              t('open_source_licenses'),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -3714,10 +4380,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         unawaited(_playErrorCue());
       }
     } catch (e) {
+      debugPrint('Error stopping recording: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _customStatusText = '${t('error_stopping')}: $e';
+          _customStatusText = t('error_stopping');
         });
       }
       unawaited(_playErrorCue());
@@ -3962,7 +4629,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
             _isLoading = false;
             _lastFailedAudioPath = path;
           }
-          _customStatusText = '${t('connection_failed')}: $e';
+          _customStatusText = t('connection_failed');
         });
       }
       unawaited(_playErrorCue());
@@ -4308,7 +4975,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       if (mounted) {
         setState(() {
           _isRecording = false;
-          _customStatusText = '${t('connection_failed')}: $e';
+          _customStatusText = t('connection_failed');
         });
       }
       await _deleteLocalFile(filePath);
@@ -6980,7 +7647,8 @@ class SpotifyService {
       return null;
     }
   }
-}// Updated _exportToSpotify method inside _HistoryPageState
+}
+
 
 // LOCALIZED SEARCH HISTORY & PLAYBACK PAGE
 // ----------------------------------------------------
