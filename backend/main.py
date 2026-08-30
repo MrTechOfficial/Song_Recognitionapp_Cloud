@@ -436,7 +436,9 @@ def transcribe_with_groq(audio_path: str, language: str, model: str) -> str:
                 temperature=0.0,
             )
         text = str(getattr(transcript, "text", "") or "").strip()
-        print(f"[GROQ {model} {language}] {text!r}")
+        # Do not write recognized lyrics/user speech into server logs.
+        # Log only non-content metadata for debugging.
+        print(f"[GROQ {model} {language}] transcript_chars={len(text)}")
         return text
     except Exception as exc:
         print(f"[GROQ ERROR {model}] {exc}")
