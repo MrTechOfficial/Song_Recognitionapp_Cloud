@@ -1,4 +1,4 @@
-a/* Reczt native iOS permission prompts */
+/* Reczt native iOS permission prompts */
 
 "NSMicrophoneUsageDescription" = "Reczt usa el micrófono para identificar la canción que cantas o tarareas.";
 
