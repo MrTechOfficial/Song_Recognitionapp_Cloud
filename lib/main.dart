@@ -875,6 +875,12 @@ void main() async {
 // --------------------------------------------------------------------
 final Map<String, Map<String, String>> localizedStrings = {
   'en': {
+    'clear_reczt_data': 'Clear Reczt Data',
+    'clear_reczt_data_desc': 'Deletes saved history, singing clips, analytics, Acoustic Memory pins, and queued offline recordings from this device. App preferences are kept.',
+    'clear_reczt_data_confirm': 'This will permanently delete your saved song history, singing clips, analytics, Acoustic Memory locations, and queued offline recordings from this device. Your language, music-app, theme, Auto Play, and legal preferences will be kept. This cannot be undone.',
+    'clear_data_action': 'Clear Data',
+    'clear_reczt_data_success': 'Reczt data was cleared from this device.',
+    'clear_reczt_data_error': 'Reczt could not clear all local data. Please try again.',
     'legal_privacy': 'Legal & Privacy',
     'privacy_policy': 'Privacy Policy',
     'terms_of_use': 'Terms of Use',
@@ -999,6 +1005,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Other',
   },
   'es': {
+    'clear_reczt_data': 'Borrar datos de Reczt',
+    'clear_reczt_data_desc': 'Borra del dispositivo el historial, clips de voz, estadísticas, pines de Memoria Acústica y grabaciones sin conexión en cola. Se conservan las preferencias de la app.',
+    'clear_reczt_data_confirm': 'Esto eliminará permanentemente de este dispositivo el historial de canciones, clips de voz, estadísticas, ubicaciones de Memoria Acústica y grabaciones sin conexión en cola. Se conservarán el idioma, la app de música, el tema, Auto Play y las preferencias legales. Esta acción no se puede deshacer.',
+    'clear_data_action': 'Borrar datos',
+    'clear_reczt_data_success': 'Los datos de Reczt se borraron de este dispositivo.',
+    'clear_reczt_data_error': 'Reczt no pudo borrar todos los datos locales. Inténtalo de nuevo.',
     'legal_privacy': 'Legal y privacidad',
     'privacy_policy': 'Política de privacidad',
     'terms_of_use': 'Términos de uso',
@@ -1120,6 +1132,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Otro',
   },
   'fr': {
+    'clear_reczt_data': 'Effacer les données Reczt',
+    'clear_reczt_data_desc': 'Supprime de cet appareil l’historique, les extraits chantés, les statistiques, les repères de Mémoire acoustique et les enregistrements hors ligne en attente. Les préférences de l’app sont conservées.',
+    'clear_reczt_data_confirm': 'Cette action supprimera définitivement de cet appareil votre historique de chansons, vos extraits chantés, vos statistiques, les emplacements de Mémoire acoustique et les enregistrements hors ligne en attente. La langue, l’app musicale, le thème, Auto Play et les préférences juridiques seront conservés. Cette action est irréversible.',
+    'clear_data_action': 'Effacer les données',
+    'clear_reczt_data_success': 'Les données Reczt ont été effacées de cet appareil.',
+    'clear_reczt_data_error': 'Reczt n’a pas pu effacer toutes les données locales. Réessayez.',
     'legal_privacy': 'Mentions légales et confidentialité',
     'privacy_policy': 'Politique de confidentialité',
     'terms_of_use': 'Conditions d’utilisation',
@@ -1241,6 +1259,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Autre',
   },
   'de': {
+    'clear_reczt_data': 'Reczt-Daten löschen',
+    'clear_reczt_data_desc': 'Löscht Verlauf, Gesangsclips, Analysen, Acoustic-Memory-Pins und wartende Offline-Aufnahmen von diesem Gerät. App-Einstellungen bleiben erhalten.',
+    'clear_reczt_data_confirm': 'Dadurch werden dein Songverlauf, Gesangsclips, Analysen, Acoustic-Memory-Standorte und wartende Offline-Aufnahmen dauerhaft von diesem Gerät gelöscht. Sprache, Musik-App, Design, Auto Play und rechtliche Einstellungen bleiben erhalten. Dies kann nicht rückgängig gemacht werden.',
+    'clear_data_action': 'Daten löschen',
+    'clear_reczt_data_success': 'Die Reczt-Daten wurden von diesem Gerät gelöscht.',
+    'clear_reczt_data_error': 'Reczt konnte nicht alle lokalen Daten löschen. Bitte versuche es erneut.',
     'legal_privacy': 'Rechtliches & Datenschutz',
     'privacy_policy': 'Datenschutzerklärung',
     'terms_of_use': 'Nutzungsbedingungen',
@@ -1362,6 +1386,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Andere',
   },
   'it': {
+    'clear_reczt_data': 'Cancella dati Reczt',
+    'clear_reczt_data_desc': 'Elimina da questo dispositivo cronologia, clip cantate, statistiche, pin di Memoria Acustica e registrazioni offline in coda. Le preferenze dell’app vengono mantenute.',
+    'clear_reczt_data_confirm': 'Questa azione eliminerà definitivamente da questo dispositivo la cronologia dei brani, le clip cantate, le statistiche, le posizioni di Memoria Acustica e le registrazioni offline in coda. Lingua, app musicale, tema, Auto Play e preferenze legali verranno mantenuti. L’operazione non può essere annullata.',
+    'clear_data_action': 'Cancella dati',
+    'clear_reczt_data_success': 'I dati Reczt sono stati cancellati da questo dispositivo.',
+    'clear_reczt_data_error': 'Reczt non è riuscito a cancellare tutti i dati locali. Riprova.',
     'legal_privacy': 'Note legali e privacy',
     'privacy_policy': 'Informativa sulla privacy',
     'terms_of_use': 'Termini di utilizzo',
@@ -1483,6 +1513,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Altro',
   },
   'pt': {
+    'clear_reczt_data': 'Limpar dados do Reczt',
+    'clear_reczt_data_desc': 'Apaga deste dispositivo o histórico, clipes de canto, análises, pinos da Memória Acústica e gravações offline na fila. As preferências do app são mantidas.',
+    'clear_reczt_data_confirm': 'Isso apagará permanentemente deste dispositivo seu histórico de músicas, clipes de canto, análises, locais da Memória Acústica e gravações offline na fila. Idioma, app de música, tema, Auto Play e preferências legais serão mantidos. Esta ação não pode ser desfeita.',
+    'clear_data_action': 'Limpar dados',
+    'clear_reczt_data_success': 'Os dados do Reczt foram apagados deste dispositivo.',
+    'clear_reczt_data_error': 'O Reczt não conseguiu apagar todos os dados locais. Tente novamente.',
     'legal_privacy': 'Legal e privacidade',
     'privacy_policy': 'Política de Privacidade',
     'terms_of_use': 'Termos de Uso',
@@ -1604,6 +1640,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Outro',
   },
   'ja': {
+    'clear_reczt_data': 'Recztデータを消去',
+    'clear_reczt_data_desc': 'このデバイスの履歴、歌唱クリップ、分析、Acoustic Memoryのピン、オフライン待機中の録音を削除します。アプリ設定は保持されます。',
+    'clear_reczt_data_confirm': 'このデバイスに保存されている曲の履歴、歌唱クリップ、分析、Acoustic Memoryの位置情報、オフライン待機中の録音を完全に削除します。言語、音楽アプリ、テーマ、Auto Play、法的設定は保持されます。この操作は元に戻せません。',
+    'clear_data_action': 'データを消去',
+    'clear_reczt_data_success': 'このデバイスからRecztデータを消去しました。',
+    'clear_reczt_data_error': 'すべてのローカルデータを消去できませんでした。もう一度お試しください。',
     'legal_privacy': '法的情報とプライバシー',
     'privacy_policy': 'プライバシーポリシー',
     'terms_of_use': '利用規約',
@@ -1726,6 +1768,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'その他',
   },
   'ko': {
+    'clear_reczt_data': 'Reczt 데이터 지우기',
+    'clear_reczt_data_desc': '이 기기의 기록, 노래 클립, 분석, Acoustic Memory 핀 및 대기 중인 오프라인 녹음을 삭제합니다. 앱 환경설정은 유지됩니다.',
+    'clear_reczt_data_confirm': '이 기기에 저장된 노래 기록, 노래 클립, 분석, Acoustic Memory 위치 및 대기 중인 오프라인 녹음을 영구적으로 삭제합니다. 언어, 음악 앱, 테마, Auto Play 및 법적 환경설정은 유지됩니다. 이 작업은 취소할 수 없습니다.',
+    'clear_data_action': '데이터 지우기',
+    'clear_reczt_data_success': '이 기기에서 Reczt 데이터를 지웠습니다.',
+    'clear_reczt_data_error': 'Reczt가 모든 로컬 데이터를 지우지 못했습니다. 다시 시도해 주세요.',
     'legal_privacy': '법률 및 개인정보 보호',
     'privacy_policy': '개인정보 처리방침',
     'terms_of_use': '이용약관',
@@ -1848,6 +1896,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '기타',
   },
   'zh': {
+    'clear_reczt_data': '清除 Reczt 数据',
+    'clear_reczt_data_desc': '删除此设备上的历史记录、演唱片段、分析数据、Acoustic Memory 标记和排队的离线录音。应用偏好设置会保留。',
+    'clear_reczt_data_confirm': '这将永久删除此设备上的歌曲历史记录、演唱片段、分析数据、Acoustic Memory 位置信息和排队的离线录音。语言、音乐应用、主题、Auto Play 和法律偏好设置会保留。此操作无法撤销。',
+    'clear_data_action': '清除数据',
+    'clear_reczt_data_success': '已从此设备清除 Reczt 数据。',
+    'clear_reczt_data_error': 'Reczt 无法清除所有本地数据。请重试。',
     'legal_privacy': '法律与隐私',
     'privacy_policy': '隐私政策',
     'terms_of_use': '使用条款',
@@ -1970,6 +2024,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '其他',
   },
   'hi': {
+    'clear_reczt_data': 'Reczt डेटा साफ़ करें',
+    'clear_reczt_data_desc': 'इस डिवाइस से सेव किया गया इतिहास, गाने के क्लिप, एनालिटिक्स, Acoustic Memory पिन और कतार में रखी ऑफ़लाइन रिकॉर्डिंग हटाता है। ऐप की प्राथमिकताएँ बनी रहती हैं।',
+    'clear_reczt_data_confirm': 'यह इस डिवाइस से आपके सेव किए गए गानों का इतिहास, गाने के क्लिप, एनालिटिक्स, Acoustic Memory स्थान और कतार में रखी ऑफ़लाइन रिकॉर्डिंग स्थायी रूप से हटा देगा। भाषा, संगीत ऐप, थीम, Auto Play और कानूनी प्राथमिकताएँ बनी रहेंगी। इसे वापस नहीं किया जा सकता।',
+    'clear_data_action': 'डेटा साफ़ करें',
+    'clear_reczt_data_success': 'इस डिवाइस से Reczt डेटा साफ़ कर दिया गया है।',
+    'clear_reczt_data_error': 'Reczt सभी स्थानीय डेटा साफ़ नहीं कर सका। कृपया फिर से प्रयास करें।',
     'legal_privacy': 'कानूनी और गोपनीयता',
     'privacy_policy': 'गोपनीयता नीति',
     'terms_of_use': 'उपयोग की शर्तें',
@@ -2092,6 +2152,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'अन्य',
   },
   'ru': {
+    'clear_reczt_data': 'Очистить данные Reczt',
+    'clear_reczt_data_desc': 'Удаляет с устройства историю, записи пения, аналитику, метки Acoustic Memory и ожидающие офлайн-записи. Настройки приложения сохраняются.',
+    'clear_reczt_data_confirm': 'Это навсегда удалит с устройства историю песен, записи пения, аналитику, местоположения Acoustic Memory и ожидающие офлайн-записи. Язык, музыкальное приложение, тема, Auto Play и юридические настройки сохранятся. Отменить это действие нельзя.',
+    'clear_data_action': 'Очистить данные',
+    'clear_reczt_data_success': 'Данные Reczt удалены с этого устройства.',
+    'clear_reczt_data_error': 'Reczt не удалось удалить все локальные данные. Повторите попытку.',
     'legal_privacy': 'Правовая информация и конфиденциальность',
     'privacy_policy': 'Политика конфиденциальности',
     'terms_of_use': 'Условия использования',
@@ -2214,6 +2280,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Другое',
   },
   'tr': {
+    'clear_reczt_data': 'Reczt Verilerini Temizle',
+    'clear_reczt_data_desc': 'Bu cihazdaki geçmişi, şarkı söyleme kliplerini, analizleri, Acoustic Memory pinlerini ve sıradaki çevrimdışı kayıtları siler. Uygulama tercihleri korunur.',
+    'clear_reczt_data_confirm': 'Bu işlem, bu cihazdaki şarkı geçmişinizi, şarkı söyleme kliplerinizi, analizlerinizi, Acoustic Memory konumlarınızı ve sıradaki çevrimdışı kayıtları kalıcı olarak siler. Dil, müzik uygulaması, tema, Auto Play ve yasal tercihler korunur. Bu işlem geri alınamaz.',
+    'clear_data_action': 'Verileri Temizle',
+    'clear_reczt_data_success': 'Reczt verileri bu cihazdan temizlendi.',
+    'clear_reczt_data_error': 'Reczt tüm yerel verileri temizleyemedi. Lütfen tekrar deneyin.',
     'legal_privacy': 'Yasal ve Gizlilik',
     'privacy_policy': 'Gizlilik Politikası',
     'terms_of_use': 'Kullanım Koşulları',
@@ -2336,6 +2408,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Diğer',
   },
   'ar': {
+    'clear_reczt_data': 'مسح بيانات Reczt',
+    'clear_reczt_data_desc': 'يحذف من هذا الجهاز السجل ومقاطع الغناء والتحليلات ودبابيس Acoustic Memory والتسجيلات غير المتصلة المنتظرة. يتم الاحتفاظ بتفضيلات التطبيق.',
+    'clear_reczt_data_confirm': 'سيؤدي هذا إلى حذف سجل الأغاني ومقاطع الغناء والتحليلات ومواقع Acoustic Memory والتسجيلات غير المتصلة المنتظرة نهائيًا من هذا الجهاز. سيتم الاحتفاظ باللغة وتطبيق الموسيقى والمظهر وAuto Play والتفضيلات القانونية. لا يمكن التراجع عن هذا الإجراء.',
+    'clear_data_action': 'مسح البيانات',
+    'clear_reczt_data_success': 'تم مسح بيانات Reczt من هذا الجهاز.',
+    'clear_reczt_data_error': 'تعذر على Reczt مسح جميع البيانات المحلية. حاول مرة أخرى.',
     'legal_privacy': 'القانون والخصوصية',
     'privacy_policy': 'سياسة الخصوصية',
     'terms_of_use': 'شروط الاستخدام',
@@ -2458,6 +2536,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'أخرى',
   },
   'nl': {
+    'clear_reczt_data': 'Reczt-gegevens wissen',
+    'clear_reczt_data_desc': 'Verwijdert van dit apparaat geschiedenis, zangclips, analyses, Acoustic Memory-pinnen en offline opnamen in de wachtrij. Appvoorkeuren blijven behouden.',
+    'clear_reczt_data_confirm': 'Hiermee worden je opgeslagen songgeschiedenis, zangclips, analyses, Acoustic Memory-locaties en offline opnamen in de wachtrij permanent van dit apparaat verwijderd. Taal, muziekapp, thema, Auto Play en juridische voorkeuren blijven behouden. Dit kan niet ongedaan worden gemaakt.',
+    'clear_data_action': 'Gegevens wissen',
+    'clear_reczt_data_success': 'De Reczt-gegevens zijn van dit apparaat gewist.',
+    'clear_reczt_data_error': 'Reczt kon niet alle lokale gegevens wissen. Probeer het opnieuw.',
     'legal_privacy': 'Juridisch & privacy',
     'privacy_policy': 'Privacybeleid',
     'terms_of_use': 'Gebruiksvoorwaarden',
@@ -2580,6 +2664,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Overig',
   },
   'pl': {
+    'clear_reczt_data': 'Wyczyść dane Reczt',
+    'clear_reczt_data_desc': 'Usuwa z tego urządzenia historię, nagrania śpiewu, analizy, pinezki Acoustic Memory i oczekujące nagrania offline. Ustawienia aplikacji pozostają zachowane.',
+    'clear_reczt_data_confirm': 'Spowoduje to trwałe usunięcie z tego urządzenia historii utworów, nagrań śpiewu, analiz, lokalizacji Acoustic Memory i oczekujących nagrań offline. Język, aplikacja muzyczna, motyw, Auto Play i ustawienia prawne pozostaną zachowane. Tej operacji nie można cofnąć.',
+    'clear_data_action': 'Wyczyść dane',
+    'clear_reczt_data_success': 'Dane Reczt zostały usunięte z tego urządzenia.',
+    'clear_reczt_data_error': 'Reczt nie mógł usunąć wszystkich danych lokalnych. Spróbuj ponownie.',
     'legal_privacy': 'Informacje prawne i prywatność',
     'privacy_policy': 'Polityka prywatności',
     'terms_of_use': 'Warunki użytkowania',
@@ -3503,6 +3593,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       builder: (dialogContext) {
         return AlertDialog(
           title: Text(title),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsOverflowAlignment: OverflowBarAlignment.center,
           content: SizedBox(
             width: 560,
             child: SingleChildScrollView(
@@ -3560,6 +3652,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           canPop: false,
           child: AlertDialog(
             title: Text(t('legal_notice_title')),
+            actionsAlignment: MainAxisAlignment.center,
+            actionsOverflowAlignment: OverflowBarAlignment.center,
             content: Text(
               t('legal_notice_body'),
               style: const TextStyle(height: 1.35),
@@ -5581,6 +5675,148 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     super.dispose();
   }
 
+  Future<void> _showClearRecztDataDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(t('clear_reczt_data')),
+          content: Text(
+            t('clear_reczt_data_confirm'),
+            style: const TextStyle(height: 1.35),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsOverflowAlignment: OverflowBarAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(t('cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                t('clear_data_action'),
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _clearLocalRecztData();
+    }
+  }
+
+  Future<void> _clearLocalRecztData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Capture all known persistent recording paths before their preference
+      // entries are removed.
+      final audioPaths = <String>{};
+
+      final history = prefs.getStringList('song_history') ?? <String>[];
+      for (final raw in history) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map) {
+            final path = decoded['audioPath']?.toString().trim() ?? '';
+            if (path.isNotEmpty) audioPaths.add(path);
+          }
+        } catch (_) {}
+      }
+
+      final queued =
+          prefs.getStringList('pending_offline_songs') ?? <String>[];
+      audioPaths.addAll(queued.where((path) => path.trim().isNotEmpty));
+
+      if (!kIsWeb) {
+        for (final path in audioPaths) {
+          try {
+            final file = File(path);
+            if (await file.exists()) {
+              await file.delete();
+            }
+          } catch (e) {
+            debugPrint('Could not delete Reczt audio file: $e');
+          }
+        }
+
+        // Remove orphaned Reczt-generated persistent WAV files too.
+        try {
+          final appDir = await getApplicationDocumentsDirectory();
+          await for (final entity in appDir.list()) {
+            if (entity is! File) continue;
+            final name = entity.uri.pathSegments.isEmpty
+                ? ''
+                : entity.uri.pathSegments.last;
+            final isRecztAudio =
+                (name.startsWith('clip_') || name.startsWith('offline_')) &&
+                name.toLowerCase().endsWith('.wav');
+            if (isRecztAudio) {
+              try {
+                await entity.delete();
+              } catch (e) {
+                debugPrint('Could not delete orphaned Reczt audio file: $e');
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Could not scan Reczt audio directory: $e');
+        }
+      }
+
+      // This is a privacy/data reset, not an app-preferences reset. Keep the
+      // user's language, music app, theme, Auto Play, environment, and legal
+      // acknowledgement while removing user-created Reczt data.
+      const directDataKeys = <String>{
+        'song_history',
+        'pending_offline_songs',
+        'acoustic_memories',
+        'acoustic_mic_locations',
+        'active_singing_locations',
+        'is_currently_singing',
+        'playlist_timestamp',
+        'saved_curated_playlist',
+        'saved_curated_playlist_profile',
+        'saved_curated_playlist_spotify_title',
+        'saved_curated_playlist_spotify_url',
+        'saved_curated_playlist_apple_title',
+        'saved_curated_playlist_apple_url',
+      };
+
+      final keysToRemove = prefs.getKeys().where(
+        (key) =>
+            directDataKeys.contains(key) ||
+            key.startsWith('analytics_'),
+      );
+
+      for (final key in keysToRemove.toList()) {
+        await prefs.remove(key);
+      }
+
+      // Refresh this page immediately from the now-empty user dataset.
+      await _computeAnalytics(allowGenreBackfill: false);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(t('clear_reczt_data_success'))),
+        );
+    } catch (e) {
+      debugPrint('Error clearing local Reczt data: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(t('clear_reczt_data_error'))),
+        );
+    }
+  }
+
   Offset _latLngToMapOffset(double lat, double lng) {
     final double dx = ((lng + 180) / 360).clamp(0.0, 1.0);
     final double dy = ((90 - lat) / 180).clamp(0.0, 1.0);
@@ -7310,6 +7546,41 @@ void _showShareCardModal(BuildContext context) {
     ],
   ),
 ),
+                const SizedBox(height: 20),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  onPressed: _showClearRecztDataDialog,
+                  icon: const Icon(Icons.delete_forever_outlined, size: 18),
+                  label: Text(
+                    t('clear_reczt_data'),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    bottom: 8,
+                  ),
+                  child: Text(
+                    t('clear_reczt_data_desc'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: Colors.grey,
+                      height: 1.25,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
