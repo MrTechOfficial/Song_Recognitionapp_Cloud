@@ -3203,6 +3203,7 @@ class _SongMatchCandidate {
   final String title;
   final String artist;
   final double? confidence;
+  final double? rankingScore;
   final String? genre;
   final String? emotion;
   final String? spotifyUrl;
@@ -3214,12 +3215,15 @@ class _SongMatchCandidate {
     required this.title,
     required this.artist,
     required this.confidence,
+    this.rankingScore,
     this.genre,
     this.emotion,
     this.spotifyUrl,
     this.appleMusicUrl,
     this.coverUrl,
   });
+
+  double? get effectiveScore => rankingScore ?? confidence;
 
   factory _SongMatchCandidate.fromMap(Map<String, dynamic> item) {
     String title = (item['title'] ?? item['name'] ?? '').toString().trim();
@@ -3264,6 +3268,19 @@ class _SongMatchCandidate {
       }
     }
 
+    double? rankingScore;
+    for (final key in const ['selection_score', 'ranking_score']) {
+      final dynamic value = item[key];
+      if (value == null) continue;
+      final parsed =
+          value is num ? value.toDouble() : double.tryParse(value.toString());
+      if (parsed != null) {
+        final normalizedScore = parsed > 1.0 ? parsed / 100.0 : parsed;
+        rankingScore = normalizedScore.clamp(0.0, 1.0).toDouble();
+        break;
+      }
+    }
+
     String? genre;
     final dynamic rawGenre = item['genre'];
     if (rawGenre != null && rawGenre.toString().trim().isNotEmpty) {
@@ -3303,6 +3320,7 @@ class _SongMatchCandidate {
       title: title.isEmpty ? 'Unknown Title' : title,
       artist: artist.isEmpty ? 'Unknown Artist' : artist,
       confidence: score,
+      rankingScore: rankingScore,
       genre: genre,
       emotion: emotion,
       spotifyUrl: spotifyUrl,
@@ -4213,8 +4231,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   bool _hasMeaningfulAmbiguity(List<_SongMatchCandidate> candidates) {
     if (candidates.length < 2) return false;
 
-    final top = candidates[0].confidence;
-    final second = candidates[1].confidence;
+    final top = candidates[0].effectiveScore;
+    final second = candidates[1].effectiveScore;
     if (top == null || second == null) return false;
 
     // Do not interrupt hands-free playback for a second candidate that is
@@ -4228,7 +4246,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
   bool _shouldOfferTopGuesses(List<_SongMatchCandidate> candidates) {
     if (_autoPlayEnabled || candidates.isEmpty) return false;
-    final top = candidates.first.confidence;
+    final top = candidates.first.effectiveScore;
     if (top == null) return false;
 
     if (candidates.length > 1 && top < _dynamicConfidenceThreshold) {
@@ -4608,8 +4626,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           .toList();
 
       candidates.sort((a, b) {
-        final aScore = a.confidence;
-        final bScore = b.confidence;
+        final aScore = a.effectiveScore;
+        final bScore = b.effectiveScore;
         if (aScore == null && bScore == null) return 0;
         if (aScore == null) return 1;
         if (bScore == null) return -1;
@@ -5776,6 +5794,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         'pending_offline_songs',
         'acoustic_memories',
         'acoustic_mic_locations',
+        _acousticUsageKey,
+        _acousticUsageMigratedKey,
         'active_singing_locations',
         'is_currently_singing',
         'playlist_timestamp',
@@ -8563,10 +8583,26 @@ class LanguageMatcher {
     const stronglyBlocked = <String>[
       'karaoke',
       'tribute',
+      'tribute to',
       'in the style of',
-      'instrumental version',
+      'made famous by',
+      'as made famous by',
+      'originally performed by',
       'sound alike',
       'sound-alike',
+      'backing track',
+      'backing vocals',
+      'instrumental version',
+      'workout mix',
+      'fitness version',
+      'nightcore',
+      'sped up',
+      'speed up',
+      'slowed',
+      'slowed down',
+      '8d audio',
+      'reverb version',
+      'reverbed',
     ];
     for (final phrase in stronglyBlocked) {
       if (combined.contains(phrase)) return false;
@@ -8580,6 +8616,15 @@ class LanguageMatcher {
       caseSensitive: false,
     );
     if (descriptor.hasMatch(combined)) return false;
+
+    // Keep legitimate, well-known remixes eligible, but reject phrases that
+    // almost always indicate a novelty / derivative upload rather than the
+    // main commercial release.
+    final noveltyDescriptor = RegExp(
+      r'(\(|\[|\-|–|—|:)\s*(nightcore|sped\s*up|slowed(?:\s*down)?|8d\s*audio|reverb(?:ed)?|workout\s*mix|fitness\s*version)\b',
+      caseSensitive: false,
+    );
+    if (noveltyDescriptor.hasMatch(combined)) return false;
 
     return title.trim().isNotEmpty;
   }
