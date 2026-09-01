@@ -48,6 +48,12 @@
     <array>
         <string>audio</string>
         <string>fetch</string>
+        <string>processing</string>
+    </array>
+
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.reczt.app.offline_recognition</string>
     </array>
 
     <key>LSApplicationQueriesSchemes</key>

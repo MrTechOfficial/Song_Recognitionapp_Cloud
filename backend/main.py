@@ -988,11 +988,13 @@ def recognize_audio(
     vocal_isolation: str = Form("true"),
     environment: str = Form("quiet"),
     auto_play: str = Form("true"),
+    background_queue: str = Form("false"),
 ) -> Dict[str, Any]:
     language = normalize_language(language)
     environment = normalize_environment(environment)
     vocal_isolation_requested = parse_bool(vocal_isolation)
     auto_play_requested = parse_bool(auto_play)
+    background_queue_requested = parse_bool(background_queue)
 
     if not acrcloud_configured() and not (groq_client and GENIUS_ACCESS_TOKEN):
         raise HTTPException(
@@ -1041,7 +1043,14 @@ def recognize_audio(
             # Auto Play ON is more forgiving for hands-free use.
             # Auto Play OFF stays more conservative because the user can see
             # and choose between ambiguous results.
-            minimum_confidence = 0.28 if auto_play_requested else 0.35
+            # Unattended/background matching must be considerably more
+            # conservative because there is no user present to choose between
+            # Top Guesses.
+            if background_queue_requested:
+                minimum_confidence = 0.46
+            else:
+                minimum_confidence = 0.28 if auto_play_requested else 0.35
+
             if top_confidence < minimum_confidence:
                 return {
                     "success": False,
@@ -1058,6 +1067,47 @@ def recognize_audio(
                 reverse=True,
             )
             top = results[0]
+
+            if background_queue_requested:
+                top_selection = float(
+                    top.get("selection_score")
+                    if top.get("selection_score") is not None
+                    else (top.get("confidence") or 0.0)
+                )
+                top_raw_confidence = float(top.get("confidence") or 0.0)
+                second_selection = None
+                if len(results) > 1:
+                    second = results[1]
+                    second_selection = float(
+                        second.get("selection_score")
+                        if second.get("selection_score") is not None
+                        else (second.get("confidence") or 0.0)
+                    )
+
+                environment_floor = {
+                    "quiet": 0.52,
+                    "loud": 0.56,
+                    "outdoors": 0.58,
+                }.get(environment, 0.58)
+
+                background_is_ambiguous = (
+                    second_selection is not None
+                    and second_selection >= 0.30
+                    and top_selection < 0.82
+                    and (top_selection - second_selection) < 0.10
+                )
+
+                if (
+                    top_raw_confidence < 0.46
+                    or top_selection < environment_floor
+                    or background_is_ambiguous
+                ):
+                    return {
+                        "success": False,
+                        "message": "Queued recording is not yet strong enough for unattended recognition.",
+                        "retryable": True,
+                        "background_queue": True,
+                    }
 
             # Backward-compatible top-level fields plus the new scored list that
             # your optimized main.dart understands.

@@ -18,9 +18,26 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';  
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:workmanager/workmanager.dart' as wm;
 
 
+
+
+const String recztRecognitionBackendUrl =
+    'https://song-recognitionapp-cloud.onrender.com/recognize';
+
+const String recztOfflineRecognitionTaskIdentifier =
+    'com.reczt.app.offline_recognition';
+
+const String _backgroundRecognitionResultsKey =
+    'background_recognition_results_v1';
+const String _backgroundRecognitionAttemptsKey =
+    'background_recognition_attempts_v1';
+const String _backgroundQueueActivePathKey =
+    'offline_background_active_path_v1';
+const String _foregroundQueueActivePathKey =
+    'offline_foreground_active_path_v1';
 
 // --------------------------------------------------------------------
 // 🔗 SHARED APP CONSTANTS & HELPERS
@@ -841,7 +858,16 @@ Future<void> showQueuedSongFoundNotification(String lang) async {
     importance: Importance.high,
     priority: Priority.high,
   );
-  const NotificationDetails details = NotificationDetails(android: androidDetails);
+  const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: true,
+  );
+  const NotificationDetails details = NotificationDetails(
+    android: androidDetails,
+    iOS: iosDetails,
+    macOS: iosDetails,
+  );
 
   try {
     await flutterLocalNotificationsPlugin.show(
@@ -855,8 +881,308 @@ Future<void> showQueuedSongFoundNotification(String lang) async {
   }
 }
 
+
+Map<String, int> _decodeBackgroundAttempts(String? raw) {
+  if (raw == null || raw.trim().isEmpty) return <String, int>{};
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return <String, int>{};
+    return decoded.map(
+      (key, value) => MapEntry(
+        key.toString(),
+        value is num ? value.toInt() : int.tryParse(value.toString()) ?? 0,
+      ),
+    );
+  } catch (_) {
+    return <String, int>{};
+  }
+}
+
+Future<void> _saveBackgroundAttempts(
+  SharedPreferences prefs,
+  Map<String, int> attempts,
+) async {
+  await prefs.setString(
+    _backgroundRecognitionAttemptsKey,
+    jsonEncode(attempts),
+  );
+}
+
+EnvironmentMode _backgroundEnvironmentFromPrefs(SharedPreferences prefs) {
+  final savedIndex = prefs.getInt('selected_environment_mode');
+  if (savedIndex != null &&
+      savedIndex >= 0 &&
+      savedIndex < EnvironmentMode.values.length) {
+    return EnvironmentMode.values[savedIndex];
+  }
+  return EnvironmentMode.Outdoors;
+}
+
+bool _isSafeQueuedBackgroundMatch(
+  List<_SongMatchCandidate> candidates,
+  EnvironmentMode mode,
+) {
+  if (candidates.isEmpty) return false;
+
+  final top = candidates.first;
+  final topConfidence = top.confidence ?? 0.0;
+  final topScore = top.effectiveScore ?? topConfidence;
+
+  // Background recognition is intentionally more conservative than an
+  // on-screen recognition because nobody is present to confirm Top Guesses.
+  final double minimumScore;
+  switch (mode) {
+    case EnvironmentMode.quiet:
+      minimumScore = 0.52;
+      break;
+    case EnvironmentMode.loud:
+      minimumScore = 0.56;
+      break;
+    case EnvironmentMode.Outdoors:
+      minimumScore = 0.58;
+      break;
+  }
+
+  if (topConfidence < 0.46 || topScore < minimumScore) {
+    return false;
+  }
+
+  if (top.artist == 'Unknown Artist' && topScore < 0.72) {
+    return false;
+  }
+
+  if (candidates.length > 1) {
+    final secondScore =
+        candidates[1].effectiveScore ?? candidates[1].confidence ?? 0.0;
+    final gap = topScore - secondScore;
+
+    // Close background guesses should wait rather than silently saving the
+    // wrong song. Very strong top matches may still pass.
+    if (secondScore >= 0.30 && topScore < 0.82 && gap < 0.10) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+Future<void> scheduleRecztOfflineRecognitionTask() async {
+  if (kIsWeb) return;
+
+  try {
+    if (Platform.isIOS) {
+      await wm.Workmanager().registerProcessingTask(
+        recztOfflineRecognitionTaskIdentifier,
+        recztOfflineRecognitionTaskIdentifier,
+        constraints: wm.Constraints(networkType: wm.NetworkType.connected),
+      );
+    } else {
+      await wm.Workmanager().registerOneOffTask(
+        recztOfflineRecognitionTaskIdentifier,
+        recztOfflineRecognitionTaskIdentifier,
+        constraints: wm.Constraints(networkType: wm.NetworkType.connected),
+      );
+    }
+  } catch (e) {
+    // A task with this identifier may already be scheduled. Foreground queue
+    // processing remains a fallback, so scheduling failure is never fatal.
+    debugPrint('Background offline-recognition scheduling: $e');
+  }
+}
+
+Future<bool> _processOneQueuedSongInBackground() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.reload();
+
+  final queue = prefs.getStringList('pending_offline_songs') ?? <String>[];
+  if (queue.isEmpty) return true;
+
+  final attempts = _decodeBackgroundAttempts(
+    prefs.getString(_backgroundRecognitionAttemptsKey),
+  );
+
+  // Skip entries that have already had three conservative background tries.
+  // They remain visible in Reczt's queue for foreground/manual retry.
+  String? path;
+  for (final candidatePath in queue) {
+    if ((attempts[candidatePath] ?? 0) < 3) {
+      path = candidatePath;
+      break;
+    }
+  }
+  if (path == null) return true;
+
+  final foregroundPath = prefs.getString(_foregroundQueueActivePathKey);
+  if (foregroundPath == path) {
+    return false;
+  }
+
+  final file = File(path);
+  if (!await file.exists()) {
+    final freshQueue = List<String>.from(queue)..remove(path);
+    await prefs.setStringList('pending_offline_songs', freshQueue);
+    attempts.remove(path);
+    await _saveBackgroundAttempts(prefs, attempts);
+    return freshQueue.isEmpty;
+  }
+
+  await prefs.setString(_backgroundQueueActivePathKey, path);
+
+  try {
+    final language = prefs.getString('preferred_language') ?? 'en';
+    final mode = _backgroundEnvironmentFromPrefs(prefs);
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(recztRecognitionBackendUrl),
+    );
+    request.fields['language'] = language;
+    request.fields['vocal_isolation'] = 'true';
+    request.fields['environment'] = mode.name;
+    request.fields['auto_play'] = 'false';
+    request.fields['background_queue'] = 'true';
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'file',
+        path,
+        filename: 'queued_recording.wav',
+      ),
+    );
+
+    // Keep the unattended iOS attempt comfortably inside the operating
+    // system's short background execution window. If the recognition service
+    // needs longer, the clip remains queued and Reczt can try again later or
+    // process it normally when the user opens the app.
+    final streamed =
+        await request.send().timeout(const Duration(seconds: 22));
+    final response = await http.Response.fromStream(streamed)
+        .timeout(const Duration(seconds: 4));
+
+    if (response.statusCode != 200) {
+      return response.statusCode < 500 && response.statusCode != 429;
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) return false;
+    final data = Map<String, dynamic>.from(decoded);
+
+    if (!_backendResponseSucceeded(data)) {
+      attempts[path] = (attempts[path] ?? 0) + 1;
+      await _saveBackgroundAttempts(prefs, attempts);
+      return attempts[path]! >= 3;
+    }
+
+    final rawResults = _extractRecognitionResults(data);
+    final filteredResults =
+        LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
+      results: rawResults,
+      selectedLanguage: language,
+      getLanguage: (item) => item['language']?.toString() ?? '',
+      mode: mode,
+    );
+
+    final candidates = filteredResults
+        .where(LanguageMatcher.isValidOriginalSong)
+        .map(_SongMatchCandidate.fromMap)
+        .where(
+          (candidate) =>
+              candidate.title.trim().isNotEmpty &&
+              candidate.title != 'Unknown Title',
+        )
+        .toList()
+      ..sort((a, b) {
+        final aScore = a.effectiveScore ?? -1.0;
+        final bScore = b.effectiveScore ?? -1.0;
+        return bScore.compareTo(aScore);
+      });
+
+    if (!_isSafeQueuedBackgroundMatch(candidates, mode)) {
+      attempts[path] = (attempts[path] ?? 0) + 1;
+      await _saveBackgroundAttempts(prefs, attempts);
+      return attempts[path]! >= 3;
+    }
+
+    final winner = candidates.first;
+    final resultPayload = Map<String, dynamic>.from(winner.raw)
+      ..['title'] = winner.title
+      ..['artist'] = winner.artist
+      ..['confidence'] = winner.confidence
+      ..['selection_score'] = winner.rankingScore
+      ..['genre'] = winner.genre
+      ..['emotion'] = winner.emotion
+      ..['spotify_url'] = winner.spotifyUrl
+      ..['apple_music_url'] = winner.appleMusicUrl
+      ..['cover_url'] = winner.coverUrl
+      ..['queued_path'] = path
+      ..['background_found_at'] = DateTime.now().toIso8601String();
+
+    final completed =
+        prefs.getStringList(_backgroundRecognitionResultsKey) ?? <String>[];
+    completed.add(jsonEncode(resultPayload));
+    await prefs.setStringList(_backgroundRecognitionResultsKey, completed);
+
+    final freshQueue =
+        prefs.getStringList('pending_offline_songs') ?? <String>[];
+    freshQueue.remove(path);
+    await prefs.setStringList('pending_offline_songs', freshQueue);
+
+    attempts.remove(path);
+    await _saveBackgroundAttempts(prefs, attempts);
+
+    await showQueuedSongFoundNotification(language);
+
+    final hasMoreEligible = freshQueue.any(
+      (queuedPath) => (attempts[queuedPath] ?? 0) < 3,
+    );
+    // Returning false asks Workmanager to retry, which lets Reczt pick up the
+    // next queued clip without trying to process several long requests in one
+    // iOS background window.
+    return !hasMoreEligible;
+  } on TimeoutException {
+    return false;
+  } catch (e) {
+    debugPrint('Background queued recognition failed: $e');
+    return false;
+  } finally {
+    final latestPrefs = await SharedPreferences.getInstance();
+    await latestPrefs.reload();
+    if (latestPrefs.getString(_backgroundQueueActivePathKey) == path) {
+      await latestPrefs.remove(_backgroundQueueActivePathKey);
+    }
+  }
+}
+
+@pragma('vm:entry-point')
+void recztBackgroundDispatcher() {
+  wm.Workmanager().executeTask((task, inputData) async {
+    WidgetsFlutterBinding.ensureInitialized();
+    ui.DartPluginRegistrant.ensureInitialized();
+
+    if (task == recztOfflineRecognitionTaskIdentifier) {
+      final completed = await _processOneQueuedSongInBackground();
+
+      // Workmanager does not automatically reschedule a failed iOS background
+      // task. If the clip still needs another attempt (or more queued clips
+      // remain), explicitly submit the next BGProcessing request.
+      if (!completed) {
+        await scheduleRecztOfflineRecognitionTask();
+      }
+
+      // The current BGTask itself completed cleanly; any next attempt has
+      // already been scheduled above.
+      return true;
+    }
+
+    return true;
+  });
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (!kIsWeb) {
+    await wm.Workmanager().initialize(recztBackgroundDispatcher);
+  }
 
   final prefs = await SharedPreferences.getInstance();
   final int? savedColorValue = prefs.getInt('theme_seed_color');
@@ -2799,77 +3125,77 @@ final Map<String, Map<String, String>> localizedStrings = {
 /// disturbing the rest of Reczt's translations.
 const Map<String, Map<String, String>> _voiceChoiceStrings = {
   'en': {
-    'prompt': 'Reczt found two song possibilities: {song1} by {artist1}, and {song2} by {artist2}. Which one was correct? Say first or second.',
+    'prompt': 'Reczt found two good matches. First: {song1}, by {artist1}. Second: {song2}, by {artist2}. Which one was right? Say first or second.',
     'listening': 'Listening for your choice...',
     'failed': 'I didn\'t catch that. Tap the correct song below.',
   },
   'es': {
-    'prompt': 'Reczt encontró dos posibles canciones: {song1} de {artist1} y {song2} de {artist2}. ¿Cuál era la correcta? Di primera o segunda.',
+    'prompt': 'Reczt encontró dos buenas coincidencias. Primera: {song1}, de {artist1}. Segunda: {song2}, de {artist2}. ¿Cuál era la correcta? Di primera o segunda.',
     'listening': 'Escuchando tu elección...',
     'failed': 'No entendí tu respuesta. Toca la canción correcta abajo.',
   },
   'fr': {
-    'prompt': 'Reczt a trouvé deux chansons possibles : {song1} de {artist1}, ou {song2} de {artist2}. Laquelle était la bonne ? Dites première ou deuxième.',
+    'prompt': 'Reczt a trouvé deux bons résultats. Premier : {song1}, de {artist1}. Deuxième : {song2}, de {artist2}. Lequel était le bon ? Dites premier ou deuxième.',
     'listening': 'J’écoute votre choix...',
     'failed': 'Je n’ai pas compris. Touchez la bonne chanson ci-dessous.',
   },
   'de': {
-    'prompt': 'Reczt hat zwei mögliche Songs gefunden: {song1} von {artist1} oder {song2} von {artist2}. Welcher war richtig? Sag erste oder zweite.',
+    'prompt': 'Reczt hat zwei gute Treffer gefunden. Erstens: {song1}, von {artist1}. Zweitens: {song2}, von {artist2}. Welcher war richtig? Sag erste oder zweite.',
     'listening': 'Ich höre auf deine Auswahl...',
     'failed': 'Das habe ich nicht verstanden. Tippe unten auf den richtigen Song.',
   },
   'it': {
-    'prompt': 'Reczt ha trovato due possibili brani: {song1} di {artist1} oppure {song2} di {artist2}. Qual era quello giusto? Di\' prima o seconda.',
+    'prompt': 'Reczt ha trovato due buone corrispondenze. Prima: {song1}, di {artist1}. Seconda: {song2}, di {artist2}. Qual era quella giusta? Di\' prima o seconda.',
     'listening': 'Sto ascoltando la tua scelta...',
     'failed': 'Non ho capito. Tocca il brano corretto qui sotto.',
   },
   'pt': {
-    'prompt': 'O Reczt encontrou duas músicas possíveis: {song1} de {artist1} ou {song2} de {artist2}. Qual era a correta? Diga primeira ou segunda.',
+    'prompt': 'O Reczt encontrou duas boas opções. Primeira: {song1}, de {artist1}. Segunda: {song2}, de {artist2}. Qual era a correta? Diga primeira ou segunda.',
     'listening': 'Ouvindo sua escolha...',
     'failed': 'Não entendi. Toque na música correta abaixo.',
   },
   'ja': {
-    'prompt': 'Recztは2つの候補を見つけました。1つ目は{artist1}の{song1}、2つ目は{artist2}の{song2}です。正しいのはどちらですか？「1番目」または「2番目」と言ってください。',
+    'prompt': 'Recztは2つの有力な候補を見つけました。1つ目。{artist1}の{song1}。2つ目。{artist2}の{song2}。正しいのはどちらですか？「1番目」または「2番目」と言ってください。',
     'listening': '選択を聞いています…',
     'failed': '聞き取れませんでした。下の正しい曲をタップしてください。',
   },
   'ko': {
-    'prompt': 'Reczt가 두 곡의 가능성을 찾았습니다. 첫 번째는 {artist1}의 {song1}, 두 번째는 {artist2}의 {song2}입니다. 어느 곡이 맞나요? 첫 번째 또는 두 번째라고 말해 주세요.',
+    'prompt': 'Reczt가 두 개의 유력한 후보를 찾았습니다. 첫 번째. {artist1}의 {song1}. 두 번째. {artist2}의 {song2}. 어느 곡이 맞나요? 첫 번째 또는 두 번째라고 말해 주세요.',
     'listening': '선택을 듣고 있어요...',
     'failed': '잘 알아듣지 못했어요. 아래에서 올바른 곡을 눌러 주세요.',
   },
   'zh': {
-    'prompt': 'Reczt 找到两首可能的歌曲。第一首是 {artist1} 的 {song1}，第二首是 {artist2} 的 {song2}。哪一首是正确的？请说第一首或第二首。',
+    'prompt': 'Reczt 找到两个很可能的结果。第一首。{artist1} 的 {song1}。第二首。{artist2} 的 {song2}。哪一首是正确的？请说第一首或第二首。',
     'listening': '正在聆听你的选择…',
     'failed': '没有听清。请点击下面正确的歌曲。',
   },
   'hi': {
-    'prompt': 'Reczt को दो संभावित गाने मिले: पहला {artist1} का {song1}, और दूसरा {artist2} का {song2}। कौन सा सही था? पहला या दूसरा कहें।',
+    'prompt': 'Reczt को दो अच्छे संभावित गाने मिले। पहला। {artist1} का {song1}। दूसरा। {artist2} का {song2}। कौन सा सही था? पहला या दूसरा कहें।',
     'listening': 'आपकी पसंद सुन रहा है...',
     'failed': 'मैं समझ नहीं पाया। नीचे सही गाने पर टैप करें।',
   },
   'ru': {
-    'prompt': 'Reczt нашёл два возможных варианта: {song1} — {artist1}, или {song2} — {artist2}. Какой вариант правильный? Скажите первый или второй.',
+    'prompt': 'Reczt нашёл два хороших варианта. Первый: {song1}, исполнитель {artist1}. Второй: {song2}, исполнитель {artist2}. Какой вариант правильный? Скажите первый или второй.',
     'listening': 'Слушаю ваш выбор...',
     'failed': 'Не удалось распознать ответ. Нажмите на правильную песню ниже.',
   },
   'tr': {
-    'prompt': 'Reczt iki olası şarkı buldu: {artist1} tarafından {song1} veya {artist2} tarafından {song2}. Hangisi doğruydu? Birinci veya ikinci deyin.',
+    'prompt': 'Reczt iki güçlü eşleşme buldu. Birinci: {artist1} tarafından {song1}. İkinci: {artist2} tarafından {song2}. Hangisi doğruydu? Birinci veya ikinci deyin.',
     'listening': 'Seçiminiz dinleniyor...',
     'failed': 'Yanıtınızı anlayamadım. Aşağıdaki doğru şarkıya dokunun.',
   },
   'ar': {
-    'prompt': 'وجد Reczt احتمالين للأغنية: {song1} لـ {artist1} أو {song2} لـ {artist2}. أيهما الصحيح؟ قل الأولى أو الثانية.',
+    'prompt': 'وجد Reczt نتيجتين قويتين. الأولى: {song1} لـ {artist1}. الثانية: {song2} لـ {artist2}. أيهما الصحيح؟ قل الأولى أو الثانية.',
     'listening': 'جارٍ الاستماع إلى اختيارك...',
     'failed': 'لم أفهم اختيارك. اضغط على الأغنية الصحيحة أدناه.',
   },
   'nl': {
-    'prompt': 'Reczt vond twee mogelijke nummers: {song1} van {artist1} of {song2} van {artist2}. Welke was juist? Zeg eerste of tweede.',
+    'prompt': 'Reczt vond twee goede matches. Eerste: {song1}, van {artist1}. Tweede: {song2}, van {artist2}. Welke was juist? Zeg eerste of tweede.',
     'listening': 'Ik luister naar je keuze...',
     'failed': 'Ik heb dat niet verstaan. Tik hieronder op het juiste nummer.',
   },
   'pl': {
-    'prompt': 'Reczt znalazł dwa możliwe utwory: {song1} wykonawcy {artist1} albo {song2} wykonawcy {artist2}. Który był właściwy? Powiedz pierwszy albo drugi.',
+    'prompt': 'Reczt znalazł dwa dobre dopasowania. Pierwszy: {song1}, wykonawca {artist1}. Drugi: {song2}, wykonawca {artist2}. Który był właściwy? Powiedz pierwszy albo drugi.',
     'listening': 'Słucham Twojego wyboru...',
     'failed': 'Nie udało mi się zrozumieć. Dotknij właściwego utworu poniżej.',
   },
@@ -3459,7 +3785,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     try {
       final dynamic result = await _siriChannel.invokeMethod('checkSiriTrigger');
       if (result == true) {
-        _isExplicitlyPausedForRecording = true;
         await Future.delayed(const Duration(milliseconds: 800));
 
         if (await _audioRecorder.hasPermission()) {
@@ -3493,9 +3818,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     if (state == AppLifecycleState.resumed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_checkAndStartSiriRecording());
-        unawaited(_checkPendingOfflineQueue());
+        unawaited(_handleQueuedRecognitionOnResume());
       });
     }
+  }
+
+  Future<void> _handleQueuedRecognitionOnResume() async {
+    await _importBackgroundRecognitionResults();
+    await _checkPendingOfflineQueue();
   }
 
   late final AudioPlayer _dingPlayer;
@@ -3524,9 +3854,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   String? _lastFailedAudioPath;
   String? _pendingGuessAudioPath;
   List<_SongMatchCandidate> _topGuesses = <_SongMatchCandidate>[];
-  // Normalized map coordinates for locations displayed while singing.
-  final List<Offset> _livePinLocations = <Offset>[];
-
   EnvironmentMode _selectedMode = EnvironmentMode.Outdoors;
   int _secondsRemaining = 12;
   Timer? _countdownTimer;
@@ -3563,8 +3890,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   String? _appleMusicUrl;
   String? _albumArtUrl;
   Position? _sessionLocation;
-  final String _backendUrl =
-      'https://song-recognitionapp-cloud.onrender.com/recognize';
+  final String _backendUrl = recztRecognitionBackendUrl;
 
   String t(String key) {
     return localizedStrings[_selectedLanguage]?[key] ??
@@ -3720,6 +4046,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     await _loadPreferences();
     await _showLegalNoticeIfNeeded();
     if (mounted) {
+      await _importBackgroundRecognitionResults();
       await _checkPendingOfflineQueue();
     }
   }
@@ -4004,8 +4331,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     });
   }
 
-  bool _isExplicitlyPausedForRecording = false;
-
   Future<void> _loadSavedMode() async {
     final prefs = await SharedPreferences.getInstance();
     final savedIndex = prefs.getInt('selected_environment_mode');
@@ -4091,6 +4416,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   Future<void> _playSingleDing() async {
     try {
       await _dingPlayer.stop();
+      await _dingPlayer.setVolume(1.0);
       await _dingPlayer.play(AssetSource('ding.mp3'));
     } catch (e) {
       debugPrint('Error playing ding sound: $e');
@@ -4098,14 +4424,19 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
 
   Future<void> _playErrorCue() async {
-    // Use a short, restrained local error cue instead of the harsher iOS
-    // alert sound. Two quick clicks create a simple "err-err" cue without
-    // adding another audio asset or depending on the network.
+    // Use a real bundled cue. SystemSoundType.click can be extremely quiet or
+    // effectively inaudible on some iPhones, which is why the previous error
+    // sound could appear not to play even though no asset was missing.
     try {
-      await SystemSound.play(SystemSoundType.click);
-      await Future.delayed(const Duration(milliseconds: 110));
-      await SystemSound.play(SystemSoundType.click);
-    } catch (_) {}
+      await _dingPlayer.stop();
+      await _dingPlayer.setVolume(0.72);
+      await _dingPlayer.play(AssetSource('reczt_error.wav'));
+    } catch (e) {
+      debugPrint('Error playing Reczt error cue: $e');
+      try {
+        await SystemSound.play(SystemSoundType.alert);
+      } catch (_) {}
+    }
 
     try {
       await HapticFeedback.lightImpact();
@@ -4355,6 +4686,55 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     return null;
   }
 
+  Future<void> _importBackgroundRecognitionResults() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+
+    final completed =
+        prefs.getStringList(_backgroundRecognitionResultsKey) ?? <String>[];
+    if (completed.isEmpty) return;
+
+    final remaining = <String>[];
+
+    for (final raw in completed) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map) continue;
+        final item = Map<String, dynamic>.from(decoded);
+        final queuedPath = (item['queued_path'] ?? '').toString();
+
+        final candidate = _SongMatchCandidate.fromMap(item);
+        if (candidate.title.trim().isEmpty ||
+            candidate.title == 'Unknown Title') {
+          remaining.add(raw);
+          continue;
+        }
+
+        String? preservedPath;
+        if (queuedPath.isNotEmpty && !kIsWeb) {
+          preservedPath = await _preserveAudioClip(queuedPath);
+        }
+
+        await _finalizeCandidate(
+          candidate,
+          audioPath: preservedPath,
+          isFromOfflineQueue: true,
+          allowAutoPlay: false,
+          notifyQueuedMatch: false,
+        );
+
+        if (queuedPath.isNotEmpty) {
+          await _deleteLocalFile(queuedPath);
+        }
+      } catch (e) {
+        debugPrint('Could not import background recognition result: $e');
+        remaining.add(raw);
+      }
+    }
+
+    await prefs.setStringList(_backgroundRecognitionResultsKey, remaining);
+  }
+
   Future<String?> _saveToOfflineQueue(String sourcePath) async {
     final prefs = await SharedPreferences.getInstance();
     final List<String> pendingQueue =
@@ -4379,6 +4759,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       pendingQueue.add(queuedPath);
       await prefs.setStringList('pending_offline_songs', pendingQueue);
     }
+
+    unawaited(scheduleRecztOfflineRecognitionTask());
     return queuedPath;
   }
 
@@ -4403,12 +4785,30 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           continue;
         }
 
+        await prefs.reload();
+        if (prefs.getString(_backgroundQueueActivePathKey) == path) {
+          break;
+        }
+
         final online = await Connectivity().checkConnectivity();
         if (online.contains(ConnectivityResult.none)) break;
 
-        final bool processed =
-            await _sendAudioToBackend(path, isFromOfflineQueue: true);
-        if (!processed) break;
+        await prefs.setString(_foregroundQueueActivePathKey, path);
+        bool processed = false;
+        try {
+          processed =
+              await _sendAudioToBackend(path, isFromOfflineQueue: true);
+        } finally {
+          final latestPrefs = await SharedPreferences.getInstance();
+          await latestPrefs.reload();
+          if (latestPrefs.getString(_foregroundQueueActivePathKey) == path) {
+            await latestPrefs.remove(_foregroundQueueActivePathKey);
+          }
+        }
+        if (!processed) {
+          unawaited(scheduleRecztOfflineRecognitionTask());
+          break;
+        }
 
         final freshPrefs = await SharedPreferences.getInstance();
         final List<String> freshQueue =
@@ -4445,7 +4845,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     _countdownTimer?.cancel();
     await _amplitudeSubscription?.cancel();
     _amplitudeSubscription = null;
-    _isExplicitlyPausedForRecording = false;
     await _endLiveSingingTracking();
 
     try {
@@ -4542,6 +4941,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     // Use a more forgiving backend floor only for genuine hands-free Auto Play.
     request.fields['auto_play'] =
         (_autoPlayEnabled && !isFromOfflineQueue).toString();
+    request.fields['background_queue'] = isFromOfflineQueue.toString();
 
     _startEnhancedSearchIndicator(isFromOfflineQueue: isFromOfflineQueue);
 
@@ -4602,8 +5002,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
             _customStatusText = t('error_no_lyrics');
           });
         }
-        unawaited(_playErrorCue());
-        return true;
+        if (!isFromOfflineQueue) {
+          unawaited(_playErrorCue());
+        }
+        // A queued recording should remain queued if the server cannot make a
+        // confident identification. Previously this returned true and could
+        // silently discard an unresolved offline recording.
+        return !isFromOfflineQueue;
       }
 
       final List<Map<String, dynamic>> rawResults =
@@ -4633,6 +5038,15 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         if (bScore == null) return -1;
         return bScore.compareTo(aScore);
       });
+
+      if (isFromOfflineQueue &&
+          !_isSafeQueuedBackgroundMatch(candidates, _selectedMode)) {
+        debugPrint(
+          'Queued recognition held for retry because the match was not '
+          'strong enough for unattended background acceptance.',
+        );
+        return false;
+      }
 
       if (candidates.isEmpty) {
         if (mounted) {
@@ -4783,6 +5197,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     required String? audioPath,
     required bool isFromOfflineQueue,
     required bool allowAutoPlay,
+    bool notifyQueuedMatch = true,
   }) async {
     final String title = candidate.title;
     final String artist = candidate.artist == 'Unknown Artist'
@@ -4869,7 +5284,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       longitude: _sessionLocation?.longitude,
     );
 
-    if (isFromOfflineQueue) {
+    if (isFromOfflineQueue && notifyQueuedMatch) {
       unawaited(showQueuedSongFoundNotification(_selectedLanguage));
     }
   }
@@ -5750,6 +6165,18 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           prefs.getStringList('pending_offline_songs') ?? <String>[];
       audioPaths.addAll(queued.where((path) => path.trim().isNotEmpty));
 
+      final backgroundResults =
+          prefs.getStringList(_backgroundRecognitionResultsKey) ?? <String>[];
+      for (final raw in backgroundResults) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map) {
+            final path = (decoded['queued_path'] ?? '').toString().trim();
+            if (path.isNotEmpty) audioPaths.add(path);
+          }
+        } catch (_) {}
+      }
+
       if (!kIsWeb) {
         for (final path in audioPaths) {
           try {
@@ -5792,6 +6219,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       const directDataKeys = <String>{
         'song_history',
         'pending_offline_songs',
+        _backgroundRecognitionResultsKey,
+        _backgroundRecognitionAttemptsKey,
+        _backgroundQueueActivePathKey,
+        _foregroundQueueActivePathKey,
         'acoustic_memories',
         'acoustic_mic_locations',
         _acousticUsageKey,
@@ -6408,14 +6839,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
     final String selectedTitle = _compactPlaylistTitle(
       _preferredApp == 'apple_music'
-          ? (savedAppleTitle ?? 'Feeling Happy')
-          : (savedSpotifyTitle ?? 'Happy Hits!'),
+          ? savedAppleTitle
+          : savedSpotifyTitle,
     );
     final String selectedUrl = _preferredApp == 'apple_music'
-        ? (savedAppleUrl ?? '')
-        : (savedSpotifyUrl ?? '');
+        ? savedAppleUrl
+        : savedSpotifyUrl;
 
-    final int safeLastGeneratedTime = lastGeneratedTime ?? now;
+    final int safeLastGeneratedTime = lastGeneratedTime;
     final int timeLeft = max(
       0,
       fourteenDaysInMs - (now - safeLastGeneratedTime),
@@ -8893,4 +9324,4 @@ class QuickShareHelper {
       },
     );
   }
-} 
+}

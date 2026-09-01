@@ -3,6 +3,7 @@ import Flutter
 import AppIntents
 import AVFoundation
 import Speech
+import workmanager_apple
 
 class SiriBridge {
     static var channel: FlutterMethodChannel?
@@ -135,8 +136,7 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
     /// the user has installed, while still falling back safely on every iPhone.
     private func preferredSpeechVoice() -> AVSpeechSynthesisVoice? {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
-        let requestedLocale =
-            Locale(identifier: localeIdentifier)
+        let requestedLocale = Locale(identifier: localeIdentifier)
         let requestedLanguage =
             requestedLocale.languageCode?.lowercased()
 
@@ -156,40 +156,59 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
             return AVSpeechSynthesisVoice(language: localeIdentifier)
         }
 
-        return compatibleVoices.max { lhs, rhs in
-            func score(_ voice: AVSpeechSynthesisVoice) -> Int {
-                var total = 0
+        // These names are only preferences when they actually exist on the
+        // device. Premium/enhanced quality remains the strongest signal.
+        let conversationalNames = [
+            "ava", "zoe", "samantha", "allison", "serena", "susan",
+            "karen", "moira", "tessa", "monica", "paulina", "audrey",
+            "amelie", "anna", "alice", "luciana", "kyoko", "yuna",
+            "ting-ting", "zosia", "milena", "lekha"
+        ]
 
-                // Strongly prefer the exact regional locale.
-                if voice.language.caseInsensitiveCompare(localeIdentifier) == .orderedSame {
-                    total += 1000
-                }
+        let noveltyNames = [
+            "bad news", "bahh", "bells", "boing", "bubbles", "cellos",
+            "deranged", "good news", "hysterical", "organ", "trinoids",
+            "whisper", "wobble", "zarvox"
+        ]
 
-                // Reczt's preferred assistant character is warm/female.
-                if voice.gender == .female {
-                    total += 300
-                }
+        func score(_ voice: AVSpeechSynthesisVoice) -> Int {
+            var total = 0
+            let name = voice.name.lowercased()
 
-                // quality.rawValue lets newer premium voices naturally outrank
-                // enhanced/default voices without hard-coding an iOS-version case.
-                total += voice.quality.rawValue * 100
-
-                // A small preference for voices whose names are commonly
-                // associated with Apple's more natural English voices.
-                let warmVoiceNames = [
-                    "ava", "samantha", "zoe", "serena",
-                    "allison", "karen", "moira", "tessa"
-                ]
-                let normalizedName = voice.name.lowercased()
-                if warmVoiceNames.contains(where: { normalizedName.contains($0) }) {
-                    total += 20
-                }
-
-                return total
+            if voice.language.caseInsensitiveCompare(localeIdentifier) == .orderedSame {
+                total += 4000
             }
 
-            return score(lhs) < score(rhs)
+            // Premium/enhanced voices sound dramatically more natural than
+            // compact/default voices. Give quality the largest weight.
+            total += voice.quality.rawValue * 2500
+
+            if voice.gender == .female {
+                total += 350
+            }
+
+            if conversationalNames.contains(where: { name.contains($0) }) {
+                total += 500
+            }
+
+            if noveltyNames.contains(where: { name.contains($0) }) {
+                total -= 10000
+            }
+
+            return total
         }
+
+        let selected = compatibleVoices.max {
+            score($0) < score($1)
+        }
+
+        if let selected = selected {
+            print(
+                "Reczt voice: \(selected.name), \(selected.language), quality=\(selected.quality.rawValue)"
+            )
+        }
+
+        return selected ?? AVSpeechSynthesisVoice(language: localeIdentifier)
     }
 
     /// Break a long prompt into natural spoken phrases. AVSpeechSynthesizer
@@ -264,11 +283,21 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
             let utterance = AVSpeechUtterance(string: segment)
             utterance.voice = voice
 
-            // Slightly slower than the system default, with a subtly lower
-            // pitch, sounds calmer and less synthetic.
-            utterance.rate = 0.44
-            utterance.pitchMultiplier = 0.96
-            utterance.volume = 0.95
+            // Apple's voices generally sound most natural near their
+            // normal conversational rate. Slowing them too much can actually
+            // make them sound more robotic.
+            let normalized = segment.lowercased()
+            let isChoiceLine =
+                normalized.contains("first")
+                || normalized.contains("second")
+                || normalized.contains("premier")
+                || normalized.contains("deuxième")
+                || normalized.contains("erste")
+                || normalized.contains("zweite")
+
+            utterance.rate = isChoiceLine ? 0.48 : 0.51
+            utterance.pitchMultiplier = 1.0
+            utterance.volume = 0.96
 
             // A brief lead-in prevents the first word from feeling clipped.
             if index == 0 {
@@ -277,8 +306,14 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
 
             // Pause long enough for song titles/artists to feel separated,
             // with a shorter pause just before Reczt begins listening.
-            utterance.postUtteranceDelay =
-                index == segments.count - 1 ? 0.18 : 0.42
+            if index == segments.count - 1 {
+                utterance.postUtteranceDelay = 0.22
+            } else if index == 1 || index == 2 {
+                // Give the listener a real beat between the two song choices.
+                utterance.postUtteranceDelay = 0.52
+            } else {
+                utterance.postUtteranceDelay = 0.34
+            }
 
             synthesizer.speak(utterance)
         }
@@ -492,6 +527,16 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
+        // Re-register persisted iOS background-task launch handlers before
+        // application launch finishes, and make normal Flutter plugins
+        // available inside Workmanager's background Flutter engine.
+        WorkmanagerPlugin.setPluginRegistrantCallback { registry in
+            GeneratedPluginRegistrant.register(with: registry)
+        }
+        WorkmanagerPlugin.registerBGProcessingTask(
+            withIdentifier: "com.reczt.app.offline_recognition"
+        )
+
         let controller =
             window?.rootViewController as! FlutterViewController
 

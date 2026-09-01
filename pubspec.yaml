@@ -27,11 +27,13 @@ dependencies:
   flutter_local_notifications: ^22.3.0
   reczt_rich_share:
     path: local_plugins/reczt_rich_share
+  workmanager: ^0.10.9
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.4
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
@@ -40,6 +42,7 @@ flutter:
     - assets/silence.mp3
     - assets/ding.mp3
     - assets/world_map.png
+    - assets/reczt_error.wav
     
 dependency_overrides:
   record_platform_interface: ^2.1.0
