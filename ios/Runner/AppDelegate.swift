@@ -3,7 +3,7 @@ import Flutter
 import AppIntents
 import AVFoundation
 import Speech
-import workmanager_apple
+import UserNotifications
 
 class SiriBridge {
     static var channel: FlutterMethodChannel?
@@ -521,22 +521,406 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
     }
 }
 
+
+// -----------------------------------------------------------------------------
+// MARK: - Reliable offline queue upload bridge
+// -----------------------------------------------------------------------------
+//
+// Offline recordings remain on-device until iOS can upload them. A single
+// background URLSession owns file-based uploads; Apple can continue these
+// transfers while Reczt is suspended and background sessions automatically wait
+// for connectivity. The server does the recognition work, and iOS posts a local
+// result notification when the background response arrives.
+//
+// The audio source file is deliberately NOT deleted here. Flutter imports the
+// completed result into normal History first, preserves the user's singing clip,
+// removes the item from its local queue, and only then deletes the queued source.
+
+private struct OfflineUploadMetadata: Codable {
+    let sourcePath: String
+    let multipartBodyPath: String
+    let jobID: String
+    let language: String
+    let environment: String
+}
+
+final class OfflineUploadManager: NSObject,
+                                  URLSessionDelegate,
+                                  URLSessionTaskDelegate,
+                                  URLSessionDataDelegate {
+    static let shared = OfflineUploadManager()
+    static let sessionIdentifier = "com.reczt.app.offline-upload"
+
+    private let completedResultsKey = "reczt.native.offline.results.v1"
+    private var responseBuffers: [Int: Data] = [:]
+    private var backgroundEventsCompletionHandler: (() -> Void)?
+
+    /// Called only while a Flutter engine is alive. Background completions are
+    /// also persisted in UserDefaults, so no result depends on this callback.
+    var resultReadyHandler: (() -> Void)?
+
+    private lazy var session: URLSession = {
+        let configuration = URLSessionConfiguration.background(
+            withIdentifier: Self.sessionIdentifier
+        )
+        configuration.sessionSendsLaunchEvents = true
+        configuration.isDiscretionary = false
+        configuration.allowsCellularAccess = true
+        configuration.timeoutIntervalForRequest = 180
+        configuration.timeoutIntervalForResource = 300
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+
+        return URLSession(
+            configuration: configuration,
+            delegate: self,
+            delegateQueue: nil
+        )
+    }()
+
+    private override init() {
+        super.init()
+        _ = session
+    }
+
+    func restoreBackgroundSession() {
+        _ = session
+    }
+
+
+    private func metadata(from task: URLSessionTask) -> OfflineUploadMetadata? {
+        guard
+            let raw = task.taskDescription,
+            let data = raw.data(using: .utf8)
+        else {
+            return nil
+        }
+        return try? JSONDecoder().decode(OfflineUploadMetadata.self, from: data)
+    }
+
+    private func encodeMetadata(_ metadata: OfflineUploadMetadata) -> String? {
+        guard
+            let data = try? JSONEncoder().encode(metadata)
+        else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private func appendText(
+        _ value: String,
+        to data: inout Data
+    ) {
+        if let bytes = value.data(using: .utf8) {
+            data.append(bytes)
+        }
+    }
+
+    private func makeMultipartBody(
+        audioURL: URL,
+        fields: [String: String],
+        boundary: String,
+        jobID: String
+    ) throws -> URL {
+        let fileManager = FileManager.default
+        let supportURL = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let directory = supportURL.appendingPathComponent(
+            "RecztOfflineUploads",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+
+        let outputURL = directory.appendingPathComponent(
+            "offline_upload_\(jobID).multipart"
+        )
+
+        var body = Data()
+        for (name, value) in fields {
+            appendText("--\(boundary)\r\n", to: &body)
+            appendText(
+                "Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n",
+                to: &body
+            )
+            appendText("\(value)\r\n", to: &body)
+        }
+
+        appendText("--\(boundary)\r\n", to: &body)
+        appendText(
+            "Content-Disposition: form-data; name=\"file\"; filename=\"queued_recording.wav\"\r\n",
+            to: &body
+        )
+        appendText("Content-Type: audio/wav\r\n\r\n", to: &body)
+        body.append(try Data(contentsOf: audioURL))
+        appendText("\r\n--\(boundary)--\r\n", to: &body)
+
+        try body.write(to: outputURL, options: .atomic)
+        return outputURL
+    }
+
+    func scheduleUpload(
+        sourcePath: String,
+        backendURL: String,
+        language: String,
+        environment: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        let sourceURL = URL(fileURLWithPath: sourcePath)
+        guard FileManager.default.fileExists(atPath: sourcePath) else {
+            completion(false)
+            return
+        }
+        guard let endpoint = URL(string: backendURL) else {
+            completion(false)
+            return
+        }
+
+        // Prevent duplicate uploads if Flutter asks us to reschedule the queue
+        // after a resume/connectivity event.
+        session.getAllTasks { [weak self] tasks in
+            guard let self = self else {
+                completion(false)
+                return
+            }
+
+            let alreadyScheduled = tasks.contains { task in
+                guard task.state != .completed else { return false }
+                return self.metadata(from: task)?.sourcePath == sourcePath
+            }
+            if alreadyScheduled {
+                completion(true)
+                return
+            }
+
+            let jobID = UUID().uuidString.lowercased()
+            let boundary = "RecztBoundary-\(UUID().uuidString)"
+
+            let fields: [String: String] = [
+                "language": language,
+                "vocal_isolation": "true",
+                "environment": environment,
+                "auto_play": "false",
+                "background_queue": "true"
+            ]
+
+            do {
+                let bodyURL = try self.makeMultipartBody(
+                    audioURL: sourceURL,
+                    fields: fields,
+                    boundary: boundary,
+                    jobID: jobID
+                )
+
+                var request = URLRequest(url: endpoint)
+                request.httpMethod = "POST"
+                request.setValue(
+                    "multipart/form-data; boundary=\(boundary)",
+                    forHTTPHeaderField: "Content-Type"
+                )
+                request.setValue(
+                    "application/json",
+                    forHTTPHeaderField: "Accept"
+                )
+
+                let metadata = OfflineUploadMetadata(
+                    sourcePath: sourcePath,
+                    multipartBodyPath: bodyURL.path,
+                    jobID: jobID,
+                    language: language,
+                    environment: environment
+                )
+
+                let task = self.session.uploadTask(
+                    with: request,
+                    fromFile: bodyURL
+                )
+                task.taskDescription = self.encodeMetadata(metadata)
+                task.resume()
+                completion(true)
+            } catch {
+                print(
+                    "Reczt offline upload could not be prepared: \(error.localizedDescription)"
+                )
+                completion(false)
+            }
+        }
+    }
+
+    func drainCompletedResults() -> [String] {
+        let defaults = UserDefaults.standard
+        let results = defaults.stringArray(forKey: completedResultsKey) ?? []
+        defaults.removeObject(forKey: completedResultsKey)
+        return results
+    }
+
+    func clearCompletedResults() {
+        UserDefaults.standard.removeObject(forKey: completedResultsKey)
+    }
+
+    private func storeCompletedResult(_ result: [String: Any]) {
+        guard
+            JSONSerialization.isValidJSONObject(result),
+            let data = try? JSONSerialization.data(withJSONObject: result),
+            let string = String(data: data, encoding: .utf8)
+        else {
+            return
+        }
+
+        let defaults = UserDefaults.standard
+        var results = defaults.stringArray(forKey: completedResultsKey) ?? []
+        results.append(string)
+
+        // Defensive cap only; normal use should contain zero or a handful.
+        if results.count > 50 {
+            results = Array(results.suffix(50))
+        }
+        defaults.set(results, forKey: completedResultsKey)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.resultReadyHandler?()
+        }
+    }
+
+    private func removeMultipartBody(for task: URLSessionTask) {
+        guard let metadata = metadata(from: task) else { return }
+        try? FileManager.default.removeItem(
+            atPath: metadata.multipartBodyPath
+        )
+    }
+
+    private func showOfflineResultNotification(
+        title: String,
+        artist: String
+    ) {
+        let content = UNMutableNotificationContent()
+        content.title = "Reczt"
+        content.body = artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? title
+            : "\(title) — \(artist)"
+        content.sound = .default
+        content.threadIdentifier = "reczt-offline"
+
+        let request = UNNotificationRequest(
+            identifier: "reczt-offline-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func cancelAllUploads(completion: @escaping () -> Void) {
+        session.getAllTasks { [weak self] tasks in
+            guard let self = self else {
+                completion()
+                return
+            }
+            for task in tasks {
+                self.removeMultipartBody(for: task)
+                task.cancel()
+            }
+            self.responseBuffers.removeAll()
+            completion()
+        }
+    }
+
+    func handleEvents(
+        identifier: String,
+        completionHandler: @escaping () -> Void
+    ) -> Bool {
+        guard identifier == Self.sessionIdentifier else {
+            return false
+        }
+        backgroundEventsCompletionHandler = completionHandler
+        _ = session
+        return true
+    }
+
+    // MARK: URLSessionDataDelegate
+
+    func urlSession(
+        _ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive data: Data
+    ) {
+        responseBuffers[dataTask.taskIdentifier, default: Data()].append(data)
+    }
+
+    // MARK: URLSessionTaskDelegate
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        defer {
+            removeMultipartBody(for: task)
+            responseBuffers.removeValue(forKey: task.taskIdentifier)
+        }
+
+        guard error == nil else {
+            print(
+                "Reczt offline upload ended with a network error: \(error!.localizedDescription)"
+            )
+            // Flutter keeps the original queued source file. It can be
+            // rescheduled when Reczt next resumes.
+            return
+        }
+
+        guard
+            let httpResponse = task.response as? HTTPURLResponse,
+            (200...299).contains(httpResponse.statusCode),
+            let data = responseBuffers[task.taskIdentifier],
+            let object = try? JSONSerialization.jsonObject(with: data),
+            var response = object as? [String: Any],
+            response["success"] as? Bool == true,
+            let metadata = metadata(from: task)
+        else {
+            // A low-confidence/no-match response intentionally remains queued
+            // so Reczt never turns a weak unattended guess into history.
+            return
+        }
+
+        response["queued_path"] = metadata.sourcePath
+        response["server_offline"] = true
+        response["offline_job_id"] = metadata.jobID
+        storeCompletedResult(response)
+
+        // The background URLSession completion is allowed to run while Reczt is
+        // in the background. Schedule a local notification immediately so the
+        // user sees the result without requiring a remote push service.
+        let title = response["title"] as? String ?? "Song found"
+        let artist = response["artist"] as? String ?? ""
+        showOfflineResultNotification(title: title, artist: artist)
+    }
+
+    // Called after all background-session delegate events have been delivered.
+    func urlSessionDidFinishEvents(
+        forBackgroundURLSession session: URLSession
+    ) {
+        guard let handler = backgroundEventsCompletionHandler else {
+            return
+        }
+        backgroundEventsCompletionHandler = nil
+        DispatchQueue.main.async {
+            handler()
+        }
+    }
+}
+
 @main
 @objc class AppDelegate: FlutterAppDelegate {
     override func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        // Re-register persisted iOS background-task launch handlers before
-        // application launch finishes, and make normal Flutter plugins
-        // available inside Workmanager's background Flutter engine.
-        WorkmanagerPlugin.setPluginRegistrantCallback { registry in
-            GeneratedPluginRegistrant.register(with: registry)
-        }
-        WorkmanagerPlugin.registerBGProcessingTask(
-            withIdentifier: "com.reczt.app.offline_recognition"
-        )
-
         let controller =
             window?.rootViewController as! FlutterViewController
 
@@ -597,11 +981,95 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
             }
         }
 
+        let offlineQueueChannel = FlutterMethodChannel(
+            name: "reczt/offline_queue",
+            binaryMessenger: controller.binaryMessenger
+        )
+
+        OfflineUploadManager.shared.resultReadyHandler = {
+            offlineQueueChannel.invokeMethod(
+                "offlineResultReady",
+                arguments: nil
+            )
+        }
+
+        offlineQueueChannel.setMethodCallHandler { call, result in
+            switch call.method {
+            case "scheduleUpload":
+                guard
+                    let args = call.arguments as? [String: Any],
+                    let filePath = args["filePath"] as? String,
+                    let backendURL = args["backendUrl"] as? String
+                else {
+                    result(false)
+                    return
+                }
+
+                let language = args["language"] as? String ?? "en"
+                let environment =
+                    args["environment"] as? String ?? "outdoors"
+
+                OfflineUploadManager.shared.scheduleUpload(
+                    sourcePath: filePath,
+                    backendURL: backendURL,
+                    language: language,
+                    environment: environment
+                ) { scheduled in
+                    DispatchQueue.main.async {
+                        result(scheduled)
+                    }
+                }
+
+            case "drainCompletedResults":
+                result(
+                    OfflineUploadManager.shared.drainCompletedResults()
+                )
+
+            case "clearCompletedResults":
+                OfflineUploadManager.shared.clearCompletedResults()
+                result(nil)
+
+            case "cancelAllUploads":
+                OfflineUploadManager.shared.cancelAllUploads {
+                    DispatchQueue.main.async {
+                        result(nil)
+                    }
+                }
+
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
+
+        // Reconnect to any URLSession transfers that iOS preserved while the
+        // process was suspended/terminated.
+        OfflineUploadManager.shared.restoreBackgroundSession()
+
         GeneratedPluginRegistrant.register(with: self)
 
         return super.application(
             application,
             didFinishLaunchingWithOptions: launchOptions
+        )
+    }
+
+
+    override func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        if OfflineUploadManager.shared.handleEvents(
+            identifier: identifier,
+            completionHandler: completionHandler
+        ) {
+            return
+        }
+
+        super.application(
+            application,
+            handleEventsForBackgroundURLSession: identifier,
+            completionHandler: completionHandler
         )
     }
 }

@@ -48,15 +48,8 @@
     <array>
         <string>audio</string>
         <string>fetch</string>
-        <string>processing</string>
     </array>
-
-    <key>BGTaskSchedulerPermittedIdentifiers</key>
-    <array>
-        <string>com.reczt.app.offline_recognition</string>
-    </array>
-
-    <key>LSApplicationQueriesSchemes</key>
+<key>LSApplicationQueriesSchemes</key>
     <array>
         <string>spotify</string>
     </array>
@@ -81,7 +74,7 @@
             <key>CFBundleTypeRole</key>
             <string>Editor</string>
             <key>CFBundleURLName</key>
-            <string>com.example.songRecognitionApp</string>
+            <string>com.reczt.app</string>
             <key>CFBundleURLSchemes</key>
             <array>
                 <string>handsfreefinder</string>

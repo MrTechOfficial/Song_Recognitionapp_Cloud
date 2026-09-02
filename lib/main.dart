@@ -19,7 +19,6 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:workmanager/workmanager.dart' as wm;
 
 
 
@@ -27,17 +26,11 @@ import 'package:workmanager/workmanager.dart' as wm;
 const String recztRecognitionBackendUrl =
     'https://song-recognitionapp-cloud.onrender.com/recognize';
 
-const String recztOfflineRecognitionTaskIdentifier =
-    'com.reczt.app.offline_recognition';
-
-const String _backgroundRecognitionResultsKey =
-    'background_recognition_results_v1';
-const String _backgroundRecognitionAttemptsKey =
-    'background_recognition_attempts_v1';
-const String _backgroundQueueActivePathKey =
-    'offline_background_active_path_v1';
-const String _foregroundQueueActivePathKey =
-    'offline_foreground_active_path_v1';
+/// Native iOS bridge that schedules file-based background uploads. The
+/// operating system can continue these transfers while Reczt is suspended and
+/// automatically waits for connectivity to return.
+const MethodChannel _recztOfflineQueueChannel =
+    MethodChannel('reczt/offline_queue');
 
 // --------------------------------------------------------------------
 // 🔗 SHARED APP CONSTANTS & HELPERS
@@ -53,7 +46,7 @@ const String reczAppStoreUrl = "https://apps.apple.com/app/id123456789";
 
 // Increment this string whenever the Privacy Policy or Terms change
 // materially. Reczt will then show the legal notice one more time.
-const String recztLegalNoticeVersion = '2026-08-30-v1';
+const String recztLegalNoticeVersion = '2026-09-01-v2';
 
 // After the two HTML files are published on a permanent public website,
 // paste their live URLs here. Until then, Reczt always shows the complete
@@ -63,7 +56,7 @@ const String recztTermsOfUseUrl = 'https://mrtechofficial.github.io/Song_Recogni
 
 const String _recztPrivacyPolicyText = r'''Reczt Privacy Policy
 
-Effective Date: August 30, 2026
+Effective Date: September 1, 2026
 
 Reczt (“Reczt,” “we,” “us,” or “our”) is operated by Leslie Kane. This Privacy Policy explains how Reczt handles information when you use the Reczt mobile application and related song-recognition services.
 
@@ -83,11 +76,19 @@ A. Singing and Audio Recordings
 
 When you choose to identify a song, Reczt records audio from your microphone.
 
-The recording is transmitted to Reczt’s recognition backend for the purpose of identifying the song. The backend creates temporary audio files while the recognition request is being processed. Reczt’s backend is designed to delete those temporary files when the recognition request ends and does not intentionally maintain a permanent server-side library of users’ recordings.
+When you are online, the recording is transmitted to Reczt’s recognition backend for the purpose of identifying the song. The backend creates temporary audio files while the recognition request is being processed. Those temporary files are designed to be deleted when the request ends.
 
-For successful recognitions, Reczt may also save a copy of your singing clip locally on your device as part of your Reczt history so you can replay it later. These locally saved clips remain on your device until you delete the relevant history item, clear your history, or remove the app.
+When you make a recording while offline, Reczt first stores the queued recording locally on your device. On iOS, Reczt may schedule a system-managed background upload. The operating system can wait for connectivity and upload the queued recording after an internet connection becomes available, even while Reczt is not in the foreground. Once the upload reaches Reczt’s backend, the server performs the recognition work. Reczt does not intentionally maintain a permanent server-side library of queued recordings. The uploaded audio is held only in temporary processing files for the recognition request and is designed to be deleted when that request ends.
 
-B. Song Recognition and Transcription
+If an offline recording is successfully recognized, Reczt may keep a copy of your singing clip locally on your device as part of your Reczt history so you can replay it later. Local clips remain on your device until you delete the relevant history item, clear Reczt data, or remove the app.
+
+B. Offline-Result Notifications
+
+If you allow notifications, Reczt may ask iOS to display a local notification when a queued offline recording finishes processing successfully. The notification may contain the recognized song title and artist so the result is useful without opening the app.
+
+This notification is scheduled on the device after the background upload receives the recognition response. Reczt does not need to send a push-notification device token to its backend for this feature. You can control Reczt notification permissions in iOS Settings.
+
+C. Song Recognition and Transcription
 
 Reczt may send audio to third-party service providers to identify the song:
 
@@ -95,9 +96,9 @@ Reczt may send audio to third-party service providers to identify the song:
 - Groq may receive audio when Reczt uses speech-to-text as a fallback recognition method. Reczt’s Groq organization is configured with Global Zero Data Retention (ZDR). Under Groq’s current ZDR documentation, customer inputs and outputs are not retained for system-reliability or abuse-monitoring purposes. Groq may still retain non-content usage metadata that does not contain customer inputs or outputs.
 - Genius may receive short lyric-search queries derived from a transcription in order to identify possible songs.
 
-Reczt does not intentionally write the content of Groq transcriptions into its own production server logs.
+Reczt does not intentionally write the content of Groq transcriptions or users’ raw recordings into its own production application logs.
 
-C. Song and Music-Service Information
+D. Song and Music-Service Information
 
 Reczt may send song titles and artist names to Spotify and Apple services to find canonical song information, links, artwork, genres, or other music metadata.
 
@@ -105,21 +106,21 @@ If you choose to create a Spotify playlist from Reczt history, Reczt uses Spotif
 
 Your use of Spotify, Apple Music, and other third-party music services is also governed by those providers’ own terms and privacy policies.
 
-D. Location and “Acoustic Memory”
+E. Location and “Acoustic Memory”
 
 If you grant location permission, Reczt may access your device location when you begin a singing session so the Acoustic Memory map can remember where you have used Reczt.
 
-Acoustic Memory location information is stored locally on your device using compact approximate location buckets rather than maintaining a permanent server-side location history. Reczt’s current recognition request does not send your Acoustic Memory latitude or longitude to Reczt’s recognition backend.
+Acoustic Memory location information is stored locally on your device using compact approximate location buckets rather than maintaining a permanent server-side location history. Reczt’s current recognition requests do not send your Acoustic Memory latitude or longitude to Reczt’s recognition backend.
 
 You can deny or revoke Reczt’s location permission through iOS Settings. Reczt’s core song-recognition feature can still function without the Acoustic Memory location feature.
 
-E. Hands-Free Speech Recognition
+F. Hands-Free Speech Recognition
 
 If Auto Play is enabled and Reczt needs you to choose between two possible song matches, Reczt may ask you to say “first” or “second.”
 
 This feature uses Apple’s Speech framework. Apple states that speech recognition performed with SFSpeechRecognizer may capture your voice audio and send it to Apple’s servers for processing. iOS asks for your permission before Reczt uses this feature.
 
-F. Local App Data
+G. Local App Data
 
 Reczt stores certain information locally on your device so the app can function, including items such as:
 
@@ -129,11 +130,13 @@ Reczt stores certain information locally on your device so the app can function,
 - Auto Play and appearance preferences;
 - local analytics such as song counts, artist counts, genre counts, emotion counts, and usage streaks;
 - Acoustic Memory location usage; and
-- pending offline recordings waiting to be recognized when connectivity returns.
+- pending offline recordings waiting for a system-managed upload and recognition.
+
+History entries may include a local “Found Offline” flag so Reczt can show which results came from the offline queue.
 
 This information is used to provide Reczt’s features and is not used for advertising.
 
-G. Technical Information
+H. Technical Information
 
 Reczt and its hosting or network providers may process ordinary technical request information needed to deliver and protect the service, such as IP address, request timing, service status, device/network connectivity information, or error information.
 
@@ -144,6 +147,8 @@ Reczt does not use this information to create advertising profiles.
 Reczt uses information only as reasonably necessary to:
 
 - recognize songs;
+- process recordings that were queued while offline after connectivity returns;
+- notify you on your device when an offline recording is successfully recognized;
 - provide song links, artwork, genre information, and related metadata;
 - create user-requested Spotify playlists;
 - provide local history, analytics, Acoustic Memory, and offline-queue features;
@@ -160,7 +165,7 @@ Depending on the feature you use, information may be processed by service provid
 - Groq — fallback speech-to-text transcription;
 - Genius — lyric-based song search;
 - Spotify — music metadata, links, authorization, and playlist creation; and
-- Apple — Apple Music/iTunes metadata, iOS permissions, and Apple Speech Recognition.
+- Apple — Apple Music/iTunes metadata, iOS permissions and local notifications, and Apple Speech Recognition.
 
 These companies process information under their own agreements and privacy practices. Reczt uses these services only for app functionality and does not authorize them to use Reczt data for Reczt advertising.
 
@@ -168,23 +173,24 @@ These companies process information under their own agreements and privacy pract
 
 Reczt is designed to minimize server-side retention.
 
-- Reczt backend audio: temporary files are designed to be deleted when a recognition request ends.
+- Online and offline Reczt backend audio: temporary processing files are designed to be deleted when the recognition request ends.
+- Offline queue before upload: the queued recording remains locally on your device until it is recognized, deleted, cleared, or the app is removed. The server does not receive the recording until a network upload actually begins.
 - Groq: Reczt has enabled Global ZDR for customer inputs and outputs. Groq may retain non-content usage metadata as described in its documentation.
 - ACRCloud: ACRCloud states that uploaded audio/video files are removed after fingerprint generation; its handling of fingerprints and related metadata is governed by its own terms.
 - Local Reczt history and clips: remain on your device until you delete them or remove the app.
-- Local preferences, analytics, and Acoustic Memory information: generally remain on your device until the app or its local data is removed.
+- Local preferences, analytics, Acoustic Memory information, and offline-result labels: generally remain on your device until the app or its local data is removed.
 
 Reczt does not currently maintain a Reczt user account or a server-side user profile that requires a separate account-deletion process.
 
 6. Your Choices
 
-You control whether Reczt can use microphone, location, speech-recognition, Bluetooth, and Siri-related permissions through iOS.
+You control whether Reczt can use microphone, location, notifications, speech-recognition, Bluetooth, and Siri-related permissions through iOS.
 
 You may:
 
 - deny or revoke permissions in iOS Settings;
 - delete individual saved song-history items;
-- clear saved song history and its associated local clips;
+- clear Reczt data and its associated local clips and queued recordings;
 - revoke Spotify authorization through Spotify if you choose to do so; and
 - delete Reczt from your device to remove Reczt’s locally stored app data, subject to any device backup settings controlled by Apple.
 
@@ -222,13 +228,13 @@ We may update this Privacy Policy as Reczt changes. If we make a material change
 
 13. Contact
 
-Leslie Kane  
-Operator / Publisher of Reczt  
+Leslie Kane
+Operator / Publisher of Reczt
 Email: georgethomasbazos@gmail.com''';
 
 const String _recztTermsOfUseText = r'''Reczt Terms of Use
 
-Effective Date: August 30, 2026
+Effective Date: September 1, 2026
 
 These Terms of Use (“Terms”) govern your use of the Reczt mobile application and related services (“Reczt”). Reczt is operated by Leslie Kane (“we,” “us,” or “our”).
 
@@ -255,7 +261,8 @@ Reczt may also provide features such as:
 - Spotify playlist creation when authorized by the user;
 - local listening analytics and recommendations;
 - Acoustic Memory location features;
-- offline recognition queues; and
+- an offline recording queue that can upload recordings after connectivity returns;
+- local notifications for successfully recognized offline recordings; and
 - hands-free song-choice functionality.
 
 Reczt is currently provided free of charge, with no subscriptions, in-app purchases, or advertisements.
@@ -277,19 +284,29 @@ You may not:
 
 You retain any rights you may have in recordings of your own voice.
 
-When you submit audio to Reczt, you authorize Reczt and its service providers to temporarily transmit, process, analyze, and transform that audio only as reasonably necessary to provide song recognition and related app functionality.
+When you submit audio to Reczt, you authorize Reczt and its service providers to transmit, temporarily store, process, analyze, and transform that audio only as reasonably necessary to provide song recognition and related app functionality.
+
+If you make a recording while offline, you also authorize Reczt to keep that recording locally on your device and to schedule a system-managed upload after connectivity becomes available. Once the upload reaches the backend, Reczt may process the recording even if the app is not in the foreground. Temporary backend audio files are designed to be deleted when the recognition request ends.
 
 You should not use Reczt to submit passwords, financial information, health information, confidential conversations, or other sensitive information.
 
-5. Song Recognition Is Not Guaranteed
+5. Offline Processing and Notifications
+
+Offline processing depends on iOS background-transfer scheduling, internet connectivity, Reczt’s backend, and recognition providers. Delivery timing is not guaranteed.
+
+If an offline recording is successfully recognized and you have allowed notifications, Reczt may ask iOS to display a local notification that includes the recognized song title and artist. You can control notification permissions in iOS Settings.
+
+Force-quitting the app, device settings, operating-system resource decisions, network conditions, or third-party outages may delay or prevent a queued upload or notification.
+
+6. Song Recognition Is Not Guaranteed
 
 Song recognition is probabilistic and may be incorrect.
 
-Reczt may return the wrong song, fail to identify a song, provide incomplete metadata, or offer more than one possible match. The hands-free “first or second” feature is intended to reduce incorrect automatic playback but does not guarantee accuracy.
+Reczt may return the wrong song, fail to identify a song, provide incomplete metadata, or offer more than one possible match. The hands-free “first or second” feature and the stricter rules used for unattended offline recognition are intended to reduce incorrect automatic results but do not guarantee accuracy.
 
 You are responsible for confirming any result before relying on it.
 
-6. Third-Party Music and Technology Services
+7. Third-Party Music and Technology Services
 
 Reczt relies on or links to third-party services, which may include ACRCloud, Groq, Genius, Spotify, Apple Music, iTunes/Apple services, Render, and Apple Speech Recognition.
 
@@ -299,25 +316,25 @@ Reczt is not Spotify, Apple, ACRCloud, Groq, Genius, or Render, and use of those
 
 If you authorize Reczt to create a Spotify playlist, you authorize Reczt to use the permissions displayed by Spotify for that purpose. You remain responsible for your Spotify account and for compliance with Spotify’s terms.
 
-7. Music, Artwork, and Other Third-Party Content
+8. Music, Artwork, and Other Third-Party Content
 
 Song names, artist names, album names, artwork, music-service branding, and other third-party content belong to their respective owners.
 
 Reczt does not claim ownership of third-party music or artwork. Any third-party content displayed or linked through Reczt is provided for identification, navigation, or interoperability with the relevant music service.
 
-8. Privacy
+9. Privacy
 
-Your use of Reczt is subject to the Reczt Privacy Policy, which explains how audio, location, local app data, and third-party services are handled.
+Your use of Reczt is subject to the Reczt Privacy Policy, which explains how audio, offline uploads, location, local app data, and third-party services are handled.
 
 By using Reczt, you acknowledge the Privacy Policy and consent to permission-based processing where consent is required by the operating system or applicable law.
 
-9. Apple Terms
+10. Apple Terms
 
 If you obtain Reczt through Apple’s App Store, Apple’s applicable App Store terms and Apple’s standard Licensed Application End User License Agreement may also apply to your use of the app.
 
 These Terms supplement, and do not replace, any mandatory rights or obligations that apply under Apple’s terms or applicable law.
 
-10. Availability and Changes
+11. Availability and Changes
 
 We may modify, suspend, discontinue, or update Reczt or any feature at any time.
 
@@ -325,7 +342,7 @@ Third-party APIs and services can change without notice, and a feature that depe
 
 We do not guarantee that Reczt will always be available, uninterrupted, secure, or error-free.
 
-11. Disclaimer of Warranties
+12. Disclaimer of Warranties
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, RECZT IS PROVIDED “AS IS” AND “AS AVAILABLE.”
 
@@ -333,7 +350,7 @@ WE DISCLAIM WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON
 
 Nothing in these Terms limits rights that cannot legally be waived.
 
-12. Limitation of Liability
+13. Limitation of Liability
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, LESLIE KANE AND RECZT WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOSS OF DATA, PROFITS, GOODWILL, OR USE, ARISING FROM OR RELATED TO RECZT OR THIRD-PARTY SERVICES.
 
@@ -343,42 +360,42 @@ Because Reczt is currently free, the US$50 amount may apply where permitted by l
 
 Some jurisdictions do not allow certain exclusions or limitations, so parts of this section may not apply to you.
 
-13. Your Responsibility for Lawful Use
+14. Your Responsibility for Lawful Use
 
 You are responsible for your use of Reczt and for complying with applicable laws and third-party terms.
 
 You agree not to intentionally misuse the service or submit material in a manner that violates another person’s rights.
 
-14. Suspension or Termination
+15. Suspension or Termination
 
 We may restrict or terminate access to Reczt if reasonably necessary to protect users, Reczt, third-party services, legal rights, or service security, or if these Terms are materially violated.
 
 You may stop using Reczt at any time by deleting the app.
 
-15. Governing Law
+16. Governing Law
 
 These Terms are governed by the laws of the State of New York, without regard to conflict-of-law principles, except where applicable consumer law requires otherwise.
 
 Any dispute that is not subject to a mandatory alternative forum under applicable law may be brought in a court of competent jurisdiction in New York State.
 
-16. Changes to These Terms
+17. Changes to These Terms
 
 We may update these Terms when Reczt changes or when legal or third-party requirements change.
 
 If a change is material, we may provide notice in the app and require you to review or accept the updated Terms before continuing to use Reczt.
 
-17. Severability
+18. Severability
 
 If any provision of these Terms is found unenforceable, the remaining provisions will remain in effect to the extent permitted by law.
 
-18. Entire Agreement
+19. Entire Agreement
 
 These Terms, the Reczt Privacy Policy, and applicable Apple license terms constitute the agreement governing your use of Reczt, except where other mandatory terms apply.
 
-19. Contact
+20. Contact
 
-Leslie Kane  
-Operator / Publisher of Reczt  
+Leslie Kane
+Operator / Publisher of Reczt
 Email: georgethomasbazos@gmail.com''';
 
 
@@ -882,307 +899,16 @@ Future<void> showQueuedSongFoundNotification(String lang) async {
 }
 
 
-Map<String, int> _decodeBackgroundAttempts(String? raw) {
-  if (raw == null || raw.trim().isEmpty) return <String, int>{};
-  try {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) return <String, int>{};
-    return decoded.map(
-      (key, value) => MapEntry(
-        key.toString(),
-        value is num ? value.toInt() : int.tryParse(value.toString()) ?? 0,
-      ),
-    );
-  } catch (_) {
-    return <String, int>{};
-  }
-}
-
-Future<void> _saveBackgroundAttempts(
-  SharedPreferences prefs,
-  Map<String, int> attempts,
-) async {
-  await prefs.setString(
-    _backgroundRecognitionAttemptsKey,
-    jsonEncode(attempts),
-  );
-}
-
-EnvironmentMode _backgroundEnvironmentFromPrefs(SharedPreferences prefs) {
-  final savedIndex = prefs.getInt('selected_environment_mode');
-  if (savedIndex != null &&
-      savedIndex >= 0 &&
-      savedIndex < EnvironmentMode.values.length) {
-    return EnvironmentMode.values[savedIndex];
-  }
-  return EnvironmentMode.Outdoors;
-}
-
-bool _isSafeQueuedBackgroundMatch(
-  List<_SongMatchCandidate> candidates,
-  EnvironmentMode mode,
-) {
-  if (candidates.isEmpty) return false;
-
-  final top = candidates.first;
-  final topConfidence = top.confidence ?? 0.0;
-  final topScore = top.effectiveScore ?? topConfidence;
-
-  // Background recognition is intentionally more conservative than an
-  // on-screen recognition because nobody is present to confirm Top Guesses.
-  final double minimumScore;
-  switch (mode) {
-    case EnvironmentMode.quiet:
-      minimumScore = 0.52;
-      break;
-    case EnvironmentMode.loud:
-      minimumScore = 0.56;
-      break;
-    case EnvironmentMode.Outdoors:
-      minimumScore = 0.58;
-      break;
-  }
-
-  if (topConfidence < 0.46 || topScore < minimumScore) {
-    return false;
-  }
-
-  if (top.artist == 'Unknown Artist' && topScore < 0.72) {
-    return false;
-  }
-
-  if (candidates.length > 1) {
-    final secondScore =
-        candidates[1].effectiveScore ?? candidates[1].confidence ?? 0.0;
-    final gap = topScore - secondScore;
-
-    // Close background guesses should wait rather than silently saving the
-    // wrong song. Very strong top matches may still pass.
-    if (secondScore >= 0.30 && topScore < 0.82 && gap < 0.10) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-Future<void> scheduleRecztOfflineRecognitionTask() async {
-  if (kIsWeb) return;
-
-  try {
-    if (Platform.isIOS) {
-      await wm.Workmanager().registerProcessingTask(
-        recztOfflineRecognitionTaskIdentifier,
-        recztOfflineRecognitionTaskIdentifier,
-        constraints: wm.Constraints(networkType: wm.NetworkType.connected),
-      );
-    } else {
-      await wm.Workmanager().registerOneOffTask(
-        recztOfflineRecognitionTaskIdentifier,
-        recztOfflineRecognitionTaskIdentifier,
-        constraints: wm.Constraints(networkType: wm.NetworkType.connected),
-      );
-    }
-  } catch (e) {
-    // A task with this identifier may already be scheduled. Foreground queue
-    // processing remains a fallback, so scheduling failure is never fatal.
-    debugPrint('Background offline-recognition scheduling: $e');
-  }
-}
-
-Future<bool> _processOneQueuedSongInBackground() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.reload();
-
-  final queue = prefs.getStringList('pending_offline_songs') ?? <String>[];
-  if (queue.isEmpty) return true;
-
-  final attempts = _decodeBackgroundAttempts(
-    prefs.getString(_backgroundRecognitionAttemptsKey),
-  );
-
-  // Skip entries that have already had three conservative background tries.
-  // They remain visible in Reczt's queue for foreground/manual retry.
-  String? path;
-  for (final candidatePath in queue) {
-    if ((attempts[candidatePath] ?? 0) < 3) {
-      path = candidatePath;
-      break;
-    }
-  }
-  if (path == null) return true;
-
-  final foregroundPath = prefs.getString(_foregroundQueueActivePathKey);
-  if (foregroundPath == path) {
-    return false;
-  }
-
-  final file = File(path);
-  if (!await file.exists()) {
-    final freshQueue = List<String>.from(queue)..remove(path);
-    await prefs.setStringList('pending_offline_songs', freshQueue);
-    attempts.remove(path);
-    await _saveBackgroundAttempts(prefs, attempts);
-    return freshQueue.isEmpty;
-  }
-
-  await prefs.setString(_backgroundQueueActivePathKey, path);
-
-  try {
-    final language = prefs.getString('preferred_language') ?? 'en';
-    final mode = _backgroundEnvironmentFromPrefs(prefs);
-
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse(recztRecognitionBackendUrl),
-    );
-    request.fields['language'] = language;
-    request.fields['vocal_isolation'] = 'true';
-    request.fields['environment'] = mode.name;
-    request.fields['auto_play'] = 'false';
-    request.fields['background_queue'] = 'true';
-    request.files.add(
-      await http.MultipartFile.fromPath(
-        'file',
-        path,
-        filename: 'queued_recording.wav',
-      ),
-    );
-
-    // Keep the unattended iOS attempt comfortably inside the operating
-    // system's short background execution window. If the recognition service
-    // needs longer, the clip remains queued and Reczt can try again later or
-    // process it normally when the user opens the app.
-    final streamed =
-        await request.send().timeout(const Duration(seconds: 22));
-    final response = await http.Response.fromStream(streamed)
-        .timeout(const Duration(seconds: 4));
-
-    if (response.statusCode != 200) {
-      return response.statusCode < 500 && response.statusCode != 429;
-    }
-
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map) return false;
-    final data = Map<String, dynamic>.from(decoded);
-
-    if (!_backendResponseSucceeded(data)) {
-      attempts[path] = (attempts[path] ?? 0) + 1;
-      await _saveBackgroundAttempts(prefs, attempts);
-      return attempts[path]! >= 3;
-    }
-
-    final rawResults = _extractRecognitionResults(data);
-    final filteredResults =
-        LanguageMatcher.filterResultsByLanguage<Map<String, dynamic>>(
-      results: rawResults,
-      selectedLanguage: language,
-      getLanguage: (item) => item['language']?.toString() ?? '',
-      mode: mode,
-    );
-
-    final candidates = filteredResults
-        .where(LanguageMatcher.isValidOriginalSong)
-        .map(_SongMatchCandidate.fromMap)
-        .where(
-          (candidate) =>
-              candidate.title.trim().isNotEmpty &&
-              candidate.title != 'Unknown Title',
-        )
-        .toList()
-      ..sort((a, b) {
-        final aScore = a.effectiveScore ?? -1.0;
-        final bScore = b.effectiveScore ?? -1.0;
-        return bScore.compareTo(aScore);
-      });
-
-    if (!_isSafeQueuedBackgroundMatch(candidates, mode)) {
-      attempts[path] = (attempts[path] ?? 0) + 1;
-      await _saveBackgroundAttempts(prefs, attempts);
-      return attempts[path]! >= 3;
-    }
-
-    final winner = candidates.first;
-    final resultPayload = Map<String, dynamic>.from(winner.raw)
-      ..['title'] = winner.title
-      ..['artist'] = winner.artist
-      ..['confidence'] = winner.confidence
-      ..['selection_score'] = winner.rankingScore
-      ..['genre'] = winner.genre
-      ..['emotion'] = winner.emotion
-      ..['spotify_url'] = winner.spotifyUrl
-      ..['apple_music_url'] = winner.appleMusicUrl
-      ..['cover_url'] = winner.coverUrl
-      ..['queued_path'] = path
-      ..['background_found_at'] = DateTime.now().toIso8601String();
-
-    final completed =
-        prefs.getStringList(_backgroundRecognitionResultsKey) ?? <String>[];
-    completed.add(jsonEncode(resultPayload));
-    await prefs.setStringList(_backgroundRecognitionResultsKey, completed);
-
-    final freshQueue =
-        prefs.getStringList('pending_offline_songs') ?? <String>[];
-    freshQueue.remove(path);
-    await prefs.setStringList('pending_offline_songs', freshQueue);
-
-    attempts.remove(path);
-    await _saveBackgroundAttempts(prefs, attempts);
-
-    await showQueuedSongFoundNotification(language);
-
-    final hasMoreEligible = freshQueue.any(
-      (queuedPath) => (attempts[queuedPath] ?? 0) < 3,
-    );
-    // Returning false asks Workmanager to retry, which lets Reczt pick up the
-    // next queued clip without trying to process several long requests in one
-    // iOS background window.
-    return !hasMoreEligible;
-  } on TimeoutException {
-    return false;
-  } catch (e) {
-    debugPrint('Background queued recognition failed: $e');
-    return false;
-  } finally {
-    final latestPrefs = await SharedPreferences.getInstance();
-    await latestPrefs.reload();
-    if (latestPrefs.getString(_backgroundQueueActivePathKey) == path) {
-      await latestPrefs.remove(_backgroundQueueActivePathKey);
-    }
-  }
-}
-
-@pragma('vm:entry-point')
-void recztBackgroundDispatcher() {
-  wm.Workmanager().executeTask((task, inputData) async {
-    WidgetsFlutterBinding.ensureInitialized();
-    ui.DartPluginRegistrant.ensureInitialized();
-
-    if (task == recztOfflineRecognitionTaskIdentifier) {
-      final completed = await _processOneQueuedSongInBackground();
-
-      // Workmanager does not automatically reschedule a failed iOS background
-      // task. If the clip still needs another attempt (or more queued clips
-      // remain), explicitly submit the next BGProcessing request.
-      if (!completed) {
-        await scheduleRecztOfflineRecognitionTask();
-      }
-
-      // The current BGTask itself completed cleanly; any next attempt has
-      // already been scheduled above.
-      return true;
-    }
-
-    return true;
-  });
-}
+// iOS offline recordings use a native background URLSession upload rather
+// than BGProcessingTask. Background URLSession transfers are file-based and
+// can wait for connectivity while the app is suspended.
+//
+// The recognition itself still happens on Reczt's backend. The native bridge
+// stores successful server responses until Flutter can import them into normal
+// history and analytics.
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  if (!kIsWeb) {
-    await wm.Workmanager().initialize(recztBackgroundDispatcher);
-  }
 
   final prefs = await SharedPreferences.getInstance();
   final int? savedColorValue = prefs.getInt('theme_seed_color');
@@ -1317,6 +1043,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Opening Apple Music search for',
     'processing_saved_recording': 'Processing Saved Recording...',
     'queued_song_found': 'Reczt has found your queued song!',
+    'found_offline_badge': "Found Offline",
+    'found_offline_detail': "Recognized from your offline queue",
     
   
     'waiting_for_voice': 'Waiting for your voice...',
@@ -1445,6 +1173,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Abriendo búsqueda en Apple Music para',
     'processing_saved_recording': 'Procesando grabación guardada...',
     'queued_song_found': '¡Reczt ha encontrado tu canción en espera!',
+    'found_offline_badge': "Encontrada sin conexión",
+    'found_offline_detail': "Reconocida desde tu cola sin conexión",
   
     'waiting_for_voice': 'Esperando tu voz...',
     'signal_good': 'Buena señal',
@@ -1572,6 +1302,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Ouverture de la recherche Apple Music pour',
     'processing_saved_recording': 'Traitement de l\'enregistrement sauvegardé...',
     'queued_song_found': 'Reczt a trouvé votre chanson en attente !',
+    'found_offline_badge': "Trouvée hors ligne",
+    'found_offline_detail': "Reconnue depuis votre file hors ligne",
   
     'waiting_for_voice': 'En attente de votre voix...',
     'signal_good': 'Bon signal',
@@ -1699,6 +1431,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apple-Music-Suche wird geöffnet für',
     'processing_saved_recording': 'Gespeicherte Aufnahme wird verarbeitet...',
     'queued_song_found': 'Reczt hat deinen wartenden Song gefunden!',
+    'found_offline_badge': "Offline gefunden",
+    'found_offline_detail': "Aus deiner Offline-Warteschlange erkannt",
   
     'waiting_for_voice': 'Warte auf deine Stimme...',
     'signal_good': 'Gutes Signal',
@@ -1826,6 +1560,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apertura ricerca Apple Music per',
     'processing_saved_recording': 'Elaborazione registrazione salvata...',
     'queued_song_found': 'Reczt ha trovato la tua canzone in coda!',
+    'found_offline_badge': "Trovata offline",
+    'found_offline_detail': "Riconosciuta dalla tua coda offline",
   
     'waiting_for_voice': 'In attesa della tua voce...',
     'signal_good': 'Segnale buono',
@@ -1953,6 +1689,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Abrindo busca no Apple Music para',
     'processing_saved_recording': 'Processando gravação salva...',
     'queued_song_found': 'O Reczt encontrou sua música pendente!',
+    'found_offline_badge': "Encontrada offline",
+    'found_offline_detail': "Reconhecida da sua fila offline",
   
     'waiting_for_voice': 'Aguardando sua voz...',
     'signal_good': 'Bom sinal',
@@ -2081,6 +1819,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apple Musicで検索を開いています：',
     'processing_saved_recording': '保存された録音を処理中...',
     'queued_song_found': 'Recztがキューに入っていた曲を見つけました！',
+    'found_offline_badge': "オフラインで検出",
+    'found_offline_detail': "オフラインキューから認識されました",
   
     'waiting_for_voice': '声を待っています…',
     'signal_good': '良い音量です',
@@ -2209,6 +1949,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apple Music에서 검색 여는 중:',
     'processing_saved_recording': '저장된 녹음 처리 중...',
     'queued_song_found': 'Reczt가 대기열에 있던 노래를 찾았습니다!',
+    'found_offline_badge': "오프라인에서 찾음",
+    'found_offline_detail': "오프라인 대기열에서 인식됨",
   
     'waiting_for_voice': '목소리를 기다리는 중...',
     'signal_good': '신호가 좋아요',
@@ -2337,6 +2079,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': '正在打开 Apple Music 搜索：',
     'processing_saved_recording': '正在处理已保存的录音...',
     'queued_song_found': 'Reczt 已找到你排队等待的歌曲！',
+    'found_offline_badge': "离线找到",
+    'found_offline_detail': "从离线队列中识别",
   
     'waiting_for_voice': '正在等待你的声音…',
     'signal_good': '声音信号良好',
@@ -2465,6 +2209,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'इसके लिए Apple Music खोज खोली जा रही है:',
     'processing_saved_recording': 'सहेजी गई रिकॉर्डिंग को संसाधित किया जा रहा है...',
     'queued_song_found': 'Reczt ने आपके कतार में रखे गाने को ढूंढ लिया है!',
+    'found_offline_badge': "ऑफ़लाइन मिला",
+    'found_offline_detail': "आपकी ऑफ़लाइन कतार से पहचाना गया",
   
     'waiting_for_voice': 'आपकी आवाज़ का इंतज़ार है...',
     'signal_good': 'अच्छा सिग्नल',
@@ -2593,6 +2339,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Открытие поиска в Apple Music для',
     'processing_saved_recording': 'Обработка сохранённой записи...',
     'queued_song_found': 'Reczt нашёл вашу песню из очереди!',
+    'found_offline_badge': "Найдено офлайн",
+    'found_offline_detail': "Распознано из офлайн-очереди",
   
     'waiting_for_voice': 'Жду ваш голос...',
     'signal_good': 'Хороший сигнал',
@@ -2721,6 +2469,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Şunun için Apple Music araması açılıyor:',
     'processing_saved_recording': 'Kaydedilen kayıt işleniyor...',
     'queued_song_found': 'Reczt, kuyruktaki şarkınızı buldu!',
+    'found_offline_badge': "Çevrimdışıyken bulundu",
+    'found_offline_detail': "Çevrimdışı kuyruğunuzdan tanındı",
   
     'waiting_for_voice': 'Sesiniz bekleniyor...',
     'signal_good': 'İyi sinyal',
@@ -2849,6 +2599,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'جارٍ فتح بحث Apple Music عن',
     'processing_saved_recording': 'جارٍ معالجة التسجيل المحفوظ...',
     'queued_song_found': 'لقد عثر Reczt على أغنيتك المنتظرة في قائمة الانتظار!',
+    'found_offline_badge': "تم العثور عليها دون اتصال",
+    'found_offline_detail': "تم التعرّف عليها من قائمة الانتظار دون اتصال",
   
     'waiting_for_voice': 'بانتظار صوتك...',
     'signal_good': 'الإشارة جيدة',
@@ -2977,6 +2729,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Apple Music-zoekopdracht wordt geopend voor',
     'processing_saved_recording': 'Opgeslagen opname wordt verwerkt...',
     'queued_song_found': 'Reczt heeft je wachtende nummer gevonden!',
+    'found_offline_badge': "Offline gevonden",
+    'found_offline_detail': "Herkend vanuit je offlinewachtrij",
   
     'waiting_for_voice': 'Wachten op je stem...',
     'signal_good': 'Goed signaal',
@@ -3105,6 +2859,8 @@ final Map<String, Map<String, String>> localizedStrings = {
     'opening_apple_search': 'Otwieranie wyszukiwania Apple Music dla',
     'processing_saved_recording': 'Przetwarzanie zapisanego nagrania...',
     'queued_song_found': 'Reczt znalazł Twoją oczekującą piosenkę!',
+    'found_offline_badge': "Znaleziono offline",
+    'found_offline_detail': "Rozpoznano z kolejki offline",
   
     'waiting_for_voice': 'Czekam na Twój głos...',
     'signal_good': 'Dobry sygnał',
@@ -3706,6 +3462,51 @@ bool _backendResponseSucceeded(Map<String, dynamic> data) {
       data['humming'] is List;
 }
 
+
+bool _isSafeQueuedBackgroundMatch(
+  List<_SongMatchCandidate> candidates,
+  EnvironmentMode mode,
+) {
+  if (candidates.isEmpty) return false;
+
+  final top = candidates.first;
+  final topConfidence = top.confidence ?? 0.0;
+  final topScore = top.effectiveScore ?? topConfidence;
+
+  final double minimumScore;
+  switch (mode) {
+    case EnvironmentMode.quiet:
+      minimumScore = 0.52;
+      break;
+    case EnvironmentMode.loud:
+      minimumScore = 0.56;
+      break;
+    case EnvironmentMode.Outdoors:
+      minimumScore = 0.58;
+      break;
+  }
+
+  if (topConfidence < 0.46 || topScore < minimumScore) {
+    return false;
+  }
+
+  if (top.artist == 'Unknown Artist' && topScore < 0.72) {
+    return false;
+  }
+
+  if (candidates.length > 1) {
+    final secondScore =
+        candidates[1].effectiveScore ?? candidates[1].confidence ?? 0.0;
+    final gap = topScore - secondScore;
+
+    if (secondScore >= 0.30 && topScore < 0.82 && gap < 0.10) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 class AudioRecorderScreen extends StatefulWidget {
   const AudioRecorderScreen({super.key});
 
@@ -3737,6 +3538,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     _audioRecorder = AudioRecorder();
     _dingPlayer = AudioPlayer();
+
+    if (!kIsWeb && Platform.isIOS) {
+      _initOfflineUploadBridge();
+    }
 
     unawaited(_loadStartupState());
 
@@ -3807,6 +3612,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     _connectivitySubscription?.cancel();
     if (!kIsWeb) {
       _siriChannel.setMethodCallHandler(null);
+      if (Platform.isIOS) {
+        _recztOfflineQueueChannel.setMethodCallHandler(null);
+      }
     }
     _audioRecorder.dispose();
     _dingPlayer.dispose();
@@ -3824,8 +3632,20 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
 
   Future<void> _handleQueuedRecognitionOnResume() async {
-    await _importBackgroundRecognitionResults();
+    await _importServerOfflineResults();
     await _checkPendingOfflineQueue();
+  }
+
+  void _initOfflineUploadBridge() {
+    _recztOfflineQueueChannel.setMethodCallHandler((call) async {
+      if (call.method == 'offlineResultReady') {
+        // Don't replace an in-progress foreground result. The native result
+        // remains persisted until drainCompletedResults is called, so it can be
+        // imported safely on the next resume/startup instead.
+        if (_isRecording || _isLoading) return;
+        await _importServerOfflineResults();
+      }
+    });
   }
 
   late final AudioPlayer _dingPlayer;
@@ -3889,6 +3709,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   String? _spotifyUrl;
   String? _appleMusicUrl;
   String? _albumArtUrl;
+  bool _lastResultWasOffline = false;
   Position? _sessionLocation;
   final String _backendUrl = recztRecognitionBackendUrl;
 
@@ -4046,7 +3867,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     await _loadPreferences();
     await _showLegalNoticeIfNeeded();
     if (mounted) {
-      await _importBackgroundRecognitionResults();
+      await _importServerOfflineResults();
       await _checkPendingOfflineQueue();
     }
   }
@@ -4393,6 +4214,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     String? emotion,
     String? spotifyUrl,
     String? appleMusicUrl,
+    bool foundOffline = false,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final List<String> history = prefs.getStringList('song_history') ?? [];
@@ -4407,6 +4229,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       'emotion': _normalizeEmotion(emotion),
       'spotifyUrl': spotifyUrl ?? '',
       'appleMusicUrl': appleMusicUrl ?? '',
+      'foundOffline': foundOffline,
     };
 
     history.insert(0, jsonEncode(historyObj));
@@ -4686,32 +4509,42 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     return null;
   }
 
-  Future<void> _importBackgroundRecognitionResults() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
+  Future<void> _importServerOfflineResults() async {
+    if (kIsWeb || !Platform.isIOS) return;
 
-    final completed =
-        prefs.getStringList(_backgroundRecognitionResultsKey) ?? <String>[];
+    List<dynamic> completed = const <dynamic>[];
+    try {
+      completed =
+          await _recztOfflineQueueChannel.invokeMethod<List<dynamic>>(
+                'drainCompletedResults',
+              ) ??
+              const <dynamic>[];
+    } catch (e) {
+      debugPrint('Could not read completed offline uploads: $e');
+      return;
+    }
+
     if (completed.isEmpty) return;
-
-    final remaining = <String>[];
 
     for (final raw in completed) {
       try {
-        final decoded = jsonDecode(raw);
+        final dynamic decoded =
+            raw is String ? jsonDecode(raw) : raw;
         if (decoded is! Map) continue;
-        final item = Map<String, dynamic>.from(decoded);
-        final queuedPath = (item['queued_path'] ?? '').toString();
 
+        final item = Map<String, dynamic>.from(decoded);
+        if (!_backendResponseSucceeded(item)) continue;
+
+        final queuedPath = (item['queued_path'] ?? '').toString();
         final candidate = _SongMatchCandidate.fromMap(item);
+
         if (candidate.title.trim().isEmpty ||
             candidate.title == 'Unknown Title') {
-          remaining.add(raw);
           continue;
         }
 
         String? preservedPath;
-        if (queuedPath.isNotEmpty && !kIsWeb) {
+        if (queuedPath.isNotEmpty) {
           preservedPath = await _preserveAudioClip(queuedPath);
         }
 
@@ -4723,16 +4556,40 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           notifyQueuedMatch: false,
         );
 
+        final prefs = await SharedPreferences.getInstance();
+        final queue =
+            prefs.getStringList('pending_offline_songs') ?? <String>[];
+        queue.remove(queuedPath);
+        await prefs.setStringList('pending_offline_songs', queue);
+
         if (queuedPath.isNotEmpty) {
           await _deleteLocalFile(queuedPath);
         }
       } catch (e) {
-        debugPrint('Could not import background recognition result: $e');
-        remaining.add(raw);
+        debugPrint('Could not import server-side offline result: $e');
       }
     }
+  }
 
-    await prefs.setStringList(_backgroundRecognitionResultsKey, remaining);
+  Future<bool> _scheduleIOSOfflineUpload(String path) async {
+    if (kIsWeb || !Platform.isIOS || path.trim().isEmpty) return false;
+
+    try {
+      final scheduled =
+          await _recztOfflineQueueChannel.invokeMethod<bool>(
+            'scheduleUpload',
+            <String, dynamic>{
+              'filePath': path,
+              'backendUrl': recztRecognitionBackendUrl,
+              'language': _selectedLanguage,
+              'environment': _selectedMode.name.toLowerCase(),
+            },
+          );
+      return scheduled ?? false;
+    } catch (e) {
+      debugPrint('Could not schedule iOS offline upload: $e');
+      return false;
+    }
   }
 
   Future<String?> _saveToOfflineQueue(String sourcePath) async {
@@ -4760,61 +4617,81 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       await prefs.setStringList('pending_offline_songs', pendingQueue);
     }
 
-    unawaited(scheduleRecztOfflineRecognitionTask());
+    // On iOS, hand the file to a native background URLSession immediately.
+    // Background sessions wait for connectivity automatically, so this can be
+    // scheduled while the phone is still offline. The server performs the
+    // recognition after the upload reaches it.
+    if (!kIsWeb && Platform.isIOS) {
+      unawaited(_scheduleIOSOfflineUpload(queuedPath));
+    }
+
     return queuedPath;
   }
 
   Future<void> _checkPendingOfflineQueue() async {
     if (_offlineQueueProcessing || _isRecording || _isLoading) return;
 
-    final connectivityResult = await Connectivity().checkConnectivity();
-    if (connectivityResult.contains(ConnectivityResult.none)) return;
-
     _offlineQueueProcessing = true;
     try {
-      while (mounted && !_isRecording && !_isLoading) {
-        final prefs = await SharedPreferences.getInstance();
-        final List<String> queue =
-            prefs.getStringList('pending_offline_songs') ?? [];
-        if (queue.isEmpty) break;
+      final prefs = await SharedPreferences.getInstance();
+      final List<String> queue =
+          prefs.getStringList('pending_offline_songs') ?? <String>[];
+      if (queue.isEmpty) return;
 
-        final String path = queue.first;
-        if (!kIsWeb && !await File(path).exists()) {
-          queue.removeAt(0);
-          await prefs.setStringList('pending_offline_songs', queue);
-          continue;
+      // iOS uses native file-based background URLSession uploads. Scheduling is
+      // idempotent: AppDelegate ignores a path that already has an active task.
+      if (!kIsWeb && Platform.isIOS) {
+        final freshQueue = List<String>.from(queue);
+        for (final path in List<String>.from(queue)) {
+          final file = File(path);
+          if (!await file.exists()) {
+            freshQueue.remove(path);
+            continue;
+          }
+          await _scheduleIOSOfflineUpload(path);
         }
+        if (freshQueue.length != queue.length) {
+          await prefs.setStringList('pending_offline_songs', freshQueue);
+        }
+        return;
+      }
 
-        await prefs.reload();
-        if (prefs.getString(_backgroundQueueActivePathKey) == path) {
-          break;
+      // Non-iOS fallback: process queued items while Reczt is in the foreground.
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult.contains(ConnectivityResult.none)) return;
+
+      while (mounted && !_isRecording && !_isLoading) {
+        final latestPrefs = await SharedPreferences.getInstance();
+        final latestQueue =
+            latestPrefs.getStringList('pending_offline_songs') ?? <String>[];
+        if (latestQueue.isEmpty) break;
+
+        final path = latestQueue.first;
+        if (!kIsWeb && !await File(path).exists()) {
+          latestQueue.removeAt(0);
+          await latestPrefs.setStringList(
+            'pending_offline_songs',
+            latestQueue,
+          );
+          continue;
         }
 
         final online = await Connectivity().checkConnectivity();
         if (online.contains(ConnectivityResult.none)) break;
 
-        await prefs.setString(_foregroundQueueActivePathKey, path);
-        bool processed = false;
-        try {
-          processed =
-              await _sendAudioToBackend(path, isFromOfflineQueue: true);
-        } finally {
-          final latestPrefs = await SharedPreferences.getInstance();
-          await latestPrefs.reload();
-          if (latestPrefs.getString(_foregroundQueueActivePathKey) == path) {
-            await latestPrefs.remove(_foregroundQueueActivePathKey);
-          }
-        }
-        if (!processed) {
-          unawaited(scheduleRecztOfflineRecognitionTask());
-          break;
-        }
+        final processed =
+            await _sendAudioToBackend(path, isFromOfflineQueue: true);
+        if (!processed) break;
 
-        final freshPrefs = await SharedPreferences.getInstance();
-        final List<String> freshQueue =
-            freshPrefs.getStringList('pending_offline_songs') ?? [];
-        freshQueue.remove(path);
-        await freshPrefs.setStringList('pending_offline_songs', freshQueue);
+        final refreshedPrefs = await SharedPreferences.getInstance();
+        final refreshedQueue =
+            refreshedPrefs.getStringList('pending_offline_songs') ??
+                <String>[];
+        refreshedQueue.remove(path);
+        await refreshedPrefs.setStringList(
+          'pending_offline_songs',
+          refreshedQueue,
+        );
         await _deleteLocalFile(path);
       }
     } catch (e) {
@@ -5211,6 +5088,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         _spotifyUrl = candidate.spotifyUrl;
         _appleMusicUrl = candidate.appleMusicUrl;
         _albumArtUrl = candidate.coverUrl;
+        _lastResultWasOffline = isFromOfflineQueue;
         _topGuesses = <_SongMatchCandidate>[];
         _statusTextKey = 'match_found';
         _customStatusText = null;
@@ -5273,6 +5151,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       emotion: emotion,
       spotifyUrl: candidate.spotifyUrl,
       appleMusicUrl: candidate.appleMusicUrl,
+      foundOffline: isFromOfflineQueue,
     );
 
     await recordSessionToAnalytics(
@@ -5490,6 +5369,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         _albumArtUrl = null;
         _spotifyUrl = null;
         _appleMusicUrl = null;
+        _lastResultWasOffline = false;
         _sessionLocation = null;
         _customStatusText = null;
       });
@@ -5846,6 +5726,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                       elevation: 6,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
+                        side: _lastResultWasOffline
+                            ? BorderSide(
+                                color: Colors.orange.shade600,
+                                width: 2.0,
+                              )
+                            : BorderSide.none,
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(24.0),
@@ -5868,6 +5754,50 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                                 ),
                               ],
                             ),
+                            if (_lastResultWasOffline) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: Colors.orange.shade600,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.cloud_done_outlined,
+                                      size: 16,
+                                      color: Colors.orange.shade700,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      t('found_offline_badge'),
+                                      style: TextStyle(
+                                        color: Colors.orange.shade800,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                t('found_offline_detail'),
+                                style: TextStyle(
+                                  color: Colors.orange.shade800,
+                                  fontSize: 12,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 14),
+                            ],
                             Icon(Icons.music_note,
                                 size: 60, color: Theme.of(context).colorScheme.primary),
                             const SizedBox(height: 12),
@@ -6146,6 +6076,22 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
+      // Cancel any system-owned iOS background uploads before deleting their
+      // source recordings, and discard completed native results waiting to be
+      // imported into Flutter.
+      if (!kIsWeb && Platform.isIOS) {
+        try {
+          await _recztOfflineQueueChannel.invokeMethod<void>(
+            'cancelAllUploads',
+          );
+          await _recztOfflineQueueChannel.invokeMethod<void>(
+            'clearCompletedResults',
+          );
+        } catch (e) {
+          debugPrint('Could not clear native offline uploads: $e');
+        }
+      }
+
       // Capture all known persistent recording paths before their preference
       // entries are removed.
       final audioPaths = <String>{};
@@ -6164,18 +6110,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       final queued =
           prefs.getStringList('pending_offline_songs') ?? <String>[];
       audioPaths.addAll(queued.where((path) => path.trim().isNotEmpty));
-
-      final backgroundResults =
-          prefs.getStringList(_backgroundRecognitionResultsKey) ?? <String>[];
-      for (final raw in backgroundResults) {
-        try {
-          final decoded = jsonDecode(raw);
-          if (decoded is Map) {
-            final path = (decoded['queued_path'] ?? '').toString().trim();
-            if (path.isNotEmpty) audioPaths.add(path);
-          }
-        } catch (_) {}
-      }
 
       if (!kIsWeb) {
         for (final path in audioPaths) {
@@ -6219,10 +6153,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       const directDataKeys = <String>{
         'song_history',
         'pending_offline_songs',
-        _backgroundRecognitionResultsKey,
-        _backgroundRecognitionAttemptsKey,
-        _backgroundQueueActivePathKey,
-        _foregroundQueueActivePathKey,
         'acoustic_memories',
         'acoustic_mic_locations',
         _acousticUsageKey,
@@ -8554,6 +8484,16 @@ String? _parseAlbumCover(String rawItem) {
   return null;
 }
 
+bool _parseFoundOffline(String rawItem) {
+  if (rawItem.startsWith('{')) {
+    try {
+      final parsed = jsonDecode(rawItem);
+      return parsed is Map && parsed['foundOffline'] == true;
+    } catch (_) {}
+  }
+  return false;
+}
+
 Future<void> _openSongInPreferredApp(String title, [String artist = '']) async {
   final prefs = await SharedPreferences.getInstance();
   final preferredApp = prefs.getString('preferred_music_app') ?? 'spotify';
@@ -8788,6 +8728,7 @@ Widget _buildHistoryTile(int index) {
   final songTitle = _parseSongTitle(rawItem);
   final artist = _parseArtist(rawItem);
   final audioClipPath = _parseAudioPath(rawItem);
+  final bool foundOffline = _parseFoundOffline(rawItem);
   // Avoid synchronous disk I/O while Flutter is building a scrolling list.
   // The real existence check happens only if the play button is tapped.
   final bool clipExists = audioClipPath != null && audioClipPath.isNotEmpty;
@@ -8805,6 +8746,12 @@ Widget _buildHistoryTile(int index) {
     onDismissed: (_) => _deleteHistoryItem(index),
     child: Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: foundOffline
+            ? BorderSide(color: Colors.orange.shade600, width: 1.5)
+            : BorderSide.none,
+      ),
       child: ListTile(
         onTap: () => _openSongInPreferredApp(songTitle, artist),
         leading: IconButton(
@@ -8830,6 +8777,32 @@ Widget _buildHistoryTile(int index) {
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+            if (foundOffline)
+              Padding(
+                padding: const EdgeInsets.only(top: 3, bottom: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.cloud_done_outlined,
+                      size: 13,
+                      color: Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        t('found_offline_badge'),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.orange.shade800,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             Text(

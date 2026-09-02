@@ -1,144 +1,31 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reczt Privacy Policy</title>
-<style>
-  :root { color-scheme: light dark; }
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    line-height: 1.55;
-    background: Canvas;
-    color: CanvasText;
-  }
-  main {
-    max-width: 820px;
-    margin: 0 auto;
-    padding: 36px 22px 64px;
-  }
-  h1 { font-size: 2rem; margin-bottom: .35rem; }
-  h2 { margin-top: 2rem; font-size: 1.25rem; }
-  h3 { margin-top: 1.4rem; font-size: 1.05rem; }
-  p, li { font-size: 1rem; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  a { color: LinkText; }
-  .footer { margin-top: 3rem; font-size: .9rem; opacity: .75; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reczt Privacy Policy — Reczt</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.58;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 42px 22px 64px;
+    }
+    h1 { font-size: 2rem; margin-bottom: .25rem; }
+    h2 { font-size: 1.35rem; margin-top: 2rem; }
+    h3 { font-size: 1.08rem; margin-top: 1.35rem; }
+    p, li { font-size: 1rem; }
+    .effective { opacity: .72; margin-top: 0; }
+    ul { padding-left: 1.4rem; }
+    a { color: inherit; }
+    footer { margin-top: 2.5rem; opacity: .65; font-size: .9rem; }
+  </style>
 </head>
 <body>
-<main>
-<h1>Reczt Privacy Policy</h1>
-<p><strong>Effective Date: August 30, 2026</strong></p>
-<p>Reczt (“Reczt,” “we,” “us,” or “our”) is operated by <strong>Leslie Kane</strong>. This Privacy Policy explains how Reczt handles information when you use the Reczt mobile application and related song-recognition services.</p>
-<p>If you have questions about this Privacy Policy, contact us at <strong>georgethomasbazos@gmail.com</strong>.</p>
-<h2>1. Summary</h2>
-<p>Reczt is a general-audience song-recognition app. Reczt does not require a Reczt account. Reczt is free to use and does not contain advertising, subscriptions, or in-app purchases.</p>
-<p>Reczt does not sell personal information, does not use personal information for targeted advertising, and does not track users across other companies’ apps or websites for advertising purposes.</p>
-<p>Reczt processes limited information needed to recognize songs and provide app features. Some information stays only on your device, while some information is transmitted to service providers to perform song recognition or related functions.</p>
-<h2>2. Information Reczt Processes</h2>
-<h3>A. Singing and Audio Recordings</h3>
-<p>When you choose to identify a song, Reczt records audio from your microphone.</p>
-<p>The recording is transmitted to Reczt’s recognition backend for the purpose of identifying the song. The backend creates temporary audio files while the recognition request is being processed. Reczt’s backend is designed to delete those temporary files when the recognition request ends and does not intentionally maintain a permanent server-side library of users’ recordings.</p>
-<p>For successful recognitions, Reczt may also save a copy of your singing clip locally on your device as part of your Reczt history so you can replay it later. These locally saved clips remain on your device until you delete the relevant history item, clear your history, or remove the app.</p>
-<h3>B. Song Recognition and Transcription</h3>
-<p>Reczt may send audio to third-party service providers to identify the song:</p>
-<ul>
-<li><strong>ACRCloud</strong> receives audio for audio or humming recognition. ACRCloud states in its terms that uploaded audio or video files are removed after fingerprints are generated, although fingerprints and related metadata may be handled under ACRCloud’s own terms and policies.</li>
-<li><strong>Groq</strong> may receive audio when Reczt uses speech-to-text as a fallback recognition method. Reczt’s Groq organization is configured with <strong>Global Zero Data Retention (ZDR)</strong>. Under Groq’s current ZDR documentation, customer inputs and outputs are not retained for system-reliability or abuse-monitoring purposes. Groq may still retain non-content usage metadata that does not contain customer inputs or outputs.</li>
-<li><strong>Genius</strong> may receive short lyric-search queries derived from a transcription in order to identify possible songs.</li>
-</ul>
-<p>Reczt does not intentionally write the content of Groq transcriptions into its own production server logs.</p>
-<h3>C. Song and Music-Service Information</h3>
-<p>Reczt may send song titles and artist names to <strong>Spotify</strong> and <strong>Apple</strong> services to find canonical song information, links, artwork, genres, or other music metadata.</p>
-<p>If you choose to create a Spotify playlist from Reczt history, Reczt uses Spotify’s authorization process to request the permissions needed to create or modify playlists. Reczt does not receive or store your Spotify password. In the current app, the Spotify access token used for playlist creation is used for that authorization session and is not intentionally stored as a persistent Reczt credential.</p>
-<p>Your use of Spotify, Apple Music, and other third-party music services is also governed by those providers’ own terms and privacy policies.</p>
-<h3>D. Location and “Acoustic Memory”</h3>
-<p>If you grant location permission, Reczt may access your device location when you begin a singing session so the Acoustic Memory map can remember where you have used Reczt.</p>
-<p>Acoustic Memory location information is stored locally on your device using compact approximate location buckets rather than maintaining a permanent server-side location history. Reczt’s current recognition request does not send your Acoustic Memory latitude or longitude to Reczt’s recognition backend.</p>
-<p>You can deny or revoke Reczt’s location permission through iOS Settings. Reczt’s core song-recognition feature can still function without the Acoustic Memory location feature.</p>
-<h3>E. Hands-Free Speech Recognition</h3>
-<p>If Auto Play is enabled and Reczt needs you to choose between two possible song matches, Reczt may ask you to say “first” or “second.”</p>
-<p>This feature uses Apple’s Speech framework. Apple states that speech recognition performed with <code>SFSpeechRecognizer</code> may capture your voice audio and send it to Apple’s servers for processing. iOS asks for your permission before Reczt uses this feature.</p>
-<h3>F. Local App Data</h3>
-<p>Reczt stores certain information locally on your device so the app can function, including items such as:</p>
-<ul>
-<li>song-recognition history;</li>
-<li>locally saved singing clips;</li>
-<li>preferred music service and language;</li>
-<li>Auto Play and appearance preferences;</li>
-<li>local analytics such as song counts, artist counts, genre counts, emotion counts, and usage streaks;</li>
-<li>Acoustic Memory location usage; and</li>
-<li>pending offline recordings waiting to be recognized when connectivity returns.</li>
-</ul>
-<p>This information is used to provide Reczt’s features and is not used for advertising.</p>
-<h3>G. Technical Information</h3>
-<p>Reczt and its hosting or network providers may process ordinary technical request information needed to deliver and protect the service, such as IP address, request timing, service status, device/network connectivity information, or error information.</p>
-<p>Reczt does not use this information to create advertising profiles.</p>
-<h2>3. How Reczt Uses Information</h2>
-<p>Reczt uses information only as reasonably necessary to:</p>
-<ul>
-<li>recognize songs;</li>
-<li>provide song links, artwork, genre information, and related metadata;</li>
-<li>create user-requested Spotify playlists;</li>
-<li>provide local history, analytics, Acoustic Memory, and offline-queue features;</li>
-<li>provide hands-free song-choice functionality;</li>
-<li>maintain, secure, troubleshoot, and improve the reliability of Reczt; and</li>
-<li>comply with applicable law.</li>
-</ul>
-<h2>4. Service Providers and Third Parties</h2>
-<p>Depending on the feature you use, information may be processed by service providers including:</p>
-<ul>
-<li><strong>Render</strong> — backend hosting and infrastructure;</li>
-<li><strong>ACRCloud</strong> — audio and humming recognition;</li>
-<li><strong>Groq</strong> — fallback speech-to-text transcription;</li>
-<li><strong>Genius</strong> — lyric-based song search;</li>
-<li><strong>Spotify</strong> — music metadata, links, authorization, and playlist creation; and</li>
-<li><strong>Apple</strong> — Apple Music/iTunes metadata, iOS permissions, and Apple Speech Recognition.</li>
-</ul>
-<p>These companies process information under their own agreements and privacy practices. Reczt uses these services only for app functionality and does not authorize them to use Reczt data for Reczt advertising.</p>
-<h2>5. Data Retention and Deletion</h2>
-<p>Reczt is designed to minimize server-side retention.</p>
-<ul>
-<li><strong>Reczt backend audio:</strong> temporary files are designed to be deleted when a recognition request ends.</li>
-<li><strong>Groq:</strong> Reczt has enabled Global ZDR for customer inputs and outputs. Groq may retain non-content usage metadata as described in its documentation.</li>
-<li><strong>ACRCloud:</strong> ACRCloud states that uploaded audio/video files are removed after fingerprint generation; its handling of fingerprints and related metadata is governed by its own terms.</li>
-<li><strong>Local Reczt history and clips:</strong> remain on your device until you delete them or remove the app.</li>
-<li><strong>Local preferences, analytics, and Acoustic Memory information:</strong> generally remain on your device until the app or its local data is removed.</li>
-</ul>
-<p>Reczt does not currently maintain a Reczt user account or a server-side user profile that requires a separate account-deletion process.</p>
-<h2>6. Your Choices</h2>
-<p>You control whether Reczt can use microphone, location, speech-recognition, Bluetooth, and Siri-related permissions through iOS.</p>
-<p>You may:</p>
-<ul>
-<li>deny or revoke permissions in iOS Settings;</li>
-<li>delete individual saved song-history items;</li>
-<li>clear saved song history and its associated local clips;</li>
-<li>revoke Spotify authorization through Spotify if you choose to do so; and</li>
-<li>delete Reczt from your device to remove Reczt’s locally stored app data, subject to any device backup settings controlled by Apple.</li>
-</ul>
-<p>For privacy questions or requests concerning information Reczt may control, contact <strong>georgethomasbazos@gmail.com</strong>.</p>
-<h2>7. No Sale, Advertising, or Cross-App Tracking</h2>
-<p>Reczt does not sell personal information.</p>
-<p>Reczt does not contain third-party advertising and does not use personal information for targeted or cross-context behavioral advertising.</p>
-<h2>8. Cookies</h2>
-<p>The native Reczt app does not use browser cookies for advertising or analytics. Third-party websites or authorization pages that you choose to open, including Spotify or Apple services, may use cookies or similar technologies under their own policies.</p>
-<h2>9. Children’s Privacy</h2>
-<p>Reczt is a <strong>general-audience service and is not directed to children under 13</strong>.</p>
-<p>If you are under 13, you should not use Reczt. Users who are under the age of majority in their jurisdiction should use Reczt only with permission of a parent or legal guardian.</p>
-<p>Reczt does not ask users to provide a date of birth and does not knowingly create profiles about children. If you believe a child under 13 has provided personal information to Reczt in a manner that should be deleted, contact <strong>georgethomasbazos@gmail.com</strong>.</p>
-<h2>10. International Processing</h2>
-<p>Some service providers used by Reczt may process information in the United States or other countries. Privacy laws may differ from those in your place of residence.</p>
-<h2>11. Security</h2>
-<p>Reczt uses reasonable technical and organizational measures intended to protect information. However, no internet transmission, device, or storage system can be guaranteed to be completely secure.</p>
-<h2>12. Changes to This Privacy Policy</h2>
-<p>We may update this Privacy Policy as Reczt changes. If we make a material change, we may provide notice in the app and update the Effective Date above.</p>
-<h2>13. Contact</h2>
-<p><strong>Leslie Kane</strong></p>
-<p>Operator / Publisher of Reczt</p>
-<p>Email: <strong>georgethomasbazos@gmail.com</strong></p>
-<p class="footer">Reczt legal document. Effective August 30, 2026.</p>
-</main>
+  <h1>Reczt Privacy Policy</h1>
+  <p class="effective">Effective Date: September 1, 2026</p><p>Reczt (“Reczt,” “we,” “us,” or “our”) is operated by Leslie Kane. This Privacy Policy explains how Reczt handles information when you use the Reczt mobile application and related song-recognition services.</p><p>If you have questions about this Privacy Policy, contact us at georgethomasbazos@gmail.com.</p><h2>1. Summary</h2><p>Reczt is a general-audience song-recognition app. Reczt does not require a Reczt account. Reczt is free to use and does not contain advertising, subscriptions, or in-app purchases.</p><p>Reczt does not sell personal information, does not use personal information for targeted advertising, and does not track users across other companies’ apps or websites for advertising purposes.</p><p>Reczt processes limited information needed to recognize songs and provide app features. Some information stays only on your device, while some information is transmitted to service providers to perform song recognition or related functions.</p><h2>2. Information Reczt Processes</h2><h3>A. Singing and Audio Recordings</h3><p>When you choose to identify a song, Reczt records audio from your microphone.</p><p>When you are online, the recording is transmitted to Reczt’s recognition backend for the purpose of identifying the song. The backend creates temporary audio files while the recognition request is being processed. Those temporary files are designed to be deleted when the request ends.</p><p>When you make a recording while offline, Reczt first stores the queued recording locally on your device. On iOS, Reczt may schedule a system-managed background upload. The operating system can wait for connectivity and upload the queued recording after an internet connection becomes available, even while Reczt is not in the foreground. Once the upload reaches Reczt’s backend, the server performs the recognition work. Reczt does not intentionally maintain a permanent server-side library of queued recordings. The uploaded audio is held only in temporary processing files for the recognition request and is designed to be deleted when that request ends.</p><p>If an offline recording is successfully recognized, Reczt may keep a copy of your singing clip locally on your device as part of your Reczt history so you can replay it later. Local clips remain on your device until you delete the relevant history item, clear Reczt data, or remove the app.</p><h3>B. Offline-Result Notifications</h3><p>If you allow notifications, Reczt may ask iOS to display a local notification when a queued offline recording finishes processing successfully. The notification may contain the recognized song title and artist so the result is useful without opening the app.</p><p>This notification is scheduled on the device after the background upload receives the recognition response. Reczt does not need to send a push-notification device token to its backend for this feature. You can control Reczt notification permissions in iOS Settings.</p><h3>C. Song Recognition and Transcription</h3><p>Reczt may send audio to third-party service providers to identify the song:</p><ul><li>ACRCloud receives audio for audio or humming recognition. ACRCloud states in its terms that uploaded audio or video files are removed after fingerprints are generated, although fingerprints and related metadata may be handled under ACRCloud’s own terms and policies.</li><li>Groq may receive audio when Reczt uses speech-to-text as a fallback recognition method. Reczt’s Groq organization is configured with Global Zero Data Retention (ZDR). Under Groq’s current ZDR documentation, customer inputs and outputs are not retained for system-reliability or abuse-monitoring purposes. Groq may still retain non-content usage metadata that does not contain customer inputs or outputs.</li><li>Genius may receive short lyric-search queries derived from a transcription in order to identify possible songs.</li></ul><p>Reczt does not intentionally write the content of Groq transcriptions or users’ raw recordings into its own production application logs.</p><h3>D. Song and Music-Service Information</h3><p>Reczt may send song titles and artist names to Spotify and Apple services to find canonical song information, links, artwork, genres, or other music metadata.</p><p>If you choose to create a Spotify playlist from Reczt history, Reczt uses Spotify’s authorization process to request the permissions needed to create or modify playlists. Reczt does not receive or store your Spotify password. In the current app, the Spotify access token used for playlist creation is used for that authorization session and is not intentionally stored as a persistent Reczt credential.</p><p>Your use of Spotify, Apple Music, and other third-party music services is also governed by those providers’ own terms and privacy policies.</p><h3>E. Location and “Acoustic Memory”</h3><p>If you grant location permission, Reczt may access your device location when you begin a singing session so the Acoustic Memory map can remember where you have used Reczt.</p><p>Acoustic Memory location information is stored locally on your device using compact approximate location buckets rather than maintaining a permanent server-side location history. Reczt’s current recognition requests do not send your Acoustic Memory latitude or longitude to Reczt’s recognition backend.</p><p>You can deny or revoke Reczt’s location permission through iOS Settings. Reczt’s core song-recognition feature can still function without the Acoustic Memory location feature.</p><h3>F. Hands-Free Speech Recognition</h3><p>If Auto Play is enabled and Reczt needs you to choose between two possible song matches, Reczt may ask you to say “first” or “second.”</p><p>This feature uses Apple’s Speech framework. Apple states that speech recognition performed with SFSpeechRecognizer may capture your voice audio and send it to Apple’s servers for processing. iOS asks for your permission before Reczt uses this feature.</p><h3>G. Local App Data</h3><p>Reczt stores certain information locally on your device so the app can function, including items such as:</p><ul><li>song-recognition history;</li><li>locally saved singing clips;</li><li>preferred music service and language;</li><li>Auto Play and appearance preferences;</li><li>local analytics such as song counts, artist counts, genre counts, emotion counts, and usage streaks;</li><li>Acoustic Memory location usage; and</li><li>pending offline recordings waiting for a system-managed upload and recognition.</li></ul><p>History entries may include a local “Found Offline” flag so Reczt can show which results came from the offline queue.</p><p>This information is used to provide Reczt’s features and is not used for advertising.</p><h3>H. Technical Information</h3><p>Reczt and its hosting or network providers may process ordinary technical request information needed to deliver and protect the service, such as IP address, request timing, service status, device/network connectivity information, or error information.</p><p>Reczt does not use this information to create advertising profiles.</p><h2>3. How Reczt Uses Information</h2><p>Reczt uses information only as reasonably necessary to:</p><ul><li>recognize songs;</li><li>process recordings that were queued while offline after connectivity returns;</li><li>notify you on your device when an offline recording is successfully recognized;</li><li>provide song links, artwork, genre information, and related metadata;</li><li>create user-requested Spotify playlists;</li><li>provide local history, analytics, Acoustic Memory, and offline-queue features;</li><li>provide hands-free song-choice functionality;</li><li>maintain, secure, troubleshoot, and improve the reliability of Reczt; and</li><li>comply with applicable law.</li></ul><h2>4. Service Providers and Third Parties</h2><p>Depending on the feature you use, information may be processed by service providers including:</p><ul><li>Render — backend hosting and infrastructure;</li><li>ACRCloud — audio and humming recognition;</li><li>Groq — fallback speech-to-text transcription;</li><li>Genius — lyric-based song search;</li><li>Spotify — music metadata, links, authorization, and playlist creation; and</li><li>Apple — Apple Music/iTunes metadata, iOS permissions and local notifications, and Apple Speech Recognition.</li></ul><p>These companies process information under their own agreements and privacy practices. Reczt uses these services only for app functionality and does not authorize them to use Reczt data for Reczt advertising.</p><h2>5. Data Retention and Deletion</h2><p>Reczt is designed to minimize server-side retention.</p><ul><li>Online and offline Reczt backend audio: temporary processing files are designed to be deleted when the recognition request ends.</li><li>Offline queue before upload: the queued recording remains locally on your device until it is recognized, deleted, cleared, or the app is removed. The server does not receive the recording until a network upload actually begins.</li><li>Groq: Reczt has enabled Global ZDR for customer inputs and outputs. Groq may retain non-content usage metadata as described in its documentation.</li><li>ACRCloud: ACRCloud states that uploaded audio/video files are removed after fingerprint generation; its handling of fingerprints and related metadata is governed by its own terms.</li><li>Local Reczt history and clips: remain on your device until you delete them or remove the app.</li><li>Local preferences, analytics, Acoustic Memory information, and offline-result labels: generally remain on your device until the app or its local data is removed.</li></ul><p>Reczt does not currently maintain a Reczt user account or a server-side user profile that requires a separate account-deletion process.</p><h2>6. Your Choices</h2><p>You control whether Reczt can use microphone, location, notifications, speech-recognition, Bluetooth, and Siri-related permissions through iOS.</p><p>You may:</p><ul><li>deny or revoke permissions in iOS Settings;</li><li>delete individual saved song-history items;</li><li>clear Reczt data and its associated local clips and queued recordings;</li><li>revoke Spotify authorization through Spotify if you choose to do so; and</li><li>delete Reczt from your device to remove Reczt’s locally stored app data, subject to any device backup settings controlled by Apple.</li></ul><p>For privacy questions or requests concerning information Reczt may control, contact georgethomasbazos@gmail.com.</p><h2>7. No Sale, Advertising, or Cross-App Tracking</h2><p>Reczt does not sell personal information.</p><p>Reczt does not contain third-party advertising and does not use personal information for targeted or cross-context behavioral advertising.</p><h2>8. Cookies</h2><p>The native Reczt app does not use browser cookies for advertising or analytics. Third-party websites or authorization pages that you choose to open, including Spotify or Apple services, may use cookies or similar technologies under their own policies.</p><h2>9. Children’s Privacy</h2><p>Reczt is a general-audience service and is not directed to children under 13.</p><p>If you are under 13, you should not use Reczt. Users who are under the age of majority in their jurisdiction should use Reczt only with permission of a parent or legal guardian.</p><p>Reczt does not ask users to provide a date of birth and does not knowingly create profiles about children. If you believe a child under 13 has provided personal information to Reczt in a manner that should be deleted, contact georgethomasbazos@gmail.com.</p><h2>10. International Processing</h2><p>Some service providers used by Reczt may process information in the United States or other countries. Privacy laws may differ from those in your place of residence.</p><h2>11. Security</h2><p>Reczt uses reasonable technical and organizational measures intended to protect information. However, no internet transmission, device, or storage system can be guaranteed to be completely secure.</p><h2>12. Changes to This Privacy Policy</h2><p>We may update this Privacy Policy as Reczt changes. If we make a material change, we may provide notice in the app and update the Effective Date above.</p><h2>13. Contact</h2><p>Leslie Kane</p><p>Operator / Publisher of Reczt</p><p>Email: georgethomasbazos@gmail.com</p>
+  <footer>Reczt · Updated September 1, 2026</footer>
 </body>
 </html>
