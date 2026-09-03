@@ -34,7 +34,16 @@ ACR_TIMEOUT_SECONDS = float(os.getenv("ACR_TIMEOUT_SECONDS", "9"))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_TURBO_MODEL = os.getenv("GROQ_TURBO_MODEL", "whisper-large-v3-turbo").strip()
 GROQ_ACCURACY_MODEL = os.getenv("GROQ_ACCURACY_MODEL", "whisper-large-v3").strip()
+GROQ_RATE_LIMIT_DEFAULT_COOLDOWN_SECONDS = float(
+    os.getenv("GROQ_RATE_LIMIT_DEFAULT_COOLDOWN_SECONDS", "5")
+)
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+
+# A 429 on one Whisper model should not make Reczt repeatedly hammer that same
+# model while its quota is still cooling down. The other Whisper model can still
+# be tried because Groq publishes separate model limits.
+_groq_rate_limit_lock = threading.Lock()
+_groq_rate_limit_until: Dict[str, float] = {}
 
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "").strip()
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "").strip()
@@ -498,9 +507,89 @@ def acr_result_is_decisive(kind: str, candidates: List[Dict[str, Any]], environm
 # GROQ + GENIUS LYRIC FALLBACK
 # =====================================================================
 
-def transcribe_with_groq(audio_path: str, language: str, model: str) -> str:
+def _groq_exception_status_code(exc: Exception) -> Optional[int]:
+    """Best-effort HTTP status extraction without depending on one SDK version."""
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+
+    response = getattr(exc, "response", None)
+    response_status = getattr(response, "status_code", None)
+    if isinstance(response_status, int):
+        return response_status
+
+    # Last-resort compatibility for older/newer SDK exception text.
+    match = re.search(r"\b(4\d\d|5\d\d)\b", str(exc))
+    return int(match.group(1)) if match else None
+
+
+def _groq_retry_after_seconds(exc: Exception) -> float:
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None) or {}
+    raw = None
+    try:
+        raw = headers.get("retry-after")
+    except Exception:
+        raw = None
+
+    if raw is not None:
+        try:
+            return max(0.5, float(raw))
+        except (TypeError, ValueError):
+            pass
+
+    return max(0.5, GROQ_RATE_LIMIT_DEFAULT_COOLDOWN_SECONDS)
+
+
+def _groq_model_in_cooldown(model: str) -> Tuple[bool, float]:
+    now = time.time()
+    with _groq_rate_limit_lock:
+        until = float(_groq_rate_limit_until.get(model, 0.0) or 0.0)
+        if until <= now:
+            _groq_rate_limit_until.pop(model, None)
+            return False, 0.0
+        return True, max(0.0, until - now)
+
+
+def _mark_groq_model_rate_limited(model: str, retry_after: float) -> None:
+    until = time.time() + max(0.5, retry_after)
+    with _groq_rate_limit_lock:
+        previous = float(_groq_rate_limit_until.get(model, 0.0) or 0.0)
+        _groq_rate_limit_until[model] = max(previous, until)
+
+
+def transcribe_with_groq(
+    audio_path: str,
+    language: str,
+    model: str,
+) -> Dict[str, Any]:
+    """Transcribe once and return status metadata instead of hiding 429s.
+
+    The old function returned an empty string for every Groq failure, which made
+    a quota error indistinguishable from a genuinely unusable transcription.
+    Reczt can now immediately fall through to the other Whisper model when one
+    model is rate-limited.
+    """
     if not groq_client:
-        return ""
+        return {
+            "text": "",
+            "status": "unavailable",
+            "model": model,
+            "retry_after": 0.0,
+        }
+
+    cooling_down, seconds_left = _groq_model_in_cooldown(model)
+    if cooling_down:
+        print(
+            f"[GROQ COOLDOWN {model}] remaining_seconds={seconds_left:.1f}"
+        )
+        return {
+            "text": "",
+            "status": "rate_limited",
+            "model": model,
+            "retry_after": seconds_left,
+        }
+
     try:
         with open(audio_path, "rb") as audio_file:
             transcript = groq_client.audio.transcriptions.create(
@@ -511,14 +600,51 @@ def transcribe_with_groq(audio_path: str, language: str, model: str) -> str:
                 response_format="json",
                 temperature=0.0,
             )
+
         text = str(getattr(transcript, "text", "") or "").strip()
-        # Do not write recognized lyrics/user speech into server logs.
-        # Log only non-content metadata for debugging.
-        print(f"[GROQ {model} {language}] transcript_chars={len(text)}")
-        return text
+
+        # Never log recognized lyrics/user speech.
+        print(
+            f"[GROQ {model} {language}] "
+            f"status=ok transcript_chars={len(text)}"
+        )
+        return {
+            "text": text,
+            "status": "ok",
+            "model": model,
+            "retry_after": 0.0,
+        }
+
     except Exception as exc:
-        print(f"[GROQ ERROR {model}] {exc}")
-        return ""
+        status_code = _groq_exception_status_code(exc)
+
+        if status_code == 429:
+            retry_after = _groq_retry_after_seconds(exc)
+            _mark_groq_model_rate_limited(model, retry_after)
+            print(
+                f"[GROQ RATE LIMIT {model}] "
+                f"retry_after_seconds={retry_after:.1f}"
+            )
+            return {
+                "text": "",
+                "status": "rate_limited",
+                "model": model,
+                "retry_after": retry_after,
+            }
+
+        # Keep logs content-free, but preserve enough metadata to diagnose
+        # provider/server failures.
+        print(
+            f"[GROQ ERROR {model}] "
+            f"status_code={status_code or 'unknown'} "
+            f"type={type(exc).__name__}"
+        )
+        return {
+            "text": "",
+            "status": "error",
+            "model": model,
+            "retry_after": 0.0,
+        }
 
 
 def transcript_looks_useful(text: str) -> bool:
@@ -557,7 +683,10 @@ def build_lyric_queries(lyrics: str) -> List[str]:
     return queries[:4]
 
 
-def genius_candidates_from_lyrics(lyrics: str, language: str) -> List[Dict[str, Any]]:
+def genius_candidates_from_lyrics(
+    lyrics: str,
+    language: str,
+) -> List[Dict[str, Any]]:
     if not GENIUS_ACCESS_TOKEN or not lyrics.strip():
         return []
 
@@ -566,7 +695,10 @@ def genius_candidates_from_lyrics(lyrics: str, language: str) -> List[Dict[str, 
 
     queries = build_lyric_queries(lyrics)
 
-    def search_query(query_index: int, query: str) -> Tuple[int, List[Dict[str, Any]]]:
+    def search_query(
+        query_index: int,
+        query: str,
+    ) -> Tuple[int, List[Dict[str, Any]]]:
         try:
             response = requests.get(
                 "https://api.genius.com/search",
@@ -583,8 +715,13 @@ def genius_candidates_from_lyrics(lyrics: str, language: str) -> List[Dict[str, 
             return query_index, []
 
     query_results: List[Tuple[int, List[Dict[str, Any]]]] = []
-    with ThreadPoolExecutor(max_workers=min(4, max(1, len(queries)))) as executor:
-        futures = [executor.submit(search_query, i, q) for i, q in enumerate(queries)]
+    with ThreadPoolExecutor(
+        max_workers=min(4, max(1, len(queries)))
+    ) as executor:
+        futures = [
+            executor.submit(search_query, i, q)
+            for i, q in enumerate(queries)
+        ]
         for future in as_completed(futures):
             query_results.append(future.result())
 
@@ -592,7 +729,9 @@ def genius_candidates_from_lyrics(lyrics: str, language: str) -> List[Dict[str, 
         for rank, hit in enumerate(hits):
             result = hit.get("result") or {}
             title = str(result.get("title") or "").strip()
-            artist = str((result.get("primary_artist") or {}).get("name") or "").strip()
+            artist = str(
+                (result.get("primary_artist") or {}).get("name") or ""
+            ).strip()
             if not title or is_unwanted_version(title, artist):
                 continue
 
@@ -610,10 +749,14 @@ def genius_candidates_from_lyrics(lyrics: str, language: str) -> List[Dict[str, 
                     "genius_hits": 1,
                 }
             else:
-                current["genius_hits"] = int(current.get("genius_hits", 1)) + 1
+                current["genius_hits"] = (
+                    int(current.get("genius_hits", 1)) + 1
+                )
                 # Appearing for more than one independent lyric snippet is much
                 # stronger evidence than a single Genius search ranking.
-                boosted = max(current.get("confidence") or 0.0, rank_score) + 0.055
+                boosted = (
+                    max(current.get("confidence") or 0.0, rank_score) + 0.055
+                )
                 current["confidence"] = min(0.84, boosted)
                 current["score"] = current["confidence"]
 
@@ -622,22 +765,178 @@ def genius_candidates_from_lyrics(lyrics: str, language: str) -> List[Dict[str, 
     return results[:5]
 
 
-def lyric_fallback_candidates(audio_path: str, language: str) -> List[Dict[str, Any]]:
+def _lyric_candidates_are_strong(
+    candidates: List[Dict[str, Any]],
+) -> bool:
+    """Decide whether Turbo evidence is good enough to avoid full V3.
+
+    Turbo remains the fast path. Full V3 is used only for weak/ambiguous Turbo
+    evidence, which improves accuracy without doubling Groq traffic on every
+    recognition.
+    """
+    if not candidates:
+        return False
+
+    top = candidates[0]
+    top_score = float(top.get("confidence") or 0.0)
+    top_hits = int(top.get("genius_hits") or 1)
+
+    second_score = (
+        float(candidates[1].get("confidence") or 0.0)
+        if len(candidates) > 1
+        else 0.0
+    )
+    gap = top_score - second_score
+
+    if top_score >= 0.78:
+        return True
+
+    return (
+        top_score >= 0.70
+        and top_hits >= 2
+        and (len(candidates) == 1 or gap >= 0.06)
+    )
+
+
+def _merge_groq_candidate_sets(
+    first: List[Dict[str, Any]],
+    second: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Merge Turbo and full-V3 Genius evidence.
+
+    Agreement between the two independent Whisper passes receives a small
+    confidence boost while keeping the existing `groq_genius` source name so
+    the rest of Reczt's enrichment/ranking code remains backward compatible.
+    """
+    merged: Dict[str, Dict[str, Any]] = {}
+
+    for model_index, group in enumerate((first, second)):
+        for candidate in group:
+            title = str(candidate.get("title") or "").strip()
+            artist = str(candidate.get("artist") or "").strip()
+            if not title:
+                continue
+
+            key = candidate_key(title, artist)
+            incoming = dict(candidate)
+
+            if key not in merged:
+                incoming["groq_model_votes"] = 1
+                merged[key] = incoming
+                continue
+
+            current = merged[key]
+            current_score = float(current.get("confidence") or 0.0)
+            incoming_score = float(incoming.get("confidence") or 0.0)
+            votes = int(current.get("groq_model_votes") or 1) + 1
+
+            current["groq_model_votes"] = votes
+            current["genius_hits"] = max(
+                int(current.get("genius_hits") or 1),
+                int(incoming.get("genius_hits") or 1),
+            )
+
+            # If Turbo and full V3 independently point to the same song, that
+            # agreement is more meaningful than either pass alone.
+            consensus_score = min(
+                0.90,
+                max(current_score, incoming_score) + 0.05,
+            )
+            current["confidence"] = consensus_score
+            current["score"] = consensus_score
+
+    results = list(merged.values())
+    results.sort(key=lambda c: c.get("confidence") or 0.0, reverse=True)
+    return results[:5]
+
+
+def lyric_fallback_candidates(
+    audio_path: str,
+    language: str,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Turbo-first, accuracy-on-demand, quota-aware Groq fallback.
+
+    Behavior:
+    1. Try whisper-large-v3-turbo first for speed.
+    2. If Turbo is rate-limited, immediately try full V3 instead of failing.
+    3. If Turbo yields a weak/ambiguous Genius result, try full V3 for accuracy.
+    4. If both models produce candidates, merge their evidence.
+    5. If both model quotas are unavailable, report that to the API handler so
+       it can return HTTP 429 rather than pretending there was simply no match.
+    """
+    meta: Dict[str, Any] = {
+        "attempted_models": [],
+        "rate_limited_models": [],
+        "all_models_rate_limited": False,
+    }
+
     if not groq_client or not GENIUS_ACCESS_TOKEN:
-        return []
+        return [], meta
 
-    turbo_text = transcribe_with_groq(audio_path, language, GROQ_TURBO_MODEL)
-    turbo_candidates = genius_candidates_from_lyrics(turbo_text, language) if transcript_looks_useful(turbo_text) else []
-    if turbo_candidates:
-        return turbo_candidates
+    turbo_candidates: List[Dict[str, Any]] = []
+    accuracy_candidates: List[Dict[str, Any]] = []
 
-    # Only pay the latency/cost of the accuracy model when Turbo did not yield
-    # a usable Genius match. This is especially helpful for sung/off-key words.
-    if GROQ_ACCURACY_MODEL and GROQ_ACCURACY_MODEL != GROQ_TURBO_MODEL:
-        accurate_text = transcribe_with_groq(audio_path, language, GROQ_ACCURACY_MODEL)
-        if transcript_looks_useful(accurate_text):
-            return genius_candidates_from_lyrics(accurate_text, language)
-    return []
+    turbo_result = transcribe_with_groq(
+        audio_path,
+        language,
+        GROQ_TURBO_MODEL,
+    )
+    meta["attempted_models"].append(GROQ_TURBO_MODEL)
+
+    if turbo_result["status"] == "rate_limited":
+        meta["rate_limited_models"].append(GROQ_TURBO_MODEL)
+    else:
+        turbo_text = str(turbo_result.get("text") or "")
+        if transcript_looks_useful(turbo_text):
+            turbo_candidates = genius_candidates_from_lyrics(
+                turbo_text,
+                language,
+            )
+
+    # Fast exit: do not spend the full-V3 request unless Turbo evidence actually
+    # needs help. This is the normal, low-latency path.
+    if _lyric_candidates_are_strong(turbo_candidates):
+        return turbo_candidates, meta
+
+    # Full V3 is the accuracy fallback AND the quota-overflow model for Turbo.
+    if (
+        GROQ_ACCURACY_MODEL
+        and GROQ_ACCURACY_MODEL != GROQ_TURBO_MODEL
+    ):
+        accuracy_result = transcribe_with_groq(
+            audio_path,
+            language,
+            GROQ_ACCURACY_MODEL,
+        )
+        meta["attempted_models"].append(GROQ_ACCURACY_MODEL)
+
+        if accuracy_result["status"] == "rate_limited":
+            meta["rate_limited_models"].append(GROQ_ACCURACY_MODEL)
+        else:
+            accuracy_text = str(accuracy_result.get("text") or "")
+            if transcript_looks_useful(accuracy_text):
+                accuracy_candidates = genius_candidates_from_lyrics(
+                    accuracy_text,
+                    language,
+                )
+
+    attempted = set(meta["attempted_models"])
+    limited = set(meta["rate_limited_models"])
+    meta["all_models_rate_limited"] = bool(attempted) and attempted == limited
+
+    if turbo_candidates and accuracy_candidates:
+        return (
+            _merge_groq_candidate_sets(
+                turbo_candidates,
+                accuracy_candidates,
+            ),
+            meta,
+        )
+
+    if accuracy_candidates:
+        return accuracy_candidates, meta
+
+    return turbo_candidates, meta
 
 
 # =====================================================================
@@ -960,8 +1259,8 @@ def merge_candidates(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def read_root() -> Dict[str, Any]:
     return {
         "status": "Reczt recognition backend online",
-        "version": "2.0",
-        "pipeline": "ACRCloud humming/music + Groq Whisper + Genius + Spotify + Apple Music",
+        "version": "2.1",
+        "pipeline": "ACRCloud + quota-aware Groq Turbo/V3 fallback + Genius + Spotify + Apple Music",
     }
 
 
@@ -1024,11 +1323,36 @@ def recognize_audio(
             )
 
             lyric_candidates: List[Dict[str, Any]] = []
-            if not acr_result_is_decisive(acr_kind, acr_candidates, environment):
-                lyric_candidates = lyric_fallback_candidates(processed_path, language)
+            groq_meta: Dict[str, Any] = {
+                "attempted_models": [],
+                "rate_limited_models": [],
+                "all_models_rate_limited": False,
+            }
+
+            if not acr_result_is_decisive(
+                acr_kind,
+                acr_candidates,
+                environment,
+            ):
+                lyric_candidates, groq_meta = lyric_fallback_candidates(
+                    processed_path,
+                    language,
+                )
 
             combined = merge_candidates(acr_candidates, lyric_candidates)
             if not combined:
+                if groq_meta.get("all_models_rate_limited"):
+                    # A provider-capacity problem is not the same thing as a
+                    # genuine "no song found" result. HTTP 429 tells the client
+                    # to preserve/retry the recording rather than discard it.
+                    raise HTTPException(
+                        status_code=429,
+                        detail=(
+                            "Recognition is temporarily rate-limited. "
+                            "Please retry shortly."
+                        ),
+                    )
+
                 return {
                     "success": False,
                     "message": "Could not confidently recognize this song. Try singing a clear 8–12 second section.",
