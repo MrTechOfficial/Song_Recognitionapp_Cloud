@@ -3900,7 +3900,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('preferred_music_app', musicApp);
     await prefs.setString('preferred_language', lang);
-    await prefs.setInt('theme_seed_color', seedColor.value);
+    await prefs.setInt('theme_seed_color', seedColor.toARGB32());
     await prefs.setBool('auto_play_enabled', autoPlay);
     if (autoPlay) {
       unawaited(_prepareHandsFreeVoiceChoice());
@@ -3992,7 +3992,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                       isExpanded: true,
                       value: [Colors.deepPurple, Colors.blue, Colors.teal, Colors.orange]
                           .firstWhere(
-                            (c) => c.value == tempColor.value,
+                            (c) => c.toARGB32() == tempColor.toARGB32(),
                             orElse: () => Colors.deepPurple,
                           ),
                       items: [
@@ -5407,7 +5407,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
               height: height,
               margin: const EdgeInsets.symmetric(horizontal: 2),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.9),
+                color: color.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(4),
               ),
             );
@@ -5459,7 +5459,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
-                  backgroundColor: color.withOpacity(0.12),
+                  backgroundColor: color.withValues(alpha: 0.12),
                   child: Icon(Icons.music_note, color: color),
                 ),
                 title: Text(
@@ -5584,9 +5584,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                                 horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? primaryColor.withOpacity(0.12)
+                                  ? primaryColor.withValues(alpha: 0.12)
                                   : theme.colorScheme.surfaceContainerHighest
-                                      .withOpacity(isDarkMode ? 0.45 : 0.65),
+                                      .withValues(alpha: isDarkMode ? 0.45 : 0.65),
                               border: Border.all(
                                 color: isSelected
                                     ? primaryColor
@@ -5686,7 +5686,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: (_isRecording ? Colors.red : primaryColor)
-                                      .withOpacity(_isRecording
+                                      .withValues(alpha: _isRecording
                                           ? 0.10 + (_micLevel * 0.12)
                                           : 0.10),
                                 ),
@@ -5761,7 +5761,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                                   vertical: 5,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.12),
+                                  color: Colors.orange.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(999),
                                   border: Border.all(
                                     color: Colors.orange.shade600,
@@ -7083,7 +7083,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               children: [
                 Icon(
                   Icons.location_on,
-                  color: Colors.redAccent.withOpacity(usageOpacity),
+                  color: Colors.redAccent.withValues(alpha: usageOpacity),
                   size: usageSize,
                 ),
                 if (safeCount > 1)
@@ -7215,7 +7215,7 @@ void _showShareCardModal(BuildContext context) {
                 height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.4),
+                  color: Colors.grey.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -7229,17 +7229,17 @@ void _showShareCardModal(BuildContext context) {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        themeColor.withOpacity(0.85),
+                        themeColor.withValues(alpha: 0.85),
                         const Color(0xFF121212),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: themeColor.withOpacity(0.5), width: 1.5),
+                    border: Border.all(color: themeColor.withValues(alpha: 0.5), width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: themeColor.withOpacity(0.3),
+                        color: themeColor.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),
@@ -7402,12 +7402,12 @@ void _showShareCardModal(BuildContext context) {
                                       child: Image.asset(
                                         'assets/world_map.png',
                                         fit: BoxFit.cover,
-                                        color: isDarkMode ? Colors.white70 : themeColor.withOpacity(0.75),
+                                        color: isDarkMode ? Colors.white70 : themeColor.withValues(alpha: 0.75),
                                         colorBlendMode: BlendMode.modulate,
                                         errorBuilder: (context, error, stackTrace) => Container(
                                           color: isDarkMode ? Colors.grey.shade900 : Colors.blueGrey.shade100,
                                           child: Center(
-                                            child: Icon(Icons.public, size: 60, color: themeColor.withOpacity(0.4)),
+                                            child: Icon(Icons.public, size: 60, color: themeColor.withValues(alpha: 0.4)),
                                           ),
                                         ),
                                       ),
@@ -7523,7 +7523,7 @@ void _showShareCardModal(BuildContext context) {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
+                            color: Colors.black.withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Colors.white30, width: 1),
                           ),
@@ -7616,7 +7616,7 @@ void _showShareCardModal(BuildContext context) {
       // No data yet — show a single neutral placeholder ring.
       emotionSections = [
         PieChartSectionData(
-          color: Colors.grey.withOpacity(0.3),
+          color: Colors.grey.withValues(alpha: 0.3),
           value: 1,
           title: '',
           radius: 18,
@@ -7807,12 +7807,12 @@ void _showShareCardModal(BuildContext context) {
                                     child: Image.asset(
                                       'assets/world_map.png',
                                       fit: BoxFit.cover,
-                                      color: isDarkMode ? Colors.white70 : themeColor.withOpacity(0.75),
+                                      color: isDarkMode ? Colors.white70 : themeColor.withValues(alpha: 0.75),
                                       colorBlendMode: BlendMode.modulate,
                                       errorBuilder: (context, error, stackTrace) => Container(
                                         color: isDarkMode ? Colors.grey.shade900 : Colors.blueGrey.shade100,
                                         child: Center(
-                                          child: Icon(Icons.public, size: 80, color: themeColor.withOpacity(0.4)),
+                                          child: Icon(Icons.public, size: 80, color: themeColor.withValues(alpha: 0.4)),
                                         ),
                                       ),
                                     ),
@@ -7876,7 +7876,7 @@ void _showShareCardModal(BuildContext context) {
                             LinearProgressIndicator(
                               value: sortedGenres[i].value / maxGenreCount,
                               color: _getBarColor(i, themeColor),
-                              backgroundColor: Colors.grey.withOpacity(0.15),
+                              backgroundColor: Colors.grey.withValues(alpha: 0.15),
                               minHeight: 7,
                             ),
                             if (i < 3) const SizedBox(height: 8),
@@ -7977,10 +7977,10 @@ void _showShareCardModal(BuildContext context) {
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: themeColor.withOpacity(0.55), width: 1.5),
+        border: Border.all(color: themeColor.withValues(alpha: 0.55), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: themeColor.withOpacity(0.05),
+            color: themeColor.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -9079,17 +9079,17 @@ class SongShareCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            themeColor.withOpacity(0.85),
+            themeColor.withValues(alpha: 0.85),
             const Color(0xFF121212),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: themeColor.withOpacity(0.5), width: 1.5),
+        border: Border.all(color: themeColor.withValues(alpha: 0.5), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: themeColor.withOpacity(0.3),
+            color: themeColor.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -9148,7 +9148,7 @@ class SongShareCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white30, width: 1),
               ),
@@ -9251,7 +9251,7 @@ class QuickShareHelper {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.4),
+                    color: Colors.grey.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
