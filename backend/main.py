@@ -372,6 +372,180 @@ def trim_pcm_wav_silence(input_path: str, output_path: str, environment: str) ->
         shutil.copyfile(input_path, output_path)
 
 
+def wav_duration_seconds(path: str) -> float:
+    """Return PCM WAV duration, or 0.0 when the file cannot be inspected."""
+    try:
+        with wave.open(path, "rb") as source:
+            rate = source.getframerate()
+            frames = source.getnframes()
+        if rate <= 0:
+            return 0.0
+        return max(0.0, frames / float(rate))
+    except Exception:
+        return 0.0
+
+
+def extract_pcm_wav_segment(
+    input_path: str,
+    output_path: str,
+    start_seconds: float,
+    duration_seconds: float,
+) -> bool:
+    """Write a time slice of a PCM WAV without introducing another codec/DSP.
+
+    Recognition windows are intentionally cut losslessly from the uploaded WAV.
+    If the file is not a readable PCM WAV, return False and keep the full-file
+    recognition path available.
+    """
+    try:
+        with wave.open(input_path, "rb") as source:
+            channels = source.getnchannels()
+            sample_width = source.getsampwidth()
+            frame_rate = source.getframerate()
+            frame_count = source.getnframes()
+            compression = source.getcomptype()
+
+            if (
+                compression != "NONE"
+                or channels < 1
+                or sample_width < 1
+                or frame_rate <= 0
+                or frame_count <= 0
+            ):
+                return False
+
+            start_frame = max(0, min(frame_count, int(start_seconds * frame_rate)))
+            wanted_frames = max(1, int(duration_seconds * frame_rate))
+            end_frame = min(frame_count, start_frame + wanted_frames)
+            if end_frame <= start_frame:
+                return False
+
+            source.setpos(start_frame)
+            frames = source.readframes(end_frame - start_frame)
+
+        if not frames:
+            return False
+
+        with wave.open(output_path, "wb") as target:
+            target.setnchannels(channels)
+            target.setsampwidth(sample_width)
+            target.setframerate(frame_rate)
+            target.setcomptype("NONE", "not compressed")
+            target.writeframes(frames)
+        return True
+    except Exception as exc:
+        print(f"[AUDIO WINDOW WARNING] {type(exc).__name__}")
+        return False
+
+
+def _meaningfully_different_files(first: str, second: str) -> bool:
+    """Avoid duplicate ACR calls when silence trimming did not change the clip."""
+    try:
+        first_size = os.path.getsize(first)
+        second_size = os.path.getsize(second)
+        if first_size <= 0 or second_size <= 0:
+            return False
+        size_delta = abs(first_size - second_size) / max(first_size, second_size)
+        return size_delta >= 0.025
+    except OSError:
+        return False
+
+
+def build_acr_audio_passes(
+    raw_path: str,
+    processed_path: str,
+    temp_dir: str,
+) -> List[Tuple[str, str]]:
+    """Build complementary full-clip and overlapping-window ACR inputs.
+
+    The same singing attempt is examined several ways:
+    - silence-trimmed full clip
+    - raw full clip when trimming materially changed it
+    - overlapping 8-second slices for 10-12 second recordings
+
+    This gives Reczt consensus evidence without making the user sing repeatedly.
+    """
+    passes: List[Tuple[str, str]] = [("trimmed_full", processed_path)]
+
+    if _meaningfully_different_files(raw_path, processed_path):
+        passes.append(("raw_full", raw_path))
+
+    duration = wav_duration_seconds(processed_path)
+
+    # Even an 8-second Quiet clip gets two complementary 6-second windows.
+    # Longer Loud/Outdoor clips use 8-second windows.
+    if duration >= 7.25:
+        window = 6.0 if duration < 9.25 else 8.0
+        last_start = max(0.0, duration - window)
+        starts = [0.0, last_start]
+
+        # Add a center view only when the raw-vs-trimmed comparison did not
+        # already consume our fourth provider call.
+        if len(passes) < 2 and last_start >= 1.5:
+            starts.insert(1, last_start / 2.0)
+
+        unique_starts: List[float] = []
+        for start in starts:
+            rounded = round(start, 2)
+            if all(abs(rounded - prior) >= 0.35 for prior in unique_starts):
+                unique_starts.append(rounded)
+
+        for index, start in enumerate(unique_starts):
+            if len(passes) >= 4:
+                break
+            segment_path = os.path.join(
+                temp_dir,
+                f"acr_window_{index}_{int(start * 1000)}.wav",
+            )
+            if extract_pcm_wav_segment(
+                processed_path,
+                segment_path,
+                start,
+                window,
+            ):
+                passes.append((f"window_{start:.2f}", segment_path))
+
+    # Four concurrent ACR calls is a deliberate quality/latency/cost ceiling.
+    return passes[:4]
+
+
+def _source_family(source: str) -> str:
+    source = (source or "").casefold()
+    if "acrcloud" in source:
+        return "acrcloud"
+    if "genius" in source or "groq" in source:
+        return "lyrics"
+    return source or "unknown"
+
+
+def _candidate_match_strength(
+    first: Dict[str, Any],
+    second: Dict[str, Any],
+) -> float:
+    """Fuzzy identity match for the same song across provider formatting.
+
+    Providers often disagree only on punctuation, diacritics, or featured-artist
+    formatting. We merge those while keeping remixes/live versions distinct.
+    """
+    first_title = str(first.get("title") or "")
+    second_title = str(second.get("title") or "")
+    title_score = similarity(first_title, second_title)
+    if title_score < 0.88:
+        return 0.0
+
+    first_artist = str(first.get("artist") or "")
+    second_artist = str(second.get("artist") or "")
+    if not first_artist or not second_artist:
+        return title_score if title_score >= 0.96 else 0.0
+
+    artist_score = similarity(first_artist, second_artist)
+    if title_score >= 0.96 and artist_score >= 0.60:
+        return (0.75 * title_score) + (0.25 * artist_score)
+    if title_score >= 0.90 and artist_score >= 0.76:
+        return (0.72 * title_score) + (0.28 * artist_score)
+    return 0.0
+
+
 # =====================================================================
 # ACRCLOUD
 # =====================================================================
@@ -472,35 +646,212 @@ def recognize_with_acrcloud(audio_path: str) -> Tuple[str, List[Dict[str, Any]]]
     return kind, candidates
 
 
-def acr_result_is_decisive(kind: str, candidates: List[Dict[str, Any]], environment: str) -> bool:
+def recognize_with_acrcloud_consensus(
+    raw_path: str,
+    processed_path: str,
+    temp_dir: str,
+    environment: str,
+) -> Tuple[str, List[Dict[str, Any]], Dict[str, Any]]:
+    """Run several complementary ACR passes and rank by repeatability.
+
+    A wrong one-off candidate is less trustworthy than a song that wins across
+    the full clip and multiple overlapping melodic windows.
+    """
+    passes = build_acr_audio_passes(raw_path, processed_path, temp_dir)
+    pass_results: List[Tuple[str, str, List[Dict[str, Any]]]] = []
+
+    if not acrcloud_configured():
+        return "unavailable", [], {
+            "passes_attempted": 0,
+            "passes_with_candidates": 0,
+            "top_votes": 0,
+        }
+
+    with ThreadPoolExecutor(max_workers=min(4, max(1, len(passes)))) as executor:
+        futures = {
+            executor.submit(recognize_with_acrcloud, path): label
+            for label, path in passes
+        }
+        for future in as_completed(futures):
+            label = futures[future]
+            try:
+                kind, candidates = future.result()
+            except Exception as exc:
+                print(f"[ACR PASS ERROR] label={label} type={type(exc).__name__}")
+                continue
+
+            for candidate in candidates:
+                candidate["acr_pass_label"] = label
+            pass_results.append((label, kind, candidates))
+
+    aggregated: List[Dict[str, Any]] = []
+    kinds: Dict[str, int] = {}
+
+    for label, kind, candidates in pass_results:
+        if candidates:
+            kinds[kind] = kinds.get(kind, 0) + 1
+
+        # A lower-ranked result can still be useful consensus evidence, but cap
+        # each pass so one noisy response cannot overwhelm the vote.
+        for candidate in candidates[:4]:
+            incoming = dict(candidate)
+            incoming_conf = float(incoming.get("confidence") or 0.0)
+
+            matched: Optional[Dict[str, Any]] = None
+            best_strength = 0.0
+            for current in aggregated:
+                strength = _candidate_match_strength(current, incoming)
+                if strength > best_strength:
+                    best_strength = strength
+                    matched = current
+
+            if matched is None or best_strength <= 0.0:
+                incoming["acr_pass_votes"] = 1
+                incoming["acr_pass_labels"] = [label]
+                incoming["acr_confidence_sum"] = incoming_conf
+                incoming["acr_max_confidence"] = incoming_conf
+                aggregated.append(incoming)
+                continue
+
+            labels = list(matched.get("acr_pass_labels") or [])
+            if label not in labels:
+                labels.append(label)
+                matched["acr_pass_votes"] = int(
+                    matched.get("acr_pass_votes") or 1
+                ) + 1
+                matched["acr_confidence_sum"] = float(
+                    matched.get("acr_confidence_sum") or 0.0
+                ) + incoming_conf
+
+            matched["acr_pass_labels"] = labels
+            matched["acr_max_confidence"] = max(
+                float(matched.get("acr_max_confidence") or 0.0),
+                incoming_conf,
+            )
+
+            # Preserve metadata from the strongest pass.
+            if incoming_conf > float(matched.get("confidence") or 0.0):
+                protected = {
+                    "acr_pass_votes": matched.get("acr_pass_votes"),
+                    "acr_pass_labels": matched.get("acr_pass_labels"),
+                    "acr_confidence_sum": matched.get("acr_confidence_sum"),
+                    "acr_max_confidence": matched.get("acr_max_confidence"),
+                }
+                matched.update(incoming)
+                matched.update(protected)
+            else:
+                for key, value in incoming.items():
+                    if not matched.get(key) and value:
+                        matched[key] = value
+
+    passes_attempted = len(pass_results)
+    for candidate in aggregated:
+        votes = int(candidate.get("acr_pass_votes") or 1)
+        max_conf = float(
+            candidate.get("acr_max_confidence")
+            or candidate.get("confidence")
+            or 0.0
+        )
+        mean_conf = float(candidate.get("acr_confidence_sum") or max_conf) / max(
+            1,
+            votes,
+        )
+
+        # Repeatability is evidence, but the provider's actual confidence remains
+        # dominant. This avoids turning several mediocre guesses into certainty.
+        vote_bonus = min(0.11, 0.035 * max(0, votes - 1))
+        consistency_bonus = 0.02 if votes >= 2 and mean_conf >= 0.55 else 0.0
+        confidence = min(0.98, max_conf + vote_bonus + consistency_bonus)
+        candidate["confidence"] = round(confidence, 4)
+        candidate["score"] = candidate["confidence"]
+        candidate["acr_mean_confidence"] = round(mean_conf, 4)
+        candidate["acr_passes_attempted"] = passes_attempted
+        candidate["source"] = f"{candidate.get('source', 'acrcloud')}+multipass"
+
+    aggregated.sort(
+        key=lambda c: (
+            float(c.get("confidence") or 0.0),
+            int(c.get("acr_pass_votes") or 1),
+        ),
+        reverse=True,
+    )
+
+    dominant_kind = "no_match"
+    if kinds:
+        dominant_kind = max(kinds, key=kinds.get)
+    if aggregated:
+        dominant_kind = str(
+            aggregated[0].get("recognition_type")
+            or dominant_kind
+        )
+
+    meta = {
+        "passes_attempted": passes_attempted,
+        "passes_with_candidates": sum(1 for _, _, c in pass_results if c),
+        "top_votes": int(aggregated[0].get("acr_pass_votes") or 0)
+        if aggregated
+        else 0,
+        "top_mean_confidence": float(
+            aggregated[0].get("acr_mean_confidence") or 0.0
+        )
+        if aggregated
+        else 0.0,
+    }
+    print(
+        f"[ACR MULTIPASS] passes={meta['passes_attempted']} "
+        f"candidate_passes={meta['passes_with_candidates']} "
+        f"top_votes={meta['top_votes']} environment={environment}"
+    )
+    return dominant_kind, aggregated, meta
+
+
+def acr_result_is_decisive(
+    kind: str,
+    candidates: List[Dict[str, Any]],
+    environment: str,
+) -> bool:
     if not candidates:
         return False
-    top = candidates[0].get("confidence") or 0.0
-    second = candidates[1].get("confidence") if len(candidates) > 1 else None
-    noise_adjustment = 0.03 if environment in {"loud", "outdoors"} else 0.0
 
-    top_title = str(candidates[0].get("title") or "")
-    top_artist = str(candidates[0].get("artist") or "")
+    top_candidate = candidates[0]
+    top = float(top_candidate.get("confidence") or 0.0)
+    second = (
+        float(candidates[1].get("confidence") or 0.0)
+        if len(candidates) > 1
+        else None
+    )
+    votes = int(top_candidate.get("acr_pass_votes") or 1)
+    passes = int(top_candidate.get("acr_passes_attempted") or 1)
+    noise_adjustment = 0.025 if environment in {"loud", "outdoors"} else 0.0
+
+    top_title = str(top_candidate.get("title") or "")
+    top_artist = str(top_candidate.get("artist") or "")
     top_variant_penalty = version_preference_penalty(
         top_title,
         top_artist,
         popularity=0.0,
     )
 
-    # If ACRCloud's strongest result looks like a remix/novelty edition, do not
-    # stop the pipeline early. Let lyric/Genius evidence compete with it.
     if top_variant_penalty >= 0.045:
         return False
 
-    if kind == "music":
-        return top >= (0.86 + noise_adjustment)
+    # Multi-pass agreement is more important than a single provider score.
+    if passes >= 2 and votes < 2 and top < 0.93:
+        return False
 
-    threshold = 0.76 + noise_adjustment
+    if kind == "music":
+        threshold = 0.84 + noise_adjustment
+    else:
+        threshold = 0.73 + noise_adjustment
+
     if top < threshold:
         return False
+
     if second is None:
-        return True
-    return (top - second) >= 0.07 or top >= 0.92
+        return votes >= 2 or top >= 0.91
+
+    gap = top - second
+    return gap >= 0.075 or top >= 0.93
 
 
 # =====================================================================
@@ -853,21 +1204,22 @@ def _merge_groq_candidate_sets(
 def lyric_fallback_candidates(
     audio_path: str,
     language: str,
+    secondary_audio_path: Optional[str] = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    """Turbo-first, accuracy-on-demand, quota-aware Groq fallback.
+    """Turbo-first, accuracy-on-demand, quota-aware lyric evidence.
 
-    Behavior:
-    1. Try whisper-large-v3-turbo first for speed.
-    2. If Turbo is rate-limited, immediately try full V3 instead of failing.
-    3. If Turbo yields a weak/ambiguous Genius result, try full V3 for accuracy.
-    4. If both models produce candidates, merge their evidence.
-    5. If both model quotas are unavailable, report that to the API handler so
-       it can return HTTP 429 rather than pretending there was simply no match.
+    The fast transcription uses the silence-trimmed clip. When its evidence is
+    weak, full V3 gets a second view of the *raw* upload (when available). This
+    is a lightweight A/B check that can recover lyrics altered by trimming or
+    device-side processing without exposing transcript text in logs/responses.
     """
     meta: Dict[str, Any] = {
         "attempted_models": [],
         "rate_limited_models": [],
         "all_models_rate_limited": False,
+        "used_secondary_audio": False,
+        "turbo_useful": False,
+        "accuracy_useful": False,
     }
 
     if not groq_client or not GENIUS_ACCESS_TOKEN:
@@ -888,23 +1240,28 @@ def lyric_fallback_candidates(
     else:
         turbo_text = str(turbo_result.get("text") or "")
         if transcript_looks_useful(turbo_text):
+            meta["turbo_useful"] = True
             turbo_candidates = genius_candidates_from_lyrics(
                 turbo_text,
                 language,
             )
 
-    # Fast exit: do not spend the full-V3 request unless Turbo evidence actually
-    # needs help. This is the normal, low-latency path.
     if _lyric_candidates_are_strong(turbo_candidates):
         return turbo_candidates, meta
 
-    # Full V3 is the accuracy fallback AND the quota-overflow model for Turbo.
+    accuracy_audio_path = audio_path
     if (
-        GROQ_ACCURACY_MODEL
-        and GROQ_ACCURACY_MODEL != GROQ_TURBO_MODEL
+        secondary_audio_path
+        and secondary_audio_path != audio_path
+        and os.path.exists(secondary_audio_path)
+        and os.path.getsize(secondary_audio_path) > 0
     ):
+        accuracy_audio_path = secondary_audio_path
+        meta["used_secondary_audio"] = True
+
+    if GROQ_ACCURACY_MODEL and GROQ_ACCURACY_MODEL != GROQ_TURBO_MODEL:
         accuracy_result = transcribe_with_groq(
-            audio_path,
+            accuracy_audio_path,
             language,
             GROQ_ACCURACY_MODEL,
         )
@@ -915,6 +1272,7 @@ def lyric_fallback_candidates(
         else:
             accuracy_text = str(accuracy_result.get("text") or "")
             if transcript_looks_useful(accuracy_text):
+                meta["accuracy_useful"] = True
                 accuracy_candidates = genius_candidates_from_lyrics(
                     accuracy_text,
                     language,
@@ -1136,7 +1494,7 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
 
     # For lyric/Genius candidates, a strong Spotify catalog confirmation is a
     # useful canonicalization of punctuation/featured-artist formatting.
-    if enriched.get("source") == "groq_genius" and (spotify.get("spotify_match_quality") or 0) >= 0.72:
+    if "groq_genius" in str(enriched.get("source") or "") and (spotify.get("spotify_match_quality") or 0) >= 0.72:
         enriched["title"] = spotify.get("title") or title
         enriched["artist"] = spotify.get("artist") or artist
 
@@ -1216,39 +1574,108 @@ def enrich_candidates(candidates: List[Dict[str, Any]], language: str) -> List[D
 # =====================================================================
 
 def merge_candidates(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    merged: Dict[str, Dict[str, Any]] = {}
+    """Fuse melodic and lyric evidence, including fuzzy provider agreement."""
+    merged: List[Dict[str, Any]] = []
+
     for group in groups:
         for candidate in group:
             title = str(candidate.get("title") or "").strip()
             artist = str(candidate.get("artist") or "").strip()
             if not title or is_unwanted_version(title, artist):
                 continue
-            key = candidate_key(title, artist)
-            if not key.strip("|"):
-                continue
 
             incoming = dict(candidate)
-            if key not in merged:
-                merged[key] = incoming
+            incoming_source = str(incoming.get("source") or "unknown")
+            incoming_family = _source_family(incoming_source)
+
+            best_match: Optional[Dict[str, Any]] = None
+            best_strength = 0.0
+            for current in merged:
+                strength = _candidate_match_strength(current, incoming)
+                if strength > best_strength:
+                    best_strength = strength
+                    best_match = current
+
+            if best_match is None or best_strength <= 0.0:
+                incoming["evidence_sources"] = [incoming_family]
+                incoming["evidence_count"] = 1
+                merged.append(incoming)
                 continue
 
-            current = merged[key]
-            current_score = current.get("confidence") or 0.0
-            incoming_score = incoming.get("confidence") or 0.0
-            different_sources = current.get("source") != incoming.get("source")
-            best = max(float(current_score), float(incoming_score))
-            if different_sources:
-                best = min(0.99, best + 0.06)
-                current["source"] = f"{current.get('source')}+{incoming.get('source')}"
-            current["confidence"] = best
-            current["score"] = best
-            for k, v in incoming.items():
-                if not current.get(k) and v:
-                    current[k] = v
+            current = best_match
+            current_source = str(current.get("source") or "unknown")
+            current_family = _source_family(current_source)
+            sources = set(current.get("evidence_sources") or [current_family])
+            before_source_count = len(sources)
+            sources.add(incoming_family)
 
-    results = list(merged.values())
-    results.sort(key=lambda c: c.get("confidence") or 0.0, reverse=True)
-    return results
+            current_score = float(current.get("confidence") or 0.0)
+            incoming_score = float(incoming.get("confidence") or 0.0)
+            best_score = max(current_score, incoming_score)
+
+            # Independent provider agreement (melody + lyric) is the strongest
+            # signal. Same-family duplicate evidence still earns a smaller boost.
+            cross_provider = len(sources) > before_source_count
+            agreement_boost = 0.075 if cross_provider else 0.018
+
+            # ACR multipass votes are already reflected in its confidence. Keep
+            # them visible as evidence rather than double-counting the full bonus.
+            if (
+                incoming_family == "acrcloud"
+                and int(incoming.get("acr_pass_votes") or 1) >= 2
+            ):
+                agreement_boost += 0.012
+
+            fused_score = min(0.99, best_score + agreement_boost)
+            current["confidence"] = round(fused_score, 4)
+            current["score"] = current["confidence"]
+            current["evidence_sources"] = sorted(sources)
+            current["evidence_count"] = len(sources)
+
+            if cross_provider and incoming_source not in current_source:
+                current["source"] = f"{current_source}+{incoming_source}"
+
+            # Preserve fields from the stronger representation, while never
+            # overwriting already-good catalog metadata with empties.
+            if incoming_score > current_score:
+                for key in (
+                    "title",
+                    "artist",
+                    "language",
+                    "recognition_type",
+                    "external_metadata",
+                    "genres",
+                    "album",
+                    "acrid",
+                    "release_date",
+                ):
+                    if incoming.get(key):
+                        current[key] = incoming[key]
+
+            for key, value in incoming.items():
+                if key in {"confidence", "score", "source"}:
+                    continue
+                if not current.get(key) and value:
+                    current[key] = value
+
+            current["acr_pass_votes"] = max(
+                int(current.get("acr_pass_votes") or 0),
+                int(incoming.get("acr_pass_votes") or 0),
+            )
+            current["genius_hits"] = max(
+                int(current.get("genius_hits") or 0),
+                int(incoming.get("genius_hits") or 0),
+            )
+
+    merged.sort(
+        key=lambda c: (
+            float(c.get("confidence") or 0.0),
+            int(c.get("evidence_count") or 1),
+            int(c.get("acr_pass_votes") or 0),
+        ),
+        reverse=True,
+    )
+    return merged
 
 
 # =====================================================================
@@ -1259,8 +1686,8 @@ def merge_candidates(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def read_root() -> Dict[str, Any]:
     return {
         "status": "Reczt recognition backend online",
-        "version": "2.1",
-        "pipeline": "ACRCloud + quota-aware Groq Turbo/V3 fallback + Genius + Spotify + Apple Music",
+        "version": "3.0",
+        "pipeline": "ACRCloud multi-pass consensus + Groq Turbo/V3 + Genius evidence fusion + Spotify + Apple Music",
     }
 
 
@@ -1308,18 +1735,19 @@ def recognize_audio(
         try:
             with open(raw_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
+
             if not os.path.exists(raw_path) or os.path.getsize(raw_path) == 0:
                 return {"success": False, "message": "Empty audio upload."}
 
-            # The Flutter app already applies microphone noise suppression when
-            # appropriate. Server-side we use conservative silence trimming only;
-            # aggressive "vocal isolation" DSP can damage the melody fingerprint.
+            # Preserve melody. Server preprocessing is deliberately limited to
+            # silence trimming; recognition then compares full/raw/windowed views.
             trim_pcm_wav_silence(raw_path, processed_path, environment)
 
-            acr_kind, acr_candidates = recognize_with_acrcloud(processed_path)
-            print(
-                f"[ACR RESULT] type={acr_kind} candidates={len(acr_candidates)} "
-                f"environment={environment} vocal_isolation={vocal_isolation_requested}"
+            acr_kind, acr_candidates, acr_meta = recognize_with_acrcloud_consensus(
+                raw_path,
+                processed_path,
+                temp_dir,
+                environment,
             )
 
             lyric_candidates: List[Dict[str, Any]] = []
@@ -1327,24 +1755,45 @@ def recognize_audio(
                 "attempted_models": [],
                 "rate_limited_models": [],
                 "all_models_rate_limited": False,
+                "used_secondary_audio": False,
             }
 
-            if not acr_result_is_decisive(
+            acr_decisive = acr_result_is_decisive(
                 acr_kind,
                 acr_candidates,
                 environment,
-            ):
+            )
+
+            # Cross-check all but genuinely strong, repeated ACR consensus.
+            # This keeps the common path fast while using lyric evidence when it
+            # can materially resolve a close or one-off melodic guess.
+            top_acr_votes = (
+                int(acr_candidates[0].get("acr_pass_votes") or 1)
+                if acr_candidates
+                else 0
+            )
+            top_acr_confidence = (
+                float(acr_candidates[0].get("confidence") or 0.0)
+                if acr_candidates
+                else 0.0
+            )
+            should_crosscheck_lyrics = (
+                not acr_decisive
+                or top_acr_votes < 2
+                or top_acr_confidence < 0.88
+            )
+
+            if should_crosscheck_lyrics:
                 lyric_candidates, groq_meta = lyric_fallback_candidates(
                     processed_path,
                     language,
+                    secondary_audio_path=raw_path,
                 )
 
             combined = merge_candidates(acr_candidates, lyric_candidates)
+
             if not combined:
                 if groq_meta.get("all_models_rate_limited"):
-                    # A provider-capacity problem is not the same thing as a
-                    # genuine "no song found" result. HTTP 429 tells the client
-                    # to preserve/retry the recording rather than discard it.
                     raise HTTPException(
                         status_code=429,
                         detail=(
@@ -1355,33 +1804,15 @@ def recognize_audio(
 
                 return {
                     "success": False,
-                    "message": "Could not confidently recognize this song. Try singing a clear 8–12 second section.",
+                    "message": (
+                        "Could not confidently recognize this song. "
+                        "Try singing a clear 8–12 second melodic or lyric section."
+                    ),
+                    "retryable": True,
                 }
 
-            # Avoid hands-free autoplay of extremely weak guesses. The Flutter
-            # app handles ordinary ambiguity itself (and only shows Top Guesses
-            # when Auto Play is off), but the server rejects near-random matches.
-            top_confidence = combined[0].get("confidence") or 0.0
-
-            # Interaction-aware acceptance floor:
-            # Auto Play ON is more forgiving for hands-free use.
-            # Auto Play OFF stays more conservative because the user can see
-            # and choose between ambiguous results.
-            # Unattended/background matching must be considerably more
-            # conservative because there is no user present to choose between
-            # Top Guesses.
-            if background_queue_requested:
-                minimum_confidence = 0.46
-            else:
-                minimum_confidence = 0.28 if auto_play_requested else 0.35
-
-            if top_confidence < minimum_confidence:
-                return {
-                    "success": False,
-                    "message": "Recognition confidence was too low. Try again with a clearer melody or lyric phrase.",
-                }
-
-            results = enrich_candidates(combined[:3], language)
+            # Enrich enough choices for robust ranking, but cap catalog traffic.
+            results = enrich_candidates(combined[:4], language)
             results.sort(
                 key=lambda c: (
                     c.get("selection_score")
@@ -1390,35 +1821,51 @@ def recognize_audio(
                 ),
                 reverse=True,
             )
+
+            if not results:
+                return {
+                    "success": False,
+                    "message": "No usable recognition candidates remained.",
+                    "retryable": True,
+                }
+
             top = results[0]
+            top_selection = float(
+                top.get("selection_score")
+                if top.get("selection_score") is not None
+                else (top.get("confidence") or 0.0)
+            )
+            top_raw_confidence = float(top.get("confidence") or 0.0)
+            evidence_count = int(top.get("evidence_count") or 1)
+            acr_votes = int(top.get("acr_pass_votes") or 0)
+
+            second_selection: Optional[float] = None
+            if len(results) > 1:
+                second = results[1]
+                second_selection = float(
+                    second.get("selection_score")
+                    if second.get("selection_score") is not None
+                    else (second.get("confidence") or 0.0)
+                )
 
             if background_queue_requested:
-                top_selection = float(
-                    top.get("selection_score")
-                    if top.get("selection_score") is not None
-                    else (top.get("confidence") or 0.0)
-                )
-                top_raw_confidence = float(top.get("confidence") or 0.0)
-                second_selection = None
-                if len(results) > 1:
-                    second = results[1]
-                    second_selection = float(
-                        second.get("selection_score")
-                        if second.get("selection_score") is not None
-                        else (second.get("confidence") or 0.0)
-                    )
-
                 environment_floor = {
-                    "quiet": 0.52,
-                    "loud": 0.56,
-                    "outdoors": 0.58,
-                }.get(environment, 0.58)
+                    "quiet": 0.54,
+                    "loud": 0.57,
+                    "outdoors": 0.59,
+                }.get(environment, 0.59)
+
+                # Independent agreement lets a queued result clear the floor with
+                # slightly less raw provider confidence, but unattended matching
+                # remains deliberately conservative.
+                if evidence_count >= 2 or acr_votes >= 2:
+                    environment_floor -= 0.025
 
                 background_is_ambiguous = (
                     second_selection is not None
-                    and second_selection >= 0.30
-                    and top_selection < 0.82
-                    and (top_selection - second_selection) < 0.10
+                    and second_selection >= 0.31
+                    and top_selection < 0.84
+                    and (top_selection - second_selection) < 0.11
                 )
 
                 if (
@@ -1428,13 +1875,42 @@ def recognize_audio(
                 ):
                     return {
                         "success": False,
-                        "message": "Queued recording is not yet strong enough for unattended recognition.",
+                        "message": (
+                            "Queued recording is not yet strong enough for "
+                            "unattended recognition."
+                        ),
                         "retryable": True,
                         "background_queue": True,
                     }
+            else:
+                # Avoid the worst user experience: confidently auto-playing one
+                # weak, unsupported guess. If there are two plausible choices,
+                # return them so Flutter can ask "first or second" / show Top Guesses.
+                base_floor = {
+                    "quiet": 0.37 if auto_play_requested else 0.32,
+                    "loud": 0.40 if auto_play_requested else 0.34,
+                    "outdoors": 0.42 if auto_play_requested else 0.36,
+                }.get(environment, 0.40)
 
-            # Backward-compatible top-level fields plus the new scored list that
-            # your optimized main.dart understands.
+                if evidence_count >= 2 or acr_votes >= 2:
+                    base_floor -= 0.035
+
+                has_plausible_alternative = (
+                    second_selection is not None and second_selection >= 0.28
+                )
+
+                if top_selection < base_floor and not has_plausible_alternative:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Recognition confidence was too low. Try the same "
+                            "melody again a little more clearly."
+                        ),
+                        "retryable": True,
+                    }
+
+            # Backward-compatible top-level fields plus a scored candidate list.
+            # recognition_meta intentionally contains no transcript/audio content.
             response: Dict[str, Any] = {
                 "success": True,
                 "title": top.get("title", ""),
@@ -1447,7 +1923,25 @@ def recognize_audio(
                 "cover_url": top.get("cover_url", ""),
                 "source": top.get("source", ""),
                 "recognition_type": top.get("recognition_type", acr_kind),
-                "results": results,
+                "results": results[:3],
+                "recognition_meta": {
+                    "pipeline_version": "3.0",
+                    "environment": environment,
+                    "acr_passes_attempted": acr_meta.get("passes_attempted", 0),
+                    "acr_passes_with_candidates": acr_meta.get(
+                        "passes_with_candidates",
+                        0,
+                    ),
+                    "acr_top_votes": acr_meta.get("top_votes", 0),
+                    "lyric_crosscheck_used": should_crosscheck_lyrics,
+                    "groq_models_attempted": len(
+                        groq_meta.get("attempted_models") or []
+                    ),
+                    "groq_secondary_audio_used": bool(
+                        groq_meta.get("used_secondary_audio")
+                    ),
+                    "vocal_isolation_requested": vocal_isolation_requested,
+                },
             }
             return response
 
@@ -1455,6 +1949,8 @@ def recognize_audio(
             raise
         except Exception as exc:
             print(f"[SERVER ERROR] {type(exc).__name__}: {exc}")
-            # A true server failure should be a 5xx response so the optimized
-            # Flutter retry/offline-queue logic knows not to discard the clip.
-            raise HTTPException(status_code=500, detail="Recognition server error") from exc
+            raise HTTPException(
+                status_code=500,
+                detail="Recognition server error",
+            ) from exc
+
