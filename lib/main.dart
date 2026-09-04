@@ -2604,7 +2604,7 @@ final Map<String, Map<String, String>> localizedStrings = {
   
     'waiting_for_voice': 'بانتظار صوتك...',
     'signal_good': 'الإشارة جيدة',
-    'sing_louder': 'غنِّ بصوت أعلى قليلًا',
+    'sing_louder': 'غنِّ بصوت أعلى قليلًا',
     'top_guesses_title': 'أفضل الاحتمالات',
     'top_guesses_subtitle': 'لست متأكدًا تمامًا. اضغط على الأغنية التي تقصدها.',
     'confidence': 'تطابق',
@@ -3262,8 +3262,8 @@ enum EnvironmentMode {
   // ACRCloud humming/cover recognition generally benefits from a longer
   // melodic sample. Reczt still stops early when it has captured enough
   // usable singing, but these are the safe maximum listen windows.
-  quiet(duration: 6, icon: Icons.king_bed, key: 'quiet_room'),
-  loud(duration: 8, icon: Icons.volume_up, key: 'loud_room'),
+  quiet(duration: 8, icon: Icons.king_bed, key: 'quiet_room'),
+  loud(duration: 10, icon: Icons.volume_up, key: 'loud_room'),
   Outdoors(duration: 12, icon: Icons.forest, key: 'Outdoors');
 
   final int duration;
@@ -3674,8 +3674,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   String? _lastFailedAudioPath;
   String? _pendingGuessAudioPath;
   List<_SongMatchCandidate> _topGuesses = <_SongMatchCandidate>[];
-  EnvironmentMode _selectedMode = EnvironmentMode.Outdoors;
-  int _secondsRemaining = 12;
+  // Most first-use testing happens indoors, so start in Quiet by default.
+  // A saved user choice still overrides this during startup.
+  EnvironmentMode _selectedMode = EnvironmentMode.quiet;
+  int _secondsRemaining = 8;
   Timer? _countdownTimer;
   Timer? _enhancedSearchTimer;
 
@@ -4280,11 +4282,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   int get _targetUsableVoiceMilliseconds {
     switch (_selectedMode) {
       case EnvironmentMode.quiet:
-        return 7500;
+        return 8000;
       case EnvironmentMode.loud:
-        return 8500;
+        return 10000;
       case EnvironmentMode.Outdoors:
-        return 9000;
+        return 12000;
     }
   }
 
@@ -4303,6 +4305,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
 
   RecordConfig _recordConfigForCurrentEnvironment() {
+    // Keep the existing environment-aware capture profile. The backend now
+    // cross-checks raw-vs-trimmed audio and overlapping melodic windows, so we
+    // improve recognition without making an untested microphone-DSP change
+    // right before App Store release.
     return RecordConfig(
       encoder: AudioEncoder.wav,
       sampleRate: 44100,
@@ -4813,6 +4819,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     final uri = Uri.parse(_backendUrl);
     final request = http.MultipartRequest('POST', uri);
     request.fields['language'] = _selectedLanguage;
+    // Kept for backend compatibility. Backend v3 intentionally uses only
+    // conservative silence trimming before its multi-pass recognition.
     request.fields['vocal_isolation'] = 'true';
     request.fields['environment'] = _selectedMode.name;
     // Use a more forgiving backend floor only for genuine hands-free Auto Play.
@@ -4838,8 +4846,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         request.files.add(await http.MultipartFile.fromPath('file', path));
       }
 
+      // Backend v3 can run several ACR windows and a lyric cross-check on an
+      // ambiguous clip, so allow a little more time before treating it as failed.
       final streamedResponse =
-          await request.send().timeout(const Duration(seconds: 25));
+          await request.send().timeout(const Duration(seconds: 32));
       final response = await http.Response.fromStream(streamedResponse)
           .timeout(const Duration(seconds: 8));
 
@@ -4874,18 +4884,26 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       final data = Map<String, dynamic>.from(decoded);
 
       if (!_backendResponseSucceeded(data)) {
+        final bool retryable = data['retryable'] == true;
         if (mounted) {
           setState(() {
             _customStatusText = t('error_no_lyrics');
+            if (!isFromOfflineQueue && retryable) {
+              // Keep the exact clip so the existing Retry button can resubmit it
+              // without forcing the user to sing again.
+              _lastFailedAudioPath = path;
+            }
           });
         }
         if (!isFromOfflineQueue) {
           unawaited(_playErrorCue());
         }
-        // A queued recording should remain queued if the server cannot make a
-        // confident identification. Previously this returned true and could
-        // silently discard an unresolved offline recording.
-        return !isFromOfflineQueue;
+
+        // Offline unresolved recordings stay queued. Foreground retryable
+        // recognition failures keep their file as well; non-retryable "no match"
+        // responses are consumed normally.
+        if (isFromOfflineQueue) return false;
+        return !retryable;
       }
 
       final List<Map<String, dynamic>> rawResults =
