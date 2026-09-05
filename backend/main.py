@@ -113,30 +113,72 @@ GROQ_PROMPTS = {
     "pl": "Śpiewany jest tekst popularnej piosenki. Dokładnie przepisz śpiewane słowa.",
 }
 
-# Strongly reject imitation / novelty products. We intentionally do not
-# blanket-reject every "remix" because some remixes are major official
-# releases. Softer version penalties below handle those cases.
+# Reczt is intentionally conservative about alternate releases. A user who
+# sings or hums a familiar song usually wants the canonical/original recording,
+# not a karaoke cut, tribute, cover, club mix, workout version, or novelty edit.
+# Explicit covers/imitation products are rejected outright; official remixes and
+# alternate mixes remain technically eligible but receive a large ranking penalty
+# unless we can safely canonicalize them back to the original catalog recording.
 BLOCKED_VERSION_PHRASES = (
     "karaoke",
+    "karaoke version",
+    "sing along",
+    "sing-along",
     "tribute",
     "tribute to",
+    "tribute band",
     "in the style of",
     "made famous by",
     "as made famous by",
     "originally performed by",
     "sound alike",
     "sound-alike",
+    "soundalike",
     "backing track",
     "backing vocals",
     "instrumental version",
+    "instrumental cover",
     "cover version",
+    "acoustic cover",
+    "piano cover",
+    "guitar cover",
+    "orchestral cover",
+    "cover by",
     "workout mix",
     "fitness version",
     "nightcore",
     "8d audio",
 )
 
-LOW_PREFERENCE_VERSION_PHRASES = (
+# These are not hard-blocked because a major artist can legitimately release an
+# official remix or alternate version. They are, however, strongly disfavored.
+STRONG_DERIVATIVE_PHRASES = (
+    "club mix",
+    "club remix",
+    "dance mix",
+    "dance remix",
+    "extended mix",
+    "extended remix",
+    "extended version",
+    "dj mix",
+    "dj remix",
+    "dub mix",
+    "dub remix",
+    "house mix",
+    "house remix",
+    "techno mix",
+    "techno remix",
+    "festival mix",
+    "festival remix",
+    "vip mix",
+    "bootleg",
+    "mashup",
+    "mash-up",
+    "rework",
+    "re-edit",
+    "re edit",
+    "workout mix",
+    "fitness version",
     "sped up",
     "speed up",
     "slowed",
@@ -145,11 +187,30 @@ LOW_PREFERENCE_VERSION_PHRASES = (
     "reverbed",
     "nightcore",
     "8d audio",
-    "workout mix",
-    "fitness version",
 )
 
-app = FastAPI(title="Reczt Song Recognition Engine", version="2.0")
+LOW_PREFERENCE_VERSION_PHRASES = (
+    "radio edit",
+    "single edit",
+    "edit",
+    "live",
+    "acoustic",
+    "demo",
+    "alternate take",
+    "alternate version",
+)
+
+# Version descriptors are removed only for catalog lookup / same-song matching.
+# The recognized title itself is preserved until a strong Spotify/Apple catalog
+# result confirms that it is safe to map the result back to the canonical track.
+_VERSION_WORDS_RE = re.compile(
+    r"\b(?:remix|mix|edit|rework|re-edit|version|club|dance|extended|dj|dub|"
+    r"house|techno|festival|vip|bootleg|mashup|mash-up|sped\s+up|slowed|"
+    r"reverb|nightcore|8d\s+audio|live|acoustic|demo|cover|karaoke)\b",
+    re.IGNORECASE,
+)
+
+app = FastAPI(title="Reczt Song Recognition Engine", version="3.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOW_ORIGINS,
@@ -216,15 +277,100 @@ def candidate_key(title: str, artist: str) -> str:
     return f"{clean_text(title)}|{clean_text(artist)}"
 
 
-def is_unwanted_version(title: str, artist: str) -> bool:
-    combined = f"{title} {artist}".casefold()
+def _combined_version_text(title: str, artist: str = "") -> str:
+    return f"{title or ''} {artist or ''}".casefold().strip()
+
+
+def version_kind(title: str, artist: str = "") -> str:
+    """Classify release/version text for ranking and canonicalization."""
+    title_text = (title or "").casefold().strip()
+    combined = _combined_version_text(title, artist)
+
+    # Tribute/cover branding is often placed in the artist field, so the hard
+    # reject scans title + artist. Remix/live descriptors, however, are evaluated
+    # on the title only so an artist name cannot accidentally trigger them.
     if any(phrase in combined for phrase in BLOCKED_VERSION_PHRASES):
-        return True
-    descriptor = re.compile(
-        r"(?:\(|\[|\-|–|—|:)\s*(?:cover|remake)(?:\s+version)?\b|\b(?:cover|remake)\s+version\b",
-        re.IGNORECASE,
+        return "blocked_cover_or_novelty"
+
+    if re.search(
+        r"(?:\(|\[|\-|–|—|:)\s*(?:cover|remake)(?:\s+version)?\b|"
+        r"\b(?:cover|remake)\s+version\b",
+        title_text,
+        flags=re.IGNORECASE,
+    ):
+        return "blocked_cover_or_novelty"
+
+    if any(phrase in title_text for phrase in STRONG_DERIVATIVE_PHRASES):
+        if re.search(r"\b(?:club|dance|extended|dj|dub|house|techno|festival|vip)\b", title_text):
+            return "club_or_extended_mix"
+        if re.search(r"\b(?:bootleg|mashup|mash-up|rework|re-edit|re edit)\b", title_text):
+            return "bootleg_or_rework"
+        return "novelty_edit"
+
+    if re.search(r"\bremix\b", title_text):
+        return "remix"
+
+    # Avoid treating an ordinary word such as "mix" as a derivative unless it
+    # appears in a common release-descriptor position or next to a qualifier.
+    if re.search(
+        r"(?:\(|\[|\-|–|—|:)\s*[^\]\)]{0,35}\b(?:mix|edit)\b|"
+        r"\b(?:radio|single|original|album)\s+(?:mix|edit)\b",
+        title_text,
+        flags=re.IGNORECASE,
+    ):
+        return "alternate_mix_or_edit"
+
+    if re.search(r"\blive\b", title_text):
+        return "live"
+    if re.search(r"\bacoustic\b", title_text):
+        return "acoustic"
+    if re.search(r"\bdemo\b|\balternate\s+(?:take|version)\b", title_text):
+        return "alternate"
+
+    return "canonical"
+
+
+def strip_version_descriptors(title: str) -> str:
+    """Return a conservative base title for canonical catalog lookup.
+
+    Parenthetical/bracketed/trailing segments are removed only when they contain
+    obvious version words. This keeps legitimate punctuation and subtitles that
+    are part of the actual song title.
+    """
+    value = (title or "").strip()
+    if not value:
+        return value
+
+    def remove_bracketed(match: re.Match) -> str:
+        content = match.group(0)
+        return "" if _VERSION_WORDS_RE.search(content) else content
+
+    value = re.sub(r"\([^)]*\)|\[[^\]]*\]", remove_bracketed, value)
+
+    # Remove a trailing release descriptor after a separator, but only when that
+    # suffix actually contains a version keyword.
+    parts = re.split(r"\s+[\-–—:]\s+", value)
+    while len(parts) > 1 and _VERSION_WORDS_RE.search(parts[-1] or ""):
+        parts.pop()
+    value = " - ".join(parts)
+
+    # Handle simple suffixes such as "Song Remix" or "Song Club Mix" when no
+    # punctuation separates the descriptor.
+    value = re.sub(
+        r"\s+(?:club\s+mix|club\s+remix|dance\s+mix|dance\s+remix|"
+        r"extended\s+mix|extended\s+remix|dj\s+mix|dj\s+remix|dub\s+mix|"
+        r"house\s+mix|festival\s+mix|radio\s+edit|single\s+edit|remix)\s*$",
+        "",
+        value,
+        flags=re.IGNORECASE,
     )
-    return bool(descriptor.search(combined))
+
+    value = re.sub(r"\s+", " ", value).strip(" -–—:()[]")
+    return value or (title or "").strip()
+
+
+def is_unwanted_version(title: str, artist: str) -> bool:
+    return version_kind(title, artist) == "blocked_cover_or_novelty"
 
 
 def version_preference_penalty(
@@ -233,40 +379,47 @@ def version_preference_penalty(
     *,
     popularity: float = 0.0,
 ) -> float:
-    """Small ranking penalty for derivative versions without banning
-    genuinely popular official alternate releases.
+    """Strongly prefer canonical studio releases.
 
-    popularity is normalized to 0.0-1.0.
+    Popularity can soften a penalty slightly for a major official alternate
+    release, but it no longer lets a club/remix version nearly tie the original.
     """
-    combined = f"{title} {artist}".casefold()
+    kind = version_kind(title, artist)
+    popularity = max(0.0, min(float(popularity or 0.0), 1.0))
 
-    if is_unwanted_version(title, artist):
+    if kind == "blocked_cover_or_novelty":
         return 1.0
+    if kind == "club_or_extended_mix":
+        return 0.30 if popularity >= 0.75 else 0.36 if popularity >= 0.50 else 0.42
+    if kind == "bootleg_or_rework":
+        return 0.34 if popularity >= 0.70 else 0.43
+    if kind == "novelty_edit":
+        return 0.36 if popularity >= 0.70 else 0.44
+    if kind == "remix":
+        return 0.24 if popularity >= 0.75 else 0.31 if popularity >= 0.50 else 0.38
+    if kind == "alternate_mix_or_edit":
+        return 0.16 if popularity >= 0.70 else 0.23
+    if kind == "live":
+        return 0.08 if popularity >= 0.70 else 0.14
+    if kind == "acoustic":
+        return 0.06 if popularity >= 0.70 else 0.11
+    if kind == "alternate":
+        return 0.10 if popularity >= 0.70 else 0.16
+    return 0.0
 
-    penalty = 0.0
 
-    # Novelty transformations are almost never what a user means when singing
-    # the familiar song melody.
-    if any(phrase in combined for phrase in LOW_PREFERENCE_VERSION_PHRASES):
-        penalty += 0.16
+def _same_song_base_title(first_title: str, second_title: str) -> float:
+    """Similarity of underlying song titles after version suffixes are removed."""
+    return similarity(
+        strip_version_descriptors(first_title),
+        strip_version_descriptors(second_title),
+    )
 
-    # Remixes / edits remain eligible. A highly popular official remix receives
-    # almost no penalty; obscure remixes get pushed below the canonical release.
-    if re.search(r"\b(remix|mix|edit)\b", combined):
-        if popularity >= 0.70:
-            penalty += 0.015
-        elif popularity >= 0.45:
-            penalty += 0.045
-        else:
-            penalty += 0.09
 
-    # Live/acoustic versions can be legitimate and popular, so only apply a
-    # gentle preference for the studio version.
-    if re.search(r"\b(live|acoustic)\b", combined):
-        penalty += 0.02 if popularity >= 0.60 else 0.045
-
-    return min(1.0, penalty)
-
+def _artist_similarity(first_artist: str, second_artist: str) -> float:
+    if not first_artist or not second_artist:
+        return 0.0
+    return similarity(first_artist, second_artist)
 
 def extract_artist(item: Dict[str, Any]) -> str:
     artist = item.get("artist")
@@ -522,29 +675,33 @@ def _candidate_match_strength(
     first: Dict[str, Any],
     second: Dict[str, Any],
 ) -> float:
-    """Fuzzy identity match for the same song across provider formatting.
+    """Fuzzy same-song matching across providers and release variants.
 
-    Providers often disagree only on punctuation, diacritics, or featured-artist
-    formatting. We merge those while keeping remixes/live versions distinct.
+    ACRCloud may name a remix while Genius/Spotify names the canonical track.
+    If the base title and primary artist strongly agree, treat those as evidence
+    for the same underlying song; merge logic will keep the cleaner release name.
+    Covers by a different artist remain separate.
     """
     first_title = str(first.get("title") or "")
     second_title = str(second.get("title") or "")
-    title_score = similarity(first_title, second_title)
-    if title_score < 0.88:
+    title_score = _same_song_base_title(first_title, second_title)
+    if title_score < 0.90:
         return 0.0
 
     first_artist = str(first.get("artist") or "")
     second_artist = str(second.get("artist") or "")
     if not first_artist or not second_artist:
-        return title_score if title_score >= 0.96 else 0.0
+        return title_score if title_score >= 0.98 else 0.0
 
-    artist_score = similarity(first_artist, second_artist)
-    if title_score >= 0.96 and artist_score >= 0.60:
-        return (0.75 * title_score) + (0.25 * artist_score)
-    if title_score >= 0.90 and artist_score >= 0.76:
+    artist_score = _artist_similarity(first_artist, second_artist)
+    if title_score >= 0.97 and artist_score >= 0.62:
+        return (0.76 * title_score) + (0.24 * artist_score)
+    if title_score >= 0.92 and artist_score >= 0.78:
         return (0.72 * title_score) + (0.28 * artist_score)
     return 0.0
 
+# =====================================================================
+# ACRCLOUD
 
 # =====================================================================
 # ACRCLOUD
@@ -1342,22 +1499,22 @@ def _spotify_track_quality(track: Dict[str, Any], title: str, artist: str) -> fl
     if artists:
         track_artist = str((artists[0] or {}).get("name") or "")
 
-    title_similarity = similarity(track_title, title)
+    requested_base = strip_version_descriptors(title)
+    track_base = strip_version_descriptors(track_title)
+    title_similarity = similarity(track_base, requested_base)
     artist_similarity = similarity(track_artist, artist) if artist else 0.0
     popularity = max(0.0, min(float(track.get("popularity") or 0) / 100.0, 1.0))
 
-    # Catalog ranking now gives popularity meaningful weight. This makes the
-    # canonical/mainstream release win over obscure covers or derivative uploads
-    # when the title/artist match is otherwise similar.
     if artist:
         quality = (
-            0.56 * title_similarity
-            + 0.29 * artist_similarity
-            + 0.15 * popularity
+            0.60 * title_similarity
+            + 0.30 * artist_similarity
+            + 0.10 * popularity
         )
     else:
-        quality = 0.78 * title_similarity + 0.22 * popularity
+        quality = 0.82 * title_similarity + 0.18 * popularity
 
+    kind = version_kind(track_title, track_artist)
     penalty = version_preference_penalty(
         track_title,
         track_artist,
@@ -1366,61 +1523,90 @@ def _spotify_track_quality(track: Dict[str, Any], title: str, artist: str) -> fl
     if penalty >= 1.0:
         return -1.0
 
-    return quality - penalty
+    # A clean canonical track gets an explicit bonus when the recognition result
+    # contained a derivative suffix. This lets the original beat a club/remix
+    # result even when the derivative title is textually closer to the query.
+    input_kind = version_kind(title, artist)
+    canonical_bonus = 0.0
+    if kind == "canonical":
+        canonical_bonus += 0.055
+        if input_kind != "canonical":
+            canonical_bonus += 0.055
+
+    return quality + canonical_bonus - penalty
 
 
 @lru_cache(maxsize=512)
 def spotify_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
     token = get_spotify_access_token()
-    query = f"{title} {artist}".strip()
+    base_title = strip_version_descriptors(title)
+    query = f"{base_title} {artist}".strip()
     if not query:
         return {}
     if not token:
-        return {"spotify_url": f"https://open.spotify.com/search/{requests.utils.quote(query)}"}
+        return {
+            "spotify_url": f"https://open.spotify.com/search/{requests.utils.quote(query)}",
+            "catalog_query_title": base_title,
+        }
 
     market = LANGUAGE_TO_MARKET.get(language, LANGUAGE_TO_MARKET["en"])["spotify"]
     try:
         response = requests.get(
             "https://api.spotify.com/v1/search",
-            params={"q": query, "type": "track", "limit": 10, "market": market},
+            params={"q": query, "type": "track", "limit": 15, "market": market},
             headers={"Authorization": f"Bearer {token}"},
             timeout=(2.5, 5),
         )
         if response.status_code != 200:
-            return {"spotify_url": f"https://open.spotify.com/search/{requests.utils.quote(query)}"}
+            return {
+                "spotify_url": f"https://open.spotify.com/search/{requests.utils.quote(query)}",
+                "catalog_query_title": base_title,
+            }
         tracks = response.json().get("tracks", {}).get("items", [])
     except Exception as exc:
         print(f"[SPOTIFY SEARCH ERROR] {exc}")
-        return {"spotify_url": f"https://open.spotify.com/search/{requests.utils.quote(query)}"}
+        return {
+            "spotify_url": f"https://open.spotify.com/search/{requests.utils.quote(query)}",
+            "catalog_query_title": base_title,
+        }
 
     ranked = sorted(
         ((track, _spotify_track_quality(track, title, artist)) for track in tracks),
         key=lambda pair: pair[1],
         reverse=True,
     )
-    if not ranked or ranked[0][1] < 0.56:
-        return {"spotify_url": f"https://open.spotify.com/search/{requests.utils.quote(query)}"}
+    if not ranked or ranked[0][1] < 0.58:
+        return {
+            "spotify_url": f"https://open.spotify.com/search/{requests.utils.quote(query)}",
+            "catalog_query_title": base_title,
+        }
 
     track, quality = ranked[0]
     artists = track.get("artists") or []
     track_artist = str((artists[0] or {}).get("name") or artist) if artists else artist
+    track_title = str(track.get("name") or title)
     external_urls = track.get("external_urls") or {}
     track_id = track.get("id")
     spotify_url = external_urls.get("spotify") or (
         f"spotify:track:{track_id}" if track_id else f"https://open.spotify.com/search/{requests.utils.quote(query)}"
     )
+    kind = version_kind(track_title, track_artist)
     return {
-        "title": str(track.get("name") or title),
+        "title": track_title,
         "artist": track_artist,
         "spotify_url": spotify_url,
         "spotify_match_quality": round(quality, 4),
         "spotify_popularity": int(track.get("popularity") or 0),
+        "spotify_version_kind": kind,
+        "spotify_is_canonical": kind == "canonical",
+        "catalog_query_title": base_title,
     }
 
 
 @lru_cache(maxsize=512)
 def apple_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
-    query = f"{title} {artist}".strip()
+    base_title = strip_version_descriptors(title)
+    query = f"{base_title} {artist}".strip()
     if not query:
         return {}
     country = LANGUAGE_TO_MARKET.get(language, LANGUAGE_TO_MARKET["en"])["apple"]
@@ -1428,7 +1614,7 @@ def apple_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
     try:
         response = requests.get(
             "https://itunes.apple.com/search",
-            params={"term": query, "entity": "song", "limit": 8, "country": country},
+            params={"term": query, "entity": "song", "limit": 12, "country": country},
             timeout=(2.5, 5),
         )
         if response.status_code != 200:
@@ -1443,36 +1629,69 @@ def apple_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
         track_artist = str(item.get("artistName") or "")
         if is_unwanted_version(track_title, track_artist):
             return -1.0
-        title_score = similarity(track_title, title)
+
+        title_score = similarity(
+            strip_version_descriptors(track_title),
+            base_title,
+        )
         artist_score = similarity(track_artist, artist) if artist else 0.0
         base = 0.68 * title_score + 0.32 * artist_score if artist else title_score
-        return base - version_preference_penalty(
+        penalty = version_preference_penalty(
             track_title,
             track_artist,
             popularity=0.0,
         )
+        canonical_bonus = 0.05 if version_kind(track_title, track_artist) == "canonical" else 0.0
+        if version_kind(title, artist) != "canonical" and version_kind(track_title, track_artist) == "canonical":
+            canonical_bonus += 0.04
+        return base + canonical_bonus - penalty
 
-    ranked = sorted(((item, quality(item)) for item in results), key=lambda pair: pair[1], reverse=True)
-    if not ranked or ranked[0][1] < 0.54:
+    ranked = sorted(
+        ((item, quality(item)) for item in results),
+        key=lambda pair: pair[1],
+        reverse=True,
+    )
+    if not ranked or ranked[0][1] < 0.56:
         return {}
 
-    item, _ = ranked[0]
+    item, item_quality = ranked[0]
     artwork = str(item.get("artworkUrl100") or "")
     if artwork:
         artwork = artwork.replace("100x100bb", "600x600bb")
+    track_title = str(item.get("trackName") or title)
+    track_artist = str(item.get("artistName") or artist)
+    kind = version_kind(track_title, track_artist)
     return {
+        "title": track_title,
+        "artist": track_artist,
         "apple_music_url": str(item.get("trackViewUrl") or ""),
         "cover_url": artwork,
         "genre": str(item.get("primaryGenreName") or ""),
+        "apple_match_quality": round(item_quality, 4),
+        "apple_version_kind": kind,
+        "apple_is_canonical": kind == "canonical",
+        "catalog_query_title": base_title,
     }
 
 
 def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]:
     enriched = dict(candidate)
-    title = str(enriched.get("title") or "").strip()
-    artist = str(enriched.get("artist") or "").strip()
+    original_title = str(enriched.get("title") or "").strip()
+    original_artist = str(enriched.get("artist") or "").strip()
+    original_kind = version_kind(original_title, original_artist)
+    original_penalty = version_preference_penalty(
+        original_title,
+        original_artist,
+        popularity=0.0,
+    )
 
-    # If ACRCloud already supplied a Spotify ID, prefer that direct ID.
+    enriched["recognized_version_kind"] = original_kind
+    enriched["recognized_base_title"] = strip_version_descriptors(original_title)
+
+    # Keep ACRCloud's direct Spotify link only as a fallback. It can point to the
+    # exact club/remix recording that ACRCloud heard, which is precisely what Reczt
+    # should avoid auto-playing when a canonical release can be confirmed.
+    acr_spotify_url: Optional[str] = None
     external_metadata = enriched.get("external_metadata")
     if isinstance(external_metadata, dict):
         spotify_meta = external_metadata.get("spotify")
@@ -1480,68 +1699,165 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
             track = spotify_meta.get("track")
             spotify_id = track.get("id") if isinstance(track, dict) else spotify_meta.get("id")
             if spotify_id:
-                enriched["spotify_url"] = f"https://open.spotify.com/track/{spotify_id}"
+                acr_spotify_url = f"https://open.spotify.com/track/{spotify_id}"
+                enriched["acr_spotify_url"] = acr_spotify_url
 
-    # Spotify and Apple lookups are independent, so run them together.
+    # Search the canonicalized base title in both catalogs.
     with ThreadPoolExecutor(max_workers=2) as executor:
-        spotify_future = executor.submit(spotify_lookup, title, artist, language)
-        apple_future = executor.submit(apple_lookup, title, artist, language)
+        spotify_future = executor.submit(
+            spotify_lookup,
+            original_title,
+            original_artist,
+            language,
+        )
+        apple_future = executor.submit(
+            apple_lookup,
+            original_title,
+            original_artist,
+            language,
+        )
         spotify = spotify_future.result()
         apple = apple_future.result()
 
-    if not enriched.get("spotify_url") and spotify.get("spotify_url"):
-        enriched["spotify_url"] = spotify["spotify_url"]
-
-    # For lyric/Genius candidates, a strong Spotify catalog confirmation is a
-    # useful canonicalization of punctuation/featured-artist formatting.
-    if "groq_genius" in str(enriched.get("source") or "") and (spotify.get("spotify_match_quality") or 0) >= 0.72:
-        enriched["title"] = spotify.get("title") or title
-        enriched["artist"] = spotify.get("artist") or artist
-
-    # Carry catalog evidence into Reczt's final release-selection score.
     spotify_quality = float(spotify.get("spotify_match_quality") or 0.0)
     spotify_popularity = max(
         0.0,
         min(float(spotify.get("spotify_popularity") or 0) / 100.0, 1.0),
     )
+    apple_quality = float(apple.get("apple_match_quality") or 0.0)
 
     if spotify.get("spotify_popularity") is not None:
-        enriched["spotify_popularity"] = int(
-            spotify.get("spotify_popularity") or 0
-        )
+        enriched["spotify_popularity"] = int(spotify.get("spotify_popularity") or 0)
     if spotify.get("spotify_match_quality") is not None:
         enriched["spotify_match_quality"] = spotify_quality
+    if apple.get("apple_match_quality") is not None:
+        enriched["apple_match_quality"] = apple_quality
 
-    # A strong Spotify catalog confirmation is also useful for normalizing
-    # punctuation / featured-artist formatting, not only Genius candidates.
-    if spotify_quality >= 0.80:
-        enriched["title"] = spotify.get("title") or enriched.get("title") or title
-        enriched["artist"] = spotify.get("artist") or enriched.get("artist") or artist
+    # Canonicalization guard: require a strong catalog match and strong base-title
+    # + artist agreement before replacing an identified alternate release.
+    spotify_title = str(spotify.get("title") or "")
+    spotify_artist = str(spotify.get("artist") or "")
+    spotify_same_work = (
+        spotify_title
+        and _same_song_base_title(spotify_title, original_title) >= 0.94
+        and (
+            not original_artist
+            or not spotify_artist
+            or _artist_similarity(spotify_artist, original_artist) >= 0.72
+        )
+    )
+    spotify_can_canonicalize = (
+        spotify_quality >= 0.72
+        and bool(spotify.get("spotify_is_canonical"))
+        and spotify_same_work
+    )
 
-    # If Spotify canonicalized the title/artist, refresh the Apple lookup key
-    # only when the first result was weak/missing. This avoids a second request
-    # in the normal case.
-    for key in ("apple_music_url", "cover_url", "genre"):
-        if apple.get(key):
-            enriched[key] = apple[key]
+    apple_title = str(apple.get("title") or "")
+    apple_artist = str(apple.get("artist") or "")
+    apple_same_work = (
+        apple_title
+        and _same_song_base_title(apple_title, original_title) >= 0.94
+        and (
+            not original_artist
+            or not apple_artist
+            or _artist_similarity(apple_artist, original_artist) >= 0.72
+        )
+    )
+    apple_can_canonicalize = (
+        apple_quality >= 0.72
+        and bool(apple.get("apple_is_canonical"))
+        and apple_same_work
+    )
+
+    canonicalized = False
+
+    # Spotify is the primary playback catalog. If it strongly confirms the clean
+    # studio release, overwrite ACRCloud's derivative direct-ID URL as well as the
+    # title/artist. This specifically prevents "recognized correctly, played club
+    # remix" failures.
+    if spotify_can_canonicalize:
+        enriched["title"] = spotify_title or original_title
+        enriched["artist"] = spotify_artist or original_artist
+        if spotify.get("spotify_url"):
+            enriched["spotify_url"] = spotify["spotify_url"]
+        canonicalized = original_kind != "canonical"
+    else:
+        # For an already-canonical result, a strong Spotify lookup is still the
+        # best playback URL. For unresolved derivatives, prefer no exact remix URL
+        # over automatically launching the wrong version.
+        if original_kind == "canonical" and spotify_quality >= 0.66 and spotify.get("spotify_url"):
+            enriched["spotify_url"] = spotify["spotify_url"]
+        elif original_kind == "canonical" and acr_spotify_url:
+            enriched["spotify_url"] = acr_spotify_url
+        elif spotify.get("spotify_url") and spotify_quality >= 0.78:
+            enriched["spotify_url"] = spotify["spotify_url"]
+
+    # Apple Music gets the same canonical-release preference.
+    if apple_can_canonicalize:
+        if not canonicalized and original_kind != "canonical" and not spotify_can_canonicalize:
+            enriched["title"] = apple_title or enriched.get("title") or original_title
+            enriched["artist"] = apple_artist or enriched.get("artist") or original_artist
+            canonicalized = True
+        if apple.get("apple_music_url"):
+            enriched["apple_music_url"] = apple["apple_music_url"]
+    elif original_kind == "canonical" and apple_quality >= 0.64 and apple.get("apple_music_url"):
+        enriched["apple_music_url"] = apple["apple_music_url"]
+
+    # Artwork/genre can safely come from the best catalog result even when URL
+    # canonicalization was not strong enough to overwrite playback identity.
+    if apple.get("cover_url"):
+        enriched["cover_url"] = apple["cover_url"]
+    if apple.get("genre"):
+        enriched["genre"] = apple["genre"]
+
+    # Lyric/Genius candidates benefit from strong canonical catalog formatting.
+    if (
+        "groq_genius" in str(enriched.get("source") or "")
+        and spotify_quality >= 0.72
+        and spotify_same_work
+    ):
+        enriched["title"] = spotify_title or enriched.get("title") or original_title
+        enriched["artist"] = spotify_artist or enriched.get("artist") or original_artist
+
+    final_title = str(enriched.get("title") or original_title)
+    final_artist = str(enriched.get("artist") or original_artist)
+    final_kind = version_kind(final_title, final_artist)
+
+    # If a derivative was safely mapped to a clean catalog track, do not continue
+    # penalizing the final original. Otherwise retain the strict penalty associated
+    # with the recognized version even if minor metadata normalization changed it.
+    if canonicalized and final_kind == "canonical":
+        version_penalty = 0.0
+    else:
+        version_penalty = max(
+            original_penalty,
+            version_preference_penalty(
+                final_title,
+                final_artist,
+                popularity=spotify_popularity,
+            ),
+        )
 
     base_confidence = float(enriched.get("confidence") or 0.0)
-    final_title = str(enriched.get("title") or title)
-    final_artist = str(enriched.get("artist") or artist)
-    version_penalty = version_preference_penalty(
-        final_title,
-        final_artist,
-        popularity=spotify_popularity,
-    )
+    catalog_confirmation = max(0.0, spotify_quality, apple_quality)
 
-    # Keep recognition confidence dominant, but let strong catalog confirmation
-    # and real-world popularity break close calls in favor of the main release.
+    # Recognition evidence remains dominant, but the canonical catalog gets more
+    # influence than before and derivative versions now lose a substantial amount.
     selection_score = (
-        0.84 * base_confidence
-        + 0.10 * max(0.0, spotify_quality)
-        + 0.06 * spotify_popularity
+        0.80 * base_confidence
+        + 0.12 * min(catalog_confirmation, 1.0)
+        + 0.08 * spotify_popularity
         - version_penalty
     )
+
+    # Tiny bonus for a safe derivative->canonical mapping. It breaks near-ties
+    # without overpowering recognition evidence.
+    if canonicalized:
+        selection_score += 0.025
+
+    enriched["canonicalized_from_version"] = canonicalized
+    enriched["version_kind"] = final_kind
+    enriched["version_penalty"] = round(version_penalty, 4)
     enriched["selection_score"] = round(
         max(0.0, min(selection_score, 1.0)),
         4,
@@ -1635,15 +1951,31 @@ def merge_candidates(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if cross_provider and incoming_source not in current_source:
                 current["source"] = f"{current_source}+{incoming_source}"
 
-            # Preserve fields from the stronger representation, while never
-            # overwriting already-good catalog metadata with empties.
-            if incoming_score > current_score:
+            # Prefer the cleaner release representation when two providers agree
+            # on the same underlying song. Example: ACRCloud says "Song (Club
+            # Mix)" while Genius says "Song" by the same artist. Keep the shared
+            # evidence/confidence, but carry the canonical title/artist forward.
+            current_penalty = version_preference_penalty(
+                str(current.get("title") or ""),
+                str(current.get("artist") or ""),
+                popularity=0.0,
+            )
+            incoming_penalty = version_preference_penalty(
+                str(incoming.get("title") or ""),
+                str(incoming.get("artist") or ""),
+                popularity=0.0,
+            )
+            incoming_is_cleaner = incoming_penalty + 0.03 < current_penalty
+
+            if incoming_is_cleaner or (
+                abs(incoming_penalty - current_penalty) < 0.03
+                and incoming_score > current_score
+            ):
                 for key in (
                     "title",
                     "artist",
                     "language",
                     "recognition_type",
-                    "external_metadata",
                     "genres",
                     "album",
                     "acrid",
@@ -1651,6 +1983,15 @@ def merge_candidates(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 ):
                     if incoming.get(key):
                         current[key] = incoming[key]
+
+                # Metadata IDs from the dirtier representation may point directly
+                # to a remix/club version. Let catalog enrichment rebuild them.
+                if incoming_is_cleaner:
+                    current.pop("external_metadata", None)
+                    current.pop("spotify_url", None)
+                    current.pop("apple_music_url", None)
+            elif incoming_score > current_score and incoming.get("external_metadata"):
+                current["external_metadata"] = incoming["external_metadata"]
 
             for key, value in incoming.items():
                 if key in {"confidence", "score", "source"}:
@@ -1686,8 +2027,8 @@ def merge_candidates(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def read_root() -> Dict[str, Any]:
     return {
         "status": "Reczt recognition backend online",
-        "version": "3.0",
-        "pipeline": "ACRCloud multi-pass consensus + Groq Turbo/V3 + Genius evidence fusion + Spotify + Apple Music",
+        "version": "3.1",
+        "pipeline": "ACRCloud multi-pass consensus + Groq/Genius cross-check + strict canonical-release selection + Spotify + Apple Music",
     }
 
 
@@ -1822,6 +2163,42 @@ def recognize_audio(
                 reverse=True,
             )
 
+            # If a clean canonical candidate and an alternate version represent
+            # the same song/artist, prefer the clean release whenever it is even
+            # reasonably close. The heavier selection-score penalty usually does
+            # this already; this guard makes the policy explicit and deterministic.
+            if len(results) > 1:
+                first = results[0]
+                first_kind = str(first.get("version_kind") or version_kind(
+                    str(first.get("title") or ""),
+                    str(first.get("artist") or ""),
+                ))
+                if first_kind != "canonical":
+                    first_score = float(first.get("selection_score") or 0.0)
+                    for idx, candidate in enumerate(results[1:], start=1):
+                        candidate_kind = str(candidate.get("version_kind") or version_kind(
+                            str(candidate.get("title") or ""),
+                            str(candidate.get("artist") or ""),
+                        ))
+                        if candidate_kind != "canonical":
+                            continue
+                        same_title = _same_song_base_title(
+                            str(first.get("title") or ""),
+                            str(candidate.get("title") or ""),
+                        ) >= 0.94
+                        same_artist = (
+                            not str(first.get("artist") or "")
+                            or not str(candidate.get("artist") or "")
+                            or _artist_similarity(
+                                str(first.get("artist") or ""),
+                                str(candidate.get("artist") or ""),
+                            ) >= 0.72
+                        )
+                        candidate_score = float(candidate.get("selection_score") or 0.0)
+                        if same_title and same_artist and candidate_score >= first_score - 0.16:
+                            results.insert(0, results.pop(idx))
+                            break
+
             if not results:
                 return {
                     "success": False,
@@ -1838,6 +2215,40 @@ def recognize_audio(
             top_raw_confidence = float(top.get("confidence") or 0.0)
             evidence_count = int(top.get("evidence_count") or 1)
             acr_votes = int(top.get("acr_pass_votes") or 0)
+            top_version_kind = str(top.get("version_kind") or version_kind(
+                str(top.get("title") or ""),
+                str(top.get("artist") or ""),
+            ))
+            top_canonicalized = bool(top.get("canonicalized_from_version"))
+
+            # Reczt would rather ask for another attempt than confidently launch a
+            # club/remix/novelty recording. A derivative may pass only if it was
+            # safely canonicalized to the clean catalog track, or if evidence is
+            # exceptionally strong and Auto Play is off (so the user can choose).
+            unresolved_strong_derivative = top_version_kind in {
+                "club_or_extended_mix",
+                "bootleg_or_rework",
+                "novelty_edit",
+                "remix",
+            } and not top_canonicalized
+
+            if unresolved_strong_derivative:
+                derivative_can_be_shown_manually = (
+                    not auto_play_requested
+                    and top_selection >= 0.78
+                    and top_raw_confidence >= 0.80
+                    and (evidence_count >= 2 or acr_votes >= 2)
+                )
+                if not derivative_can_be_shown_manually:
+                    return {
+                        "success": False,
+                        "message": (
+                            "Reczt found only an alternate/remix version and could "
+                            "not safely confirm the original recording. Try singing "
+                            "another clear section of the song."
+                        ),
+                        "retryable": True,
+                    }
 
             second_selection: Optional[float] = None
             if len(results) > 1:
@@ -1925,7 +2336,7 @@ def recognize_audio(
                 "recognition_type": top.get("recognition_type", acr_kind),
                 "results": results[:3],
                 "recognition_meta": {
-                    "pipeline_version": "3.0",
+                    "pipeline_version": "3.1",
                     "environment": environment,
                     "acr_passes_attempted": acr_meta.get("passes_attempted", 0),
                     "acr_passes_with_candidates": acr_meta.get(
