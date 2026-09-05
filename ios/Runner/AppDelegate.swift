@@ -125,25 +125,20 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    /// Pick the most natural installed voice for the current language.
+    /// Pick a warm, consistent installed voice for the current language.
     ///
-    /// Preference order:
-    /// 1. Exact locale (for example en-US rather than generic English)
-    /// 2. Female voice, when available
-    /// 3. Highest installed voice quality (premium/enhanced/default)
-    ///
-    /// This automatically benefits from any enhanced or premium Apple voices
-    /// the user has installed, while still falling back safely on every iPhone.
+    /// Reczt now prefers a short list of natural Apple voices by language first,
+    /// then chooses the best-quality non-novelty fallback. This avoids a different
+    /// or unexpectedly robotic voice winning simply because its quality score is
+    /// slightly higher on a particular device.
     private func preferredSpeechVoice() -> AVSpeechSynthesisVoice? {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         let requestedLocale = Locale(identifier: localeIdentifier)
-        let requestedLanguage =
-            requestedLocale.languageCode?.lowercased()
+        let requestedLanguage = requestedLocale.languageCode?.lowercased()
 
         let compatibleVoices = allVoices.filter { voice in
             let voiceLocale = Locale(identifier: voice.language)
-            let voiceLanguage =
-                voiceLocale.languageCode?.lowercased()
+            let voiceLanguage = voiceLocale.languageCode?.lowercased()
 
             return voice.language.caseInsensitiveCompare(localeIdentifier) == .orderedSame
                 || (
@@ -156,55 +151,70 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
             return AVSpeechSynthesisVoice(language: localeIdentifier)
         }
 
-        // These names are only preferences when they actually exist on the
-        // device. Premium/enhanced quality remains the strongest signal.
-        let conversationalNames = [
-            "ava", "zoe", "samantha", "allison", "serena", "susan",
-            "karen", "moira", "tessa", "monica", "paulina", "audrey",
-            "amelie", "anna", "alice", "luciana", "kyoko", "yuna",
-            "ting-ting", "zosia", "milena", "lekha"
-        ]
-
         let noveltyNames = [
             "bad news", "bahh", "bells", "boing", "bubbles", "cellos",
             "deranged", "good news", "hysterical", "organ", "trinoids",
             "whisper", "wobble", "zarvox"
         ]
 
-        func score(_ voice: AVSpeechSynthesisVoice) -> Int {
-            var total = 0
+        let safeVoices = compatibleVoices.filter { voice in
             let name = voice.name.lowercased()
+            return !noveltyNames.contains(where: { name.contains($0) })
+        }
 
+        // Ordered by the tone Reczt is aiming for: warm and conversational,
+        // with locale-appropriate alternatives where Apple provides them.
+        let preferredNamesByLanguage: [String: [String]] = [
+            "en": ["ava", "samantha", "allison", "zoe", "serena", "susan", "karen", "moira", "tessa"],
+            "es": ["monica", "paulina", "luciana"],
+            "fr": ["audrey", "amelie"],
+            "de": ["anna"],
+            "it": ["alice"],
+            "ja": ["kyoko"],
+            "ko": ["yuna"],
+            "zh": ["ting-ting"],
+            "pl": ["zosia"],
+            "ru": ["milena"],
+            "hi": ["lekha"]
+        ]
+
+        let preferredNames = preferredNamesByLanguage[requestedLanguage ?? ""] ?? []
+
+        func fallbackScore(_ voice: AVSpeechSynthesisVoice) -> Int {
+            var total = 0
             if voice.language.caseInsensitiveCompare(localeIdentifier) == .orderedSame {
-                total += 4000
+                total += 5000
             }
-
-            // Premium/enhanced voices sound dramatically more natural than
-            // compact/default voices. Give quality the largest weight.
-            total += voice.quality.rawValue * 2500
-
+            total += voice.quality.rawValue * 3000
             if voice.gender == .female {
-                total += 350
+                total += 400
             }
-
-            if conversationalNames.contains(where: { name.contains($0) }) {
-                total += 500
-            }
-
-            if noveltyNames.contains(where: { name.contains($0) }) {
-                total -= 10000
-            }
-
             return total
         }
 
-        let selected = compatibleVoices.max {
-            score($0) < score($1)
+        // Prefer the named conversational voice first, but choose the best-quality
+        // installed variant of that voice (default/enhanced/premium).
+        for preferredName in preferredNames {
+            let matches = safeVoices.filter {
+                $0.name.lowercased().contains(preferredName)
+            }
+            if let selected = matches.max(by: {
+                fallbackScore($0) < fallbackScore($1)
+            }) {
+                print(
+                    "Reczt voice: \(selected.name), \(selected.language), quality=\(selected.quality.rawValue)"
+                )
+                return selected
+            }
+        }
+
+        let selected = safeVoices.max {
+            fallbackScore($0) < fallbackScore($1)
         }
 
         if let selected = selected {
             print(
-                "Reczt voice: \(selected.name), \(selected.language), quality=\(selected.quality.rawValue)"
+                "Reczt voice fallback: \(selected.name), \(selected.language), quality=\(selected.quality.rawValue)"
             )
         }
 
@@ -295,24 +305,25 @@ final class VoiceChoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
                 || normalized.contains("erste")
                 || normalized.contains("zweite")
 
-            utterance.rate = isChoiceLine ? 0.48 : 0.51
-            utterance.pitchMultiplier = 1.0
-            utterance.volume = 0.96
+            // A slightly quicker, more conversational cadence sounds less robotic
+            // with Apple's enhanced/premium voices while keeping song choices clear.
+            utterance.rate = isChoiceLine ? 0.50 : 0.53
+            utterance.pitchMultiplier = 1.02
+            utterance.volume = 0.98
 
-            // A brief lead-in prevents the first word from feeling clipped.
+            // A short lead-in prevents the first word from feeling clipped.
             if index == 0 {
-                utterance.preUtteranceDelay = 0.12
+                utterance.preUtteranceDelay = 0.10
             }
 
-            // Pause long enough for song titles/artists to feel separated,
-            // with a shorter pause just before Reczt begins listening.
+            // Keep enough separation to distinguish two song choices without the
+            // long synthetic pauses that made the old prompt sound mechanical.
             if index == segments.count - 1 {
-                utterance.postUtteranceDelay = 0.22
+                utterance.postUtteranceDelay = 0.18
             } else if index == 1 || index == 2 {
-                // Give the listener a real beat between the two song choices.
-                utterance.postUtteranceDelay = 0.52
+                utterance.postUtteranceDelay = 0.40
             } else {
-                utterance.postUtteranceDelay = 0.34
+                utterance.postUtteranceDelay = 0.26
             }
 
             synthesizer.speak(utterance)

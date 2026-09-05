@@ -2604,7 +2604,7 @@ final Map<String, Map<String, String>> localizedStrings = {
   
     'waiting_for_voice': 'بانتظار صوتك...',
     'signal_good': 'الإشارة جيدة',
-    'sing_louder': 'غنِّ بصوت أعلى قليلًا',
+    'sing_louder': 'غنِّ بصوت أعلى قليلًا',
     'top_guesses_title': 'أفضل الاحتمالات',
     'top_guesses_subtitle': 'لست متأكدًا تمامًا. اضغط على الأغنية التي تقصدها.',
     'confidence': 'تطابق',
@@ -4415,6 +4415,68 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     return _hasMeaningfulAmbiguity(candidates);
   }
 
+  int _candidateEvidenceCount(_SongMatchCandidate candidate) {
+    final raw = candidate.raw;
+    int parse(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.round();
+      return int.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    final evidence = parse(raw['evidence_count']);
+    final acrVotes = parse(raw['acr_pass_votes']);
+    return max(evidence, acrVotes);
+  }
+
+  /// Voice choice should be reserved for two genuinely plausible songs.
+  /// ACRCloud can occasionally return two unrelated low-confidence guesses; the
+  /// old flow would read those aloud simply because they were close to each other.
+  /// That feels much worse than admitting uncertainty, especially in Auto Play.
+  bool _shouldSpeakHandsFreeChoices(
+    List<_SongMatchCandidate> candidates,
+  ) {
+    if (candidates.length < 2) return false;
+
+    final top = candidates[0];
+    final second = candidates[1];
+    final topScore = top.effectiveScore;
+    final secondScore = second.effectiveScore;
+    if (topScore == null || secondScore == null) return false;
+
+    double topFloor;
+    double secondFloor;
+    switch (_selectedMode) {
+      case EnvironmentMode.quiet:
+        topFloor = 0.50;
+        secondFloor = 0.38;
+        break;
+      case EnvironmentMode.loud:
+        topFloor = 0.53;
+        secondFloor = 0.40;
+        break;
+      case EnvironmentMode.Outdoors:
+        topFloor = 0.55;
+        secondFloor = 0.42;
+        break;
+    }
+
+    // Independent agreement from multiple ACR passes / recognition sources is
+    // meaningful evidence, so supported candidates get a modest allowance.
+    if (_candidateEvidenceCount(top) >= 2) topFloor -= 0.04;
+    if (_candidateEvidenceCount(second) >= 2) secondFloor -= 0.025;
+
+    if (topScore < topFloor || secondScore < secondFloor) return false;
+
+    // Unknown-artist guesses need substantially stronger evidence before Reczt
+    // speaks them aloud as a real option.
+    if ((top.artist == 'Unknown Artist' && topScore < 0.70) ||
+        (second.artist == 'Unknown Artist' && secondScore < 0.66)) {
+      return false;
+    }
+
+    return true;
+  }
+
   String get _voiceChoiceLocale {
     const locales = <String, String>{
       'en': 'en-US',
@@ -4969,6 +5031,30 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         if (_autoPlayEnabled && ambiguous) {
           final preservedPath = await _preserveAudioClip(path);
           final visibleChoices = candidates.take(2).toList();
+
+          // Do not have the voice confidently read two garbage guesses merely
+          // because their scores happen to be close. Preserve the exact clip for
+          // Retry and tell the user we were not confident enough instead.
+          if (!_shouldSpeakHandsFreeChoices(visibleChoices)) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _songTitle = null;
+                _artist = null;
+                _spotifyUrl = null;
+                _appleMusicUrl = null;
+                _topGuesses = <_SongMatchCandidate>[];
+                _pendingGuessAudioPath = null;
+                _lastFailedAudioPath = preservedPath;
+                _customStatusText = t('no_valid_match');
+              });
+            } else {
+              _lastFailedAudioPath = preservedPath;
+            }
+            unawaited(_playErrorCue());
+            return true;
+          }
+
           final spokenChoice =
               await _askHandsFreeSongChoice(visibleChoices);
 
