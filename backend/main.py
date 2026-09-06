@@ -1597,7 +1597,7 @@ def spotify_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
     try:
         response = requests.get(
             "https://api.spotify.com/v1/search",
-            params={"q": query, "type": "track", "limit": 15, "market": market},
+            params={"q": query, "type": "track", "limit": 10, "market": market},
             headers={"Authorization": f"Bearer {token}"},
             timeout=(2.5, 5),
         )
@@ -2055,6 +2055,145 @@ def _autoplay_same_title_priority(candidate: Dict[str, Any]) -> Tuple[Any, ...]:
         verified,
     )
 
+
+
+def _is_lyric_only_candidate(candidate: Dict[str, Any]) -> bool:
+    """True only when a candidate has lyric/Genius evidence and no ACR evidence."""
+    source = str(candidate.get("source") or "").casefold()
+    evidence_sources = {
+        str(value).casefold()
+        for value in (candidate.get("evidence_sources") or [])
+        if value
+    }
+    has_acr = (
+        "acrcloud" in source
+        or "acrcloud" in evidence_sources
+        or int(candidate.get("acr_pass_votes") or 0) > 0
+    )
+    has_lyrics = (
+        "groq" in source
+        or "genius" in source
+        or "lyrics" in evidence_sources
+    )
+    return bool(has_lyrics and not has_acr)
+
+
+def _lyric_original_catalog_priority(candidate: Dict[str, Any]) -> Tuple[Any, ...]:
+    """Catalog tiebreaker for same-title lyric-only alternatives.
+
+    This never changes confidence. It is used only when several lyric/Genius
+    candidates appear to name the same song and none has fingerprint evidence.
+    A strong exact catalog match and the popularity of that specific track are
+    better clues to the canonical/original commercial recording than artist fame.
+    """
+    spotify_quality = float(candidate.get("spotify_match_quality") or 0.0)
+    apple_quality = float(candidate.get("apple_match_quality") or 0.0)
+    spotify_popularity = int(candidate.get("spotify_popularity") or 0)
+    spotify_canonical = int(bool(candidate.get("spotify_is_canonical")))
+    apple_canonical = int(bool(candidate.get("apple_is_canonical")))
+    exact_catalog = int(
+        (spotify_canonical and spotify_quality >= 0.76)
+        or (apple_canonical and apple_quality >= 0.76)
+    )
+    catalog_quality = max(spotify_quality, apple_quality)
+    confidence = float(candidate.get("confidence") or 0.0)
+    selection_score = float(
+        candidate.get("selection_score")
+        if candidate.get("selection_score") is not None
+        else confidence
+    )
+    return (
+        exact_catalog,
+        spotify_popularity,
+        catalog_quality,
+        int(candidate.get("groq_model_votes") or 0),
+        int(candidate.get("genius_hits") or 0),
+        confidence,
+        selection_score,
+    )
+
+
+def prefer_canonical_lyric_same_title_result(
+    candidates: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Promote a canonical/original result for ambiguous lyric-only same-title hits.
+
+    This is deliberately narrow: it only considers alternatives that share the
+    same normalized title, are close enough in the existing recognition score to
+    be plausible competitors, and have no ACRCloud evidence at all. Any actual
+    fingerprint evidence therefore keeps precedence over this catalog tiebreak.
+    """
+    if len(candidates) < 2:
+        return list(candidates)
+
+    ordered = list(candidates)
+    top = ordered[0]
+    if not _is_lyric_only_candidate(top):
+        return ordered
+
+    top_score = float(
+        top.get("selection_score")
+        if top.get("selection_score") is not None
+        else (top.get("confidence") or 0.0)
+    )
+    group: List[Tuple[int, Dict[str, Any]]] = [(0, top)]
+
+    for index, candidate in enumerate(ordered[1:], start=1):
+        if not _is_lyric_only_candidate(candidate):
+            continue
+        if _same_song_base_title(
+            str(top.get("title") or ""),
+            str(candidate.get("title") or ""),
+        ) < 0.98:
+            continue
+        candidate_score = float(
+            candidate.get("selection_score")
+            if candidate.get("selection_score") is not None
+            else (candidate.get("confidence") or 0.0)
+        )
+        # Wider than the normal Auto Play near-tie window because lyric search
+        # rankings can vary with which chorus/verse fragment Genius sees first,
+        # while still preventing a weak same-title catalog hit from taking over.
+        if abs(top_score - candidate_score) <= 0.18:
+            group.append((index, candidate))
+
+    if len(group) < 2:
+        return ordered
+
+    winner_index, winner = max(
+        group,
+        key=lambda pair: _lyric_original_catalog_priority(pair[1]),
+    )
+    if winner_index == 0:
+        return ordered
+
+    top_priority = _lyric_original_catalog_priority(top)
+    winner_priority = _lyric_original_catalog_priority(winner)
+    top_exact, top_pop, top_quality = top_priority[:3]
+    win_exact, win_pop, win_quality = winner_priority[:3]
+
+    # Require materially better catalog evidence before overriding the existing
+    # lyric ranking. This avoids turning popularity into a general recognition rule.
+    materially_better = (
+        (win_exact > top_exact)
+        or (
+            win_exact == top_exact == 1
+            and (
+                win_pop >= top_pop + 12
+                or win_quality >= top_quality + 0.08
+            )
+        )
+    )
+    if not materially_better:
+        return ordered
+
+    ordered.insert(0, ordered.pop(winner_index))
+    print(
+        "[LYRIC CANONICAL TIEBREAK] "
+        f"title={_song_identity_title(str(winner.get('title') or ''))!r} "
+        f"artist={str(winner.get('artist') or '')!r}"
+    )
+    return ordered
 
 def collapse_same_title_autoplay_choices(
     candidates: List[Dict[str, Any]],
@@ -2644,6 +2783,12 @@ def recognize_audio(
                     "message": "No usable recognition candidates remained.",
                     "retryable": True,
                 }
+
+            # If lyric/Genius produced multiple close same-title performers and
+            # none has ACR fingerprint evidence, prefer the candidate with the
+            # materially stronger canonical catalog signal. This is the narrow
+            # cover-vs-original refinement; it does not alter any confidence.
+            results = prefer_canonical_lyric_same_title_result(results)
 
             # Recognition/ranking is finished. Rebuild playback links from each
             # candidate's final title + artist. This does not change confidence,
