@@ -408,11 +408,35 @@ def version_preference_penalty(
     return 0.0
 
 
+def _song_identity_title(title: str) -> str:
+    """Normalize title text only for deciding whether two candidates are the same song.
+
+    Featured-artist credits are metadata rather than song identity. Keep the original
+    displayed/catalog title untouched, but ignore forms such as "(feat. Artist)",
+    "[ft. Artist]", and trailing "feat. Artist" during same-title comparison.
+    """
+    value = strip_version_descriptors(title)
+    if not value:
+        return value
+
+    # ``strip_version_descriptors`` intentionally preserves feature credits, but
+    # its final punctuation cleanup may remove only the closing bracket. Match
+    # both normal bracketed forms and that harmless half-bracketed intermediate.
+    value = re.sub(
+        r"\s*(?:[-–—:]\s*)?(?:[\(\[]\s*)?"
+        r"(?:feat(?:uring)?\.?|ft\.?)\s+.+$",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", value).strip(" -–—:()[]") or value.strip()
+
+
 def _same_song_base_title(first_title: str, second_title: str) -> float:
-    """Similarity of underlying song titles after version suffixes are removed."""
+    """Similarity of underlying song titles for same-song disambiguation."""
     return similarity(
-        strip_version_descriptors(first_title),
-        strip_version_descriptors(second_title),
+        _song_identity_title(first_title),
+        _song_identity_title(second_title),
     )
 
 
@@ -1986,32 +2010,49 @@ def attach_direct_canonical_playback_links(
 
 
 def _autoplay_same_title_priority(candidate: Dict[str, Any]) -> Tuple[Any, ...]:
-    """Tie-break same-title Auto Play choices without changing any scores.
+    """Tie-break close same-title Auto Play choices without changing scores.
 
-    Recognition evidence wins first. Spotify popularity is deliberately only a
-    late tiebreaker, so a famous cover cannot beat stronger fingerprint/provider
-    evidence merely because it is popular.
+    Strong recognition evidence remains decisive. When candidates do not have
+    strong multipass/cross-provider support separating them, prefer a clean
+    canonical Spotify catalog match and its popularity before falling back to
+    the existing confidence/selection scores. This helps common originals win
+    over obscure same-title lyric-search candidates without hard-coding songs.
     """
-    source = str(candidate.get("source") or "").casefold()
     acr_votes = int(candidate.get("acr_pass_votes") or 0)
     evidence_count = int(candidate.get("evidence_count") or 1)
-    has_acr_evidence = int("acrcloud" in source or acr_votes > 0)
+    strong_acr = int(acr_votes >= 2)
+    multi_source = int(evidence_count >= 2)
+    strong_recognition = int(bool(strong_acr or multi_source))
+
+    spotify_popularity = max(
+        int(candidate.get("spotify_direct_popularity") or 0),
+        int(candidate.get("spotify_popularity") or 0),
+    )
+    spotify_quality = float(candidate.get("spotify_match_quality") or 0.0)
+    canonical_catalog_match = int(
+        version_kind(
+            str(candidate.get("title") or ""),
+            str(candidate.get("artist") or ""),
+        ) == "canonical"
+        and spotify_quality >= 0.72
+    )
+
     confidence = float(candidate.get("confidence") or 0.0)
     selection_score = float(
         candidate.get("selection_score")
         if candidate.get("selection_score") is not None
         else confidence
     )
-    spotify_popularity = int(candidate.get("spotify_direct_popularity") or 0)
     verified = int(bool(candidate.get("playback_link_verified")))
     return (
-        evidence_count,
-        acr_votes,
-        has_acr_evidence,
+        strong_recognition,
+        multi_source,
+        strong_acr,
+        canonical_catalog_match,
+        spotify_popularity,
         confidence,
         selection_score,
         verified,
-        spotify_popularity,
     )
 
 
@@ -2551,7 +2592,7 @@ def recognize_audio(
                 }
 
             # Enrich enough choices for robust ranking, but cap catalog traffic.
-            results = enrich_candidates(combined[:4], language)
+            results = enrich_candidates(combined[:5], language)
             results.sort(
                 key=lambda c: (
                     c.get("selection_score")
@@ -2737,15 +2778,25 @@ def recognize_audio(
                 # exists, omit unverified choices rather than asking the user to
                 # select a song that cannot then Auto Play. If none can be
                 # verified, preserve the top recognition result for display.
+                # Collapse close same-title alternatives before requiring a
+                # verified playback URL. This lets a candidate from the expanded
+                # enrichment pool win the same-title tiebreak even if it was not
+                # initially in the top three playback-link lookups.
+                collapsed_results = collapse_same_title_autoplay_choices(results)
+
+                # Resolve playback for the actual choices we may return. Existing
+                # top-three resolutions are reused; only a newly promoted choice
+                # needs an additional lookup.
+                for candidate in collapsed_results[:3]:
+                    if not candidate.get("playback_link_verified"):
+                        attach_direct_canonical_playback_links(candidate, language)
+
                 verified_results = [
                     candidate
-                    for candidate in results
+                    for candidate in collapsed_results
                     if candidate.get("playback_link_verified")
                 ]
-                client_results = verified_results or [results[0]]
-                client_results = collapse_same_title_autoplay_choices(
-                    client_results
-                )
+                client_results = verified_results or [collapsed_results[0]]
 
             # Backward-compatible top-level fields plus a scored candidate list.
             # recognition_meta intentionally contains no transcript/audio content.
