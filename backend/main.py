@@ -702,9 +702,6 @@ def _candidate_match_strength(
 
 # =====================================================================
 # ACRCLOUD
-
-# =====================================================================
-# ACRCLOUD
 # =====================================================================
 
 def acrcloud_configured() -> bool:
@@ -760,6 +757,9 @@ def recognize_with_acrcloud(audio_path: str) -> Tuple[str, List[Dict[str, Any]]]
         return "error", []
 
     status_code = payload.get("status", {}).get("code", -1)
+    if status_code == 3003:
+        print("[ACRCLOUD QUOTA] requests limit exceeded")
+        return "quota_exceeded", []
     if status_code != 0:
         print(f"[ACRCLOUD NO MATCH] status={payload.get('status')}")
         return "no_match", []
@@ -803,44 +803,10 @@ def recognize_with_acrcloud(audio_path: str) -> Tuple[str, List[Dict[str, Any]]]
     return kind, candidates
 
 
-def recognize_with_acrcloud_consensus(
-    raw_path: str,
-    processed_path: str,
-    temp_dir: str,
-    environment: str,
+def _aggregate_acr_pass_results(
+    pass_results: List[Tuple[str, str, List[Dict[str, Any]]]],
 ) -> Tuple[str, List[Dict[str, Any]], Dict[str, Any]]:
-    """Run several complementary ACR passes and rank by repeatability.
-
-    A wrong one-off candidate is less trustworthy than a song that wins across
-    the full clip and multiple overlapping melodic windows.
-    """
-    passes = build_acr_audio_passes(raw_path, processed_path, temp_dir)
-    pass_results: List[Tuple[str, str, List[Dict[str, Any]]]] = []
-
-    if not acrcloud_configured():
-        return "unavailable", [], {
-            "passes_attempted": 0,
-            "passes_with_candidates": 0,
-            "top_votes": 0,
-        }
-
-    with ThreadPoolExecutor(max_workers=min(4, max(1, len(passes)))) as executor:
-        futures = {
-            executor.submit(recognize_with_acrcloud, path): label
-            for label, path in passes
-        }
-        for future in as_completed(futures):
-            label = futures[future]
-            try:
-                kind, candidates = future.result()
-            except Exception as exc:
-                print(f"[ACR PASS ERROR] label={label} type={type(exc).__name__}")
-                continue
-
-            for candidate in candidates:
-                candidate["acr_pass_label"] = label
-            pass_results.append((label, kind, candidates))
-
+    """Aggregate ACR pass evidence using the existing confidence/vote formulas."""
     aggregated: List[Dict[str, Any]] = []
     kinds: Dict[str, int] = {}
 
@@ -954,10 +920,64 @@ def recognize_with_acrcloud_consensus(
         if aggregated
         else 0.0,
     }
+    return dominant_kind, aggregated, meta
+
+
+def recognize_with_acrcloud_consensus(
+    raw_path: str,
+    processed_path: str,
+    temp_dir: str,
+    environment: str,
+) -> Tuple[str, List[Dict[str, Any]], Dict[str, Any]]:
+    """Run ACR passes adaptively, stopping as soon as existing rules are decisive.
+
+    The confidence thresholds, vote bonuses, and candidate scoring are unchanged.
+    Strong results commonly use one provider request; harder cases can use up to
+    the existing four-call ceiling. ACR quota exhaustion stops additional calls.
+    """
+    passes = build_acr_audio_passes(raw_path, processed_path, temp_dir)
+    pass_results: List[Tuple[str, str, List[Dict[str, Any]]]] = []
+
+    if not acrcloud_configured():
+        return "unavailable", [], {
+            "passes_attempted": 0,
+            "passes_with_candidates": 0,
+            "top_votes": 0,
+            "quota_exceeded": False,
+        }
+
+    stop_reason = "exhausted"
+    quota_exceeded = False
+
+    for label, path in passes:
+        try:
+            kind, candidates = recognize_with_acrcloud(path)
+        except Exception as exc:
+            print(f"[ACR PASS ERROR] label={label} type={type(exc).__name__}")
+            continue
+
+        for candidate in candidates:
+            candidate["acr_pass_label"] = label
+        pass_results.append((label, kind, candidates))
+
+        if kind == "quota_exceeded":
+            quota_exceeded = True
+            stop_reason = "quota_exceeded"
+            break
+
+        dominant_kind, aggregated, meta = _aggregate_acr_pass_results(pass_results)
+        if acr_result_is_decisive(dominant_kind, aggregated, environment):
+            stop_reason = "decisive"
+            break
+
+    dominant_kind, aggregated, meta = _aggregate_acr_pass_results(pass_results)
+    meta["quota_exceeded"] = quota_exceeded
+    meta["adaptive_stop_reason"] = stop_reason
     print(
         f"[ACR MULTIPASS] passes={meta['passes_attempted']} "
         f"candidate_passes={meta['passes_with_candidates']} "
-        f"top_votes={meta['top_votes']} environment={environment}"
+        f"top_votes={meta['top_votes']} environment={environment} "
+        f"stop={stop_reason}"
     )
     return dominant_kind, aggregated, meta
 
@@ -1674,6 +1694,361 @@ def apple_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
     }
 
 
+
+def _playback_artist_matches(recognized_artist: str, catalog_artists: List[str]) -> bool:
+    """Playback-only artist identity check; never affects recognition scoring."""
+    target = clean_text(recognized_artist)
+    if not target:
+        return True
+    for raw_artist in catalog_artists:
+        candidate = clean_text(raw_artist)
+        if not candidate:
+            continue
+        if candidate == target:
+            return True
+        # Allow normal multi-artist credit strings while still rejecting a
+        # completely different performer/karaoke artist.
+        if candidate.startswith(target + " ") or target.startswith(candidate + " "):
+            return True
+    return False
+
+
+def _playback_title_matches(recognized_title: str, catalog_title: str) -> bool:
+    """Playback-only title identity check; never affects recognition scoring."""
+    requested = clean_text(strip_version_descriptors(recognized_title))
+    returned = clean_text(strip_version_descriptors(catalog_title))
+    if not requested or not returned:
+        return False
+    if requested == returned:
+        return True
+
+    # Small natural extensions such as "Happy Birthday" -> "Happy Birthday to You"
+    # are allowed only at the playback-link layer; the artist must independently
+    # match before a URL is accepted.
+    if requested in returned or returned in requested:
+        extra_words = abs(len(requested.split()) - len(returned.split()))
+        return extra_words <= 3 and similarity(requested, returned) >= 0.78
+    return similarity(requested, returned) >= 0.94
+
+
+def _playback_context_is_derivative(
+    track_title: str,
+    track_artist: str,
+    collection_name: str = "",
+) -> bool:
+    """Reject remix/live/cover context when choosing the final playback URL."""
+    if version_kind(track_title, track_artist) != "canonical":
+        return True
+    context = f"{track_title} {collection_name}".casefold()
+    derivative_terms = (
+        "remix", "club mix", "club remix", "extended mix", "extended remix",
+        "dance mix", "dance remix", "dj mix", "dub mix", "bootleg",
+        "mashup", "rework", "sped up", "slowed", "reverb", "nightcore",
+        "karaoke", "tribute", "cover version", "live lounge", "live at",
+        "live from", "acoustic version", "instrumental version",
+    )
+    return any(term in context for term in derivative_terms)
+
+
+@lru_cache(maxsize=512)
+def spotify_direct_canonical_lookup(
+    title: str,
+    artist: str,
+    language: str,
+) -> Dict[str, Any]:
+    """Resolve a direct canonical Spotify URL from recognized title + artist.
+
+    This runs after recognition/ranking and never contributes to confidence or
+    selection scores.
+    """
+    token = get_spotify_access_token()
+    base_title = strip_version_descriptors(title).strip()
+    artist = (artist or "").strip()
+    if not token or not base_title:
+        return {}
+
+    market = LANGUAGE_TO_MARKET.get(language, LANGUAGE_TO_MARKET["en"])["spotify"]
+    queries = []
+    if artist:
+        queries.append(f'track:"{base_title}" artist:"{artist}"')
+    queries.append(f"{base_title} {artist}".strip())
+
+    seen_ids = set()
+    matches: List[Tuple[int, Dict[str, Any]]] = []
+    for query in queries:
+        try:
+            response = requests.get(
+                "https://api.spotify.com/v1/search",
+                params={"q": query, "type": "track", "limit": 20, "market": market},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=(2.5, 5),
+            )
+            if response.status_code != 200:
+                continue
+            tracks = response.json().get("tracks", {}).get("items", [])
+        except Exception as exc:
+            print(f"[SPOTIFY DIRECT LINK ERROR] {type(exc).__name__}")
+            continue
+
+        for track in tracks:
+            track_id = str(track.get("id") or "").strip()
+            if track_id and track_id in seen_ids:
+                continue
+            if track_id:
+                seen_ids.add(track_id)
+
+            track_title = str(track.get("name") or "").strip()
+            artists = track.get("artists") or []
+            artist_names = [
+                str((item or {}).get("name") or "").strip()
+                for item in artists
+                if isinstance(item, dict)
+            ]
+            primary_artist = artist_names[0] if artist_names else artist
+            album_name = str((track.get("album") or {}).get("name") or "").strip()
+
+            if _playback_context_is_derivative(track_title, primary_artist, album_name):
+                continue
+            if not _playback_title_matches(base_title, track_title):
+                continue
+            if artist and not _playback_artist_matches(artist, artist_names or [primary_artist]):
+                continue
+
+            external_urls = track.get("external_urls") or {}
+            direct_url = str(external_urls.get("spotify") or "").strip()
+            if not direct_url and track_id:
+                direct_url = f"https://open.spotify.com/track/{track_id}"
+            if not direct_url:
+                continue
+
+            popularity = int(track.get("popularity") or 0)
+            matches.append((popularity, {
+                "title": track_title,
+                "artist": primary_artist,
+                "spotify_url": direct_url,
+                "spotify_popularity": popularity,
+            }))
+
+        if matches:
+            break
+
+    if not matches:
+        return {}
+    matches.sort(key=lambda pair: pair[0], reverse=True)
+    return matches[0][1]
+
+
+@lru_cache(maxsize=512)
+def apple_direct_canonical_lookup(
+    title: str,
+    artist: str,
+    language: str,
+) -> Dict[str, Any]:
+    """Resolve a direct canonical Apple Music/iTunes URL from title + artist."""
+    base_title = strip_version_descriptors(title).strip()
+    artist = (artist or "").strip()
+    query = f"{base_title} {artist}".strip()
+    if not query:
+        return {}
+
+    country = LANGUAGE_TO_MARKET.get(language, LANGUAGE_TO_MARKET["en"])["apple"]
+    try:
+        response = requests.get(
+            "https://itunes.apple.com/search",
+            params={"term": query, "entity": "song", "limit": 25, "country": country},
+            timeout=(2.5, 5),
+        )
+        if response.status_code != 200:
+            return {}
+        items = response.json().get("results", [])
+    except Exception as exc:
+        print(f"[APPLE DIRECT LINK ERROR] {type(exc).__name__}")
+        return {}
+
+    matches: List[Dict[str, Any]] = []
+    for item in items:
+        track_title = str(item.get("trackName") or "").strip()
+        track_artist = str(item.get("artistName") or "").strip()
+        collection_name = str(item.get("collectionName") or "").strip()
+        if _playback_context_is_derivative(track_title, track_artist, collection_name):
+            continue
+        if not _playback_title_matches(base_title, track_title):
+            continue
+        if artist and not _playback_artist_matches(artist, [track_artist]):
+            continue
+        direct_url = str(item.get("trackViewUrl") or "").strip()
+        if not direct_url:
+            continue
+        matches.append({
+            "title": track_title,
+            "artist": track_artist,
+            "apple_music_url": direct_url,
+        })
+
+    return matches[0] if matches else {}
+
+
+def attach_direct_canonical_playback_links(
+    candidate: Dict[str, Any],
+    language: str,
+) -> None:
+    """Replace stale provider links with verified title+artist hard links only."""
+    title = str(candidate.get("title") or "").strip()
+    artist = str(candidate.get("artist") or "").strip()
+
+    # Critical: ACRCloud may expose the exact heard remix ID. Never let that stale
+    # URL survive into Auto Play after Reczt has selected a clean title/artist.
+    candidate.pop("spotify_url", None)
+    candidate.pop("apple_music_url", None)
+    candidate["spotify_direct_verified"] = False
+    candidate["apple_direct_verified"] = False
+    candidate["playback_link_verified"] = False
+
+    if not title:
+        return
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        spotify_future = executor.submit(
+            spotify_direct_canonical_lookup, title, artist, language
+        )
+        apple_future = executor.submit(
+            apple_direct_canonical_lookup, title, artist, language
+        )
+        spotify = spotify_future.result()
+        apple = apple_future.result()
+
+    if spotify.get("spotify_url"):
+        candidate["spotify_url"] = spotify["spotify_url"]
+        candidate["spotify_direct_verified"] = True
+        candidate["spotify_direct_popularity"] = int(
+            spotify.get("spotify_popularity") or 0
+        )
+    if apple.get("apple_music_url"):
+        candidate["apple_music_url"] = apple["apple_music_url"]
+        candidate["apple_direct_verified"] = True
+
+    # If a provider cannot safely resolve a direct canonical track, still give the
+    # existing UI a useful provider button by pointing it to a title+artist search.
+    # These fallbacks are added ONLY when the verified hard link for that provider
+    # is unavailable; they never replace a verified direct track URL.
+    search_query = f"{strip_version_descriptors(title)} {artist}".strip()
+    if search_query and not candidate.get("spotify_direct_verified"):
+        candidate["spotify_url"] = (
+            "https://open.spotify.com/search/"
+            f"{requests.utils.quote(search_query)}"
+        )
+        candidate["spotify_search_fallback"] = True
+    if search_query and not candidate.get("apple_direct_verified"):
+        country = LANGUAGE_TO_MARKET.get(
+            language, LANGUAGE_TO_MARKET["en"]
+        )["apple"].lower()
+        candidate["apple_music_url"] = (
+            f"https://music.apple.com/{country}/search?term="
+            f"{requests.utils.quote(search_query)}"
+        )
+        candidate["apple_search_fallback"] = True
+
+    candidate["playback_link_verified"] = bool(
+        candidate.get("spotify_direct_verified")
+        or candidate.get("apple_direct_verified")
+    )
+
+    canonical_identity = spotify or apple
+    if canonical_identity and version_kind(title, artist) != "canonical":
+        candidate["title"] = str(canonical_identity.get("title") or title)
+        candidate["artist"] = str(canonical_identity.get("artist") or artist)
+        candidate["canonicalized_from_version"] = True
+        candidate["version_kind"] = "canonical"
+
+
+
+def _autoplay_same_title_priority(candidate: Dict[str, Any]) -> Tuple[Any, ...]:
+    """Tie-break same-title Auto Play choices without changing any scores.
+
+    Recognition evidence wins first. Spotify popularity is deliberately only a
+    late tiebreaker, so a famous cover cannot beat stronger fingerprint/provider
+    evidence merely because it is popular.
+    """
+    source = str(candidate.get("source") or "").casefold()
+    acr_votes = int(candidate.get("acr_pass_votes") or 0)
+    evidence_count = int(candidate.get("evidence_count") or 1)
+    has_acr_evidence = int("acrcloud" in source or acr_votes > 0)
+    confidence = float(candidate.get("confidence") or 0.0)
+    selection_score = float(
+        candidate.get("selection_score")
+        if candidate.get("selection_score") is not None
+        else confidence
+    )
+    spotify_popularity = int(candidate.get("spotify_direct_popularity") or 0)
+    verified = int(bool(candidate.get("playback_link_verified")))
+    return (
+        evidence_count,
+        acr_votes,
+        has_acr_evidence,
+        confidence,
+        selection_score,
+        verified,
+        spotify_popularity,
+    )
+
+
+def collapse_same_title_autoplay_choices(
+    candidates: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Collapse close same-title artist alternatives to one Auto Play choice.
+
+    This is presentation/playback disambiguation only. It never rewrites
+    confidence or selection_score. Different-song alternatives remain available
+    for the existing first/second voice fallback when genuinely ambiguous.
+    """
+    if len(candidates) < 2:
+        return list(candidates)
+
+    remaining = list(candidates)
+    output: List[Dict[str, Any]] = []
+
+    while remaining:
+        anchor = remaining.pop(0)
+        anchor_score = float(
+            anchor.get("selection_score")
+            if anchor.get("selection_score") is not None
+            else (anchor.get("confidence") or 0.0)
+        )
+        group = [anchor]
+        keep: List[Dict[str, Any]] = []
+
+        for candidate in remaining:
+            candidate_score = float(
+                candidate.get("selection_score")
+                if candidate.get("selection_score") is not None
+                else (candidate.get("confidence") or 0.0)
+            )
+            same_base_title = _same_song_base_title(
+                str(anchor.get("title") or ""),
+                str(candidate.get("title") or ""),
+            ) >= 0.98
+            close_enough_to_compete = abs(anchor_score - candidate_score) <= 0.10
+
+            if same_base_title and close_enough_to_compete:
+                group.append(candidate)
+            else:
+                keep.append(candidate)
+
+        if len(group) == 1:
+            output.append(anchor)
+        else:
+            winner = max(group, key=_autoplay_same_title_priority)
+            output.append(winner)
+            print(
+                f"[AUTOPLAY SAME TITLE] collapsed={len(group)} "
+                f"title={strip_version_descriptors(str(winner.get('title') or ''))!r}"
+            )
+
+        remaining = keep
+
+    return output
+
+
 def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]:
     enriched = dict(candidate)
     original_title = str(enriched.get("title") or "").strip()
@@ -2206,6 +2581,15 @@ def recognize_audio(
                     "retryable": True,
                 }
 
+            # Recognition/ranking is finished. Rebuild playback links from each
+            # candidate's final title + artist. This does not change confidence,
+            # ranking, thresholds, ACR/Groq/Genius evidence, or result order.
+            for playback_candidate in results[:3]:
+                attach_direct_canonical_playback_links(
+                    playback_candidate,
+                    language,
+                )
+
             top = results[0]
             top_selection = float(
                 top.get("selection_score")
@@ -2320,6 +2704,26 @@ def recognize_audio(
                         "retryable": True,
                     }
 
+            # Auto Play should speak "first or second" only when the secondary
+            # candidate is itself playable as a verified canonical track. The top
+            # recognized result is never removed, and no score/order is changed.
+            client_results = results
+            if auto_play_requested and results:
+                # Every candidate offered to the hands-free chooser must be
+                # independently playable. If at least one verified direct link
+                # exists, omit unverified choices rather than asking the user to
+                # select a song that cannot then Auto Play. If none can be
+                # verified, preserve the top recognition result for display.
+                verified_results = [
+                    candidate
+                    for candidate in results
+                    if candidate.get("playback_link_verified")
+                ]
+                client_results = verified_results or [results[0]]
+                client_results = collapse_same_title_autoplay_choices(
+                    client_results
+                )
+
             # Backward-compatible top-level fields plus a scored candidate list.
             # recognition_meta intentionally contains no transcript/audio content.
             response: Dict[str, Any] = {
@@ -2334,7 +2738,7 @@ def recognize_audio(
                 "cover_url": top.get("cover_url", ""),
                 "source": top.get("source", ""),
                 "recognition_type": top.get("recognition_type", acr_kind),
-                "results": results[:3],
+                "results": client_results[:3],
                 "recognition_meta": {
                     "pipeline_version": "3.1",
                     "environment": environment,
