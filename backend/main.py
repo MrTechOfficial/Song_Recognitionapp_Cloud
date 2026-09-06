@@ -2364,3 +2364,4 @@ def recognize_audio(
                 status_code=500,
                 detail="Recognition server error",
             ) from exc
+
