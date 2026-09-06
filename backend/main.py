@@ -1750,7 +1750,10 @@ def _playback_context_is_derivative(
     return any(term in context for term in derivative_terms)
 
 
-@lru_cache(maxsize=512)
+_spotify_direct_link_cache_lock = threading.Lock()
+_spotify_direct_link_success_cache: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+
+
 def spotify_direct_canonical_lookup(
     title: str,
     artist: str,
@@ -1759,7 +1762,8 @@ def spotify_direct_canonical_lookup(
     """Resolve a direct canonical Spotify URL from recognized title + artist.
 
     This runs after recognition/ranking and never contributes to confidence or
-    selection scores.
+    selection scores. Only successful direct-link resolutions are cached so a
+    temporary Spotify/API failure cannot make later attempts reuse an empty result.
     """
     token = get_spotify_access_token()
     base_title = strip_version_descriptors(title).strip()
@@ -1768,6 +1772,12 @@ def spotify_direct_canonical_lookup(
         return {}
 
     market = LANGUAGE_TO_MARKET.get(language, LANGUAGE_TO_MARKET["en"])["spotify"]
+    cache_key = (base_title.casefold(), artist.casefold(), market)
+    with _spotify_direct_link_cache_lock:
+        cached = _spotify_direct_link_success_cache.get(cache_key)
+    if cached:
+        return dict(cached)
+
     queries = []
     if artist:
         queries.append(f'track:"{base_title}" artist:"{artist}"')
@@ -1779,15 +1789,20 @@ def spotify_direct_canonical_lookup(
         try:
             response = requests.get(
                 "https://api.spotify.com/v1/search",
-                params={"q": query, "type": "track", "limit": 20, "market": market},
+                params={"q": query, "type": "track", "limit": 10, "market": market},
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=(2.5, 5),
             )
             if response.status_code != 200:
+                body = (response.text or "").replace("\n", " ")[:500]
+                print(
+                    f"[SPOTIFY DIRECT LINK HTTP {response.status_code}] "
+                    f"query={query!r} market={market} body={body}"
+                )
                 continue
             tracks = response.json().get("tracks", {}).get("items", [])
         except Exception as exc:
-            print(f"[SPOTIFY DIRECT LINK ERROR] {type(exc).__name__}")
+            print(f"[SPOTIFY DIRECT LINK ERROR] {type(exc).__name__}: {exc}")
             continue
 
         for track in tracks:
@@ -1833,9 +1848,17 @@ def spotify_direct_canonical_lookup(
             break
 
     if not matches:
+        print(
+            f"[SPOTIFY DIRECT LINK NO VERIFIED MATCH] "
+            f"title={base_title!r} artist={artist!r} market={market}"
+        )
         return {}
+
     matches.sort(key=lambda pair: pair[0], reverse=True)
-    return matches[0][1]
+    result = matches[0][1]
+    with _spotify_direct_link_cache_lock:
+        _spotify_direct_link_success_cache[cache_key] = dict(result)
+    return result
 
 
 @lru_cache(maxsize=512)
