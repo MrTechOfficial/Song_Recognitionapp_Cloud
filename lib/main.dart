@@ -38,7 +38,7 @@ const MethodChannel _recztOfflineQueueChannel =
 
 /// Single source of truth for the Reczt App Store link. Previously this
 /// was redeclared locally in several functions — consolidated here.
-const String reczAppStoreUrl = "https://apps.apple.com/app/id123456789";
+const String reczAppStoreUrl = "https://apps.apple.com/app/id6809193545";
 
 // --------------------------------------------------------------------
 // ⚖️ LEGAL & PRIVACY
@@ -2604,7 +2604,7 @@ final Map<String, Map<String, String>> localizedStrings = {
   
     'waiting_for_voice': 'بانتظار صوتك...',
     'signal_good': 'الإشارة جيدة',
-    'sing_louder': 'غنِّ بصوت أعلى قليلًا',
+    'sing_louder': 'غنِّ بصوت أعلى قليلًا',
     'top_guesses_title': 'أفضل الاحتمالات',
     'top_guesses_subtitle': 'لست متأكدًا تمامًا. اضغط على الأغنية التي تقصدها.',
     'confidence': 'تطابق',
