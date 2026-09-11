@@ -4,6 +4,7 @@ import AppIntents
 import AVFoundation
 import Speech
 import UserNotifications
+import MusicKit
 
 class SiriBridge {
     static var channel: FlutterMethodChannel?
@@ -926,6 +927,330 @@ final class OfflineUploadManager: NSObject,
     }
 }
 
+
+@available(iOS 15.0, *)
+final class AppleMusicPlaylistBridge {
+    static let shared = AppleMusicPlaylistBridge()
+
+    private init() {}
+
+    func createPlaylist(
+        arguments: [String: Any],
+        result: @escaping FlutterResult
+    ) {
+        let name =
+            (arguments["name"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? "Reczt Music History"
+        let description =
+            (arguments["description"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard
+            let rawSongs = arguments["songs"] as? [[String: Any]],
+            !rawSongs.isEmpty
+        else {
+            result(
+                FlutterError(
+                    code: "APPLE_MUSIC_NO_SONGS",
+                    message: "No songs were selected.",
+                    details: nil
+                )
+            )
+            return
+        }
+
+        Task { @MainActor in
+            let authorization = await MusicAuthorization.request()
+
+            guard authorization == .authorized else {
+                result(
+                    FlutterError(
+                        code: "APPLE_MUSIC_PERMISSION_DENIED",
+                        message: "Apple Music access was not granted.",
+                        details: authorizationDescription(authorization)
+                    )
+                )
+                return
+            }
+
+            do {
+                var matchedSongs: [Song] = []
+                var failedCount = 0
+
+                for rawSong in rawSongs {
+                    if let song = try await resolveSong(from: rawSong) {
+                        matchedSongs.append(song)
+                    } else {
+                        failedCount += 1
+                    }
+                }
+
+                guard !matchedSongs.isEmpty else {
+                    result(
+                        FlutterError(
+                            code: "APPLE_MUSIC_NO_MATCHES",
+                            message: "None of the selected songs could be matched in Apple Music.",
+                            details: nil
+                        )
+                    )
+                    return
+                }
+
+                let playlist = try await MusicLibrary.shared.createPlaylist(
+                    name: name.isEmpty ? "Reczt Music History" : name,
+                    description: (description?.isEmpty == false) ? description : nil,
+                    authorDisplayName: nil,
+                    items: matchedSongs
+                )
+
+                result([
+                    "success": true,
+                    "playlistName": playlist.name,
+                    "addedCount": matchedSongs.count,
+                    "failedCount": failedCount
+                ])
+            } catch {
+                result(
+                    FlutterError(
+                        code: "APPLE_MUSIC_CREATE_FAILED",
+                        message: error.localizedDescription,
+                        details: String(describing: error)
+                    )
+                )
+            }
+        }
+    }
+
+    private func authorizationDescription(
+        _ status: MusicAuthorization.Status
+    ) -> String {
+        switch status {
+        case .authorized:
+            return "authorized"
+        case .denied:
+            return "denied"
+        case .restricted:
+            return "restricted"
+        case .notDetermined:
+            return "notDetermined"
+        @unknown default:
+            return "unknown"
+        }
+    }
+
+    private func resolveSong(from rawSong: [String: Any]) async throws -> Song? {
+        let title =
+            (rawSong["title"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        let artist =
+            (rawSong["artist"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        let appleMusicURL =
+            (rawSong["appleMusicUrl"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+
+        guard !title.isEmpty else {
+            return nil
+        }
+
+        // Prefer the exact Apple Music track ID already stored in Reczt history.
+        // This avoids accidentally adding a remix or live version when Reczt
+        // already knows the canonical Apple Music track URL.
+        if
+            let songID = appleMusicSongID(from: appleMusicURL),
+            let exactSong = try await songForCatalogID(songID)
+        {
+            return exactSong
+        }
+
+        // Older history entries may not have an Apple Music URL. Search the
+        // catalog and rank the results by title + artist while penalizing
+        // alternate versions that the history title did not ask for.
+        var request = MusicCatalogSearchRequest(
+            term: artist.isEmpty ? title : "\(title) \(artist)",
+            types: [Song.self]
+        )
+        request.limit = 8
+
+        let response = try await request.response()
+        let candidates = Array(response.songs)
+
+        guard !candidates.isEmpty else {
+            return nil
+        }
+
+        var bestSong: Song?
+        var bestScore = 0.0
+
+        for candidate in candidates {
+            let score = catalogMatchScore(
+                candidateTitle: candidate.title,
+                candidateArtist: candidate.artistName,
+                targetTitle: title,
+                targetArtist: artist
+            )
+
+            if score > bestScore {
+                bestScore = score
+                bestSong = candidate
+            }
+        }
+
+        return bestScore >= 0.58 ? bestSong : nil
+    }
+
+    private func songForCatalogID(_ rawID: String) async throws -> Song? {
+        let id = MusicItemID(rawID)
+        var request = MusicCatalogResourceRequest<Song>(
+            matching: \.id,
+            equalTo: id
+        )
+        request.limit = 1
+        let response = try await request.response()
+        return response.items.first
+    }
+
+    private func appleMusicSongID(from rawURL: String) -> String? {
+        guard
+            !rawURL.isEmpty,
+            let components = URLComponents(string: rawURL)
+        else {
+            return nil
+        }
+
+        // Album URLs commonly point to the exact song with ?i=<song id>.
+        if let queryID = components.queryItems?
+            .first(where: { $0.name == "i" })?
+            .value?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           isLikelyAppleMusicID(queryID)
+        {
+            return queryID
+        }
+
+        guard let url = components.url else {
+            return nil
+        }
+
+        // Direct song URLs commonly end with the catalog song ID.
+        for component in url.pathComponents.reversed() {
+            let value =
+                component.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isLikelyAppleMusicID(value) {
+                return value
+            }
+        }
+
+        return nil
+    }
+
+    private func isLikelyAppleMusicID(_ value: String) -> Bool {
+        guard value.count >= 5 else {
+            return false
+        }
+        return value.allSatisfy { $0.isNumber }
+    }
+
+    private func catalogMatchScore(
+        candidateTitle: String,
+        candidateArtist: String,
+        targetTitle: String,
+        targetArtist: String
+    ) -> Double {
+        let titleScore = textSimilarity(candidateTitle, targetTitle)
+        let artistScore = targetArtist.isEmpty
+            ? 1.0
+            : textSimilarity(candidateArtist, targetArtist)
+
+        var score = (0.74 * titleScore) + (0.26 * artistScore)
+
+        let candidateNormalized = normalizedCatalogText(candidateTitle)
+        let targetNormalized = normalizedCatalogText(targetTitle)
+
+        let alternateVersionSignals = [
+            "remix",
+            "club mix",
+            "radio edit",
+            "live",
+            "acoustic",
+            "sped up",
+            "slowed",
+            "nightcore",
+            "cover",
+            "karaoke",
+            "instrumental",
+            "remaster"
+        ]
+
+        for signal in alternateVersionSignals {
+            if candidateNormalized.contains(signal) &&
+                !targetNormalized.contains(signal)
+            {
+                score -= 0.18
+            }
+        }
+
+        return max(0.0, min(1.0, score))
+    }
+
+    private func textSimilarity(_ lhs: String, _ rhs: String) -> Double {
+        let a = normalizedCatalogText(lhs)
+        let b = normalizedCatalogText(rhs)
+
+        guard !a.isEmpty, !b.isEmpty else {
+            return 0.0
+        }
+
+        if a == b {
+            return 1.0
+        }
+
+        if a.contains(b) || b.contains(a) {
+            return 0.88
+        }
+
+        let left = Set(a.split(separator: " ").map(String.init))
+        let right = Set(b.split(separator: " ").map(String.init))
+
+        guard !left.isEmpty, !right.isEmpty else {
+            return 0.0
+        }
+
+        let intersection = left.intersection(right).count
+        let union = left.union(right).count
+
+        guard union > 0 else {
+            return 0.0
+        }
+
+        return Double(intersection) / Double(union)
+    }
+
+    private func normalizedCatalogText(_ value: String) -> String {
+        let folded = value
+            .folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: Locale.current
+            )
+            .lowercased()
+
+        let cleaned = folded.replacingOccurrences(
+            of: #"[^\p{L}\p{N}]+"#,
+            with: " ",
+            options: .regularExpression
+        )
+
+        return cleaned
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 @main
 @objc class AppDelegate: FlutterAppDelegate {
     override func application(
@@ -983,6 +1308,46 @@ final class OfflineUploadManager: NSObject,
                 }
 
                 VoiceChoiceBridge.shared.ask(
+                    arguments: args,
+                    result: result
+                )
+
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
+
+        let appleMusicChannel = FlutterMethodChannel(
+            name: "reczt/apple_music",
+            binaryMessenger: controller.binaryMessenger
+        )
+
+        appleMusicChannel.setMethodCallHandler { call, result in
+            switch call.method {
+            case "createPlaylist":
+                guard #available(iOS 15.0, *) else {
+                    result(
+                        FlutterError(
+                            code: "APPLE_MUSIC_UNSUPPORTED_IOS",
+                            message: "Apple Music playlist creation requires iOS 15 or later.",
+                            details: nil
+                        )
+                    )
+                    return
+                }
+
+                guard let args = call.arguments as? [String: Any] else {
+                    result(
+                        FlutterError(
+                            code: "APPLE_MUSIC_BAD_ARGUMENTS",
+                            message: "Invalid playlist request.",
+                            details: nil
+                        )
+                    )
+                    return
+                }
+
+                AppleMusicPlaylistBridge.shared.createPlaylist(
                     arguments: args,
                     result: result
                 )
