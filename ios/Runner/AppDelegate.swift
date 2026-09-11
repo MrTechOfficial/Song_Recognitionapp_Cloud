@@ -1007,6 +1007,7 @@ final class AppleMusicPlaylistBridge {
                 result([
                     "success": true,
                     "playlistName": playlist.name,
+                    "playlistUrl": playlist.url?.absoluteString ?? "",
                     "addedCount": matchedSongs.count,
                     "failedCount": failedCount
                 ])
@@ -1014,6 +1015,81 @@ final class AppleMusicPlaylistBridge {
                 result(
                     FlutterError(
                         code: "APPLE_MUSIC_CREATE_FAILED",
+                        message: error.localizedDescription,
+                        details: String(describing: error)
+                    )
+                )
+            }
+        }
+    }
+
+    func getPersonalRecommendation(
+        result: @escaping FlutterResult
+    ) {
+        Task { @MainActor in
+            let authorization = await MusicAuthorization.request()
+
+            guard authorization == .authorized else {
+                result([
+                    "success": false,
+                    "reason": "not_authorized",
+                    "authorization": authorizationDescription(authorization)
+                ])
+                return
+            }
+
+            guard #available(iOS 16.0, *) else {
+                result([
+                    "success": false,
+                    "reason": "unsupported_ios"
+                ])
+                return
+            }
+
+            do {
+                var request = MusicPersonalRecommendationsRequest()
+                request.limit = 12
+                let response = try await request.response()
+
+                for recommendation in response.recommendations {
+                    for playlist in recommendation.playlists {
+                        guard
+                            let url = playlist.url?.absoluteString,
+                            !url.trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            ).isEmpty
+                        else {
+                            continue
+                        }
+
+                        var payload: [String: Any] = [
+                            "success": true,
+                            "title": playlist.name,
+                            "url": url,
+                            "reason": recommendation.reason ?? ""
+                        ]
+
+                        if let nextRefreshDate =
+                            recommendation.nextRefreshDate
+                        {
+                            payload["nextRefreshDateMs"] = Int(
+                                nextRefreshDate.timeIntervalSince1970 * 1000
+                            )
+                        }
+
+                        result(payload)
+                        return
+                    }
+                }
+
+                result([
+                    "success": false,
+                    "reason": "no_playlist_recommendation"
+                ])
+            } catch {
+                result(
+                    FlutterError(
+                        code: "APPLE_MUSIC_RECOMMENDATION_FAILED",
                         message: error.localizedDescription,
                         details: String(describing: error)
                     )
@@ -1349,6 +1425,19 @@ final class AppleMusicPlaylistBridge {
 
                 AppleMusicPlaylistBridge.shared.createPlaylist(
                     arguments: args,
+                    result: result
+                )
+
+            case "getPersonalRecommendation":
+                guard #available(iOS 15.0, *) else {
+                    result([
+                        "success": false,
+                        "reason": "unsupported_ios"
+                    ])
+                    return
+                }
+
+                AppleMusicPlaylistBridge.shared.getPersonalRecommendation(
                     result: result
                 )
 
