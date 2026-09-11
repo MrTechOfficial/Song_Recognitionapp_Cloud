@@ -411,6 +411,11 @@ const MethodChannel _recztRichShareChannel = MethodChannel('reczt/rich_share');
 /// Native iOS bridge for hands-free candidate confirmation.
 const MethodChannel _recztVoiceChoiceChannel = MethodChannel('reczt/voice_choice');
 
+/// Native iOS MusicKit bridge used to create an Apple Music playlist from the
+/// songs the user has checked on the History page.
+const MethodChannel _recztAppleMusicChannel =
+    MethodChannel('reczt/apple_music');
+
 /// Captures a Flutter preview widget only for use as LPLinkMetadata artwork.
 /// The PNG is NOT shared as an attachment; on iOS it becomes the image inside
 /// the tappable rich-link card.
@@ -957,7 +962,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Match Found!',
     'mic_denied': 'Microphone permission denied.',
     'settings_title': 'App Preferences',
-    'pref_music_app': 'Preferred Music App (Please note: choosing Spotify will give you access to more in-depth recommendations of Spotify songs and playlists)',
+    'pref_music_app': 'Preferred Music App',
     'pref_lang': 'Preferred Language',
     'open_spotify': 'Open in Spotify App',
     'open_apple': 'Open in Apple Music',
@@ -1043,6 +1048,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Share Card',
     'create_spotify_playlist': 'Create Spotify Playlist',
     'create_apple_playlist': 'Create Apple Music Playlist',
+    'select_song_for_playlist': 'Select at least one song first.',
+    'apple_music_connecting': 'Connecting to Apple Music...',
+    'apple_playlist_creating': 'Creating Apple Music playlist...',
+    'apple_playlist_success': 'Success! Playlist created in Apple Music.',
+    'apple_playlist_partial': 'Playlist created in Apple Music: {added} added, {failed} not found.',
+    'apple_playlist_error': 'Could not create the Apple Music playlist. Check Apple Music access and try again.',
     'analytics_share_text': 'Check out my music analytics on Reczt!',
     'calculating': 'Calculating...',
     'connection_failed': 'Failed to connect',
@@ -1099,7 +1110,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': '¡Coincidencia encontrada!',
     'mic_denied': 'Permiso de micrófono denegado.',
     'settings_title': 'Preferencias de la aplicación',
-    'pref_music_app': 'Aplicación de música preferida (Nota: elegir Spotify te dará acceso a recomendaciones más detalladas de canciones y listas de reproducción de Spotify)',    'pref_lang': 'Idioma preferido',
+    'pref_music_app': 'Aplicación de música preferida',    'pref_lang': 'Idioma preferido',
     'open_spotify': 'Abrir en Spotify',
     'open_apple': 'Abrir en Apple Music',
     'history_title': 'Historial de búsqueda',
@@ -1183,6 +1194,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Tarjeta de compartir',
     'create_spotify_playlist': 'Crear lista en Spotify',
     'create_apple_playlist': 'Crear lista en Apple Music',
+    'select_song_for_playlist': 'Selecciona al menos una canción primero.',
+    'apple_music_connecting': 'Conectando con Apple Music...',
+    'apple_playlist_creating': 'Creando lista de reproducción en Apple Music...',
+    'apple_playlist_success': '¡Listo! Lista creada en Apple Music.',
+    'apple_playlist_partial': 'Lista creada en Apple Music: {added} añadidas, {failed} no encontradas.',
+    'apple_playlist_error': 'No se pudo crear la lista de Apple Music. Comprueba el acceso a Apple Music e inténtalo de nuevo.',
     'analytics_share_text': '¡Descubre mis estadísticas musicales en Reczt!',
     'calculating': 'Calculando...',
     'connection_failed': 'Error de conexión',
@@ -1238,7 +1255,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Correspondance trouvée !',
     'mic_denied': 'Autorisation du microphone refusée.',
     'settings_title': 'Préférences de l\'application',
-    'pref_music_app': 'Application de musique préférée (Remarque : choisir Spotify vous donnera accès à des recommandations plus détaillées de morceaux et playlists Spotify)',    'pref_lang': 'Langue préférée',
+    'pref_music_app': 'Application de musique préférée',    'pref_lang': 'Langue préférée',
     'open_spotify': 'Ouvrir dans Spotify',
     'open_apple': 'Ouvrir dans Apple Music',
     'history_title': 'Historique des recherches',
@@ -1322,6 +1339,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Carte de partage',
     'create_spotify_playlist': 'Créer une playlist Spotify',
     'create_apple_playlist': 'Créer une playlist Apple Music',
+    'select_song_for_playlist': 'Sélectionnez d’abord au moins un morceau.',
+    'apple_music_connecting': 'Connexion à Apple Music…',
+    'apple_playlist_creating': 'Création de la playlist Apple Music…',
+    'apple_playlist_success': 'Succès ! Playlist créée dans Apple Music.',
+    'apple_playlist_partial': 'Playlist créée dans Apple Music : {added} ajoutés, {failed} introuvables.',
+    'apple_playlist_error': 'Impossible de créer la playlist Apple Music. Vérifiez l’accès à Apple Music et réessayez.',
     'analytics_share_text': 'Découvrez mes statistiques musicales sur Reczt !',
     'calculating': 'Calcul en cours...',
     'connection_failed': 'Échec de la connexion',
@@ -1377,7 +1400,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Treffer gefunden!',
     'mic_denied': 'Mikrofonberechtigung verweigert.',
     'settings_title': 'App-Einstellungen',
-    'pref_music_app': 'Bevorzugte Musik-App (Hinweis: Wenn Sie Spotify wählen, erhalten Sie ausführlichere Empfehlungen für Spotify-Titel und -Playlists)',    'pref_lang': 'Bevorzugte Sprache',
+    'pref_music_app': 'Bevorzugte Musik-App',    'pref_lang': 'Bevorzugte Sprache',
     'open_spotify': 'In Spotify öffnen',
     'open_apple': 'In Apple Music öffnen',
     'history_title': 'Suchverlauf',
@@ -1461,6 +1484,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Teilen-Karte',
     'create_spotify_playlist': 'Spotify-Playlist erstellen',
     'create_apple_playlist': 'Apple Music-Playlist erstellen',
+    'select_song_for_playlist': 'Wähle zuerst mindestens einen Song aus.',
+    'apple_music_connecting': 'Verbindung mit Apple Music...',
+    'apple_playlist_creating': 'Apple Music-Playlist wird erstellt...',
+    'apple_playlist_success': 'Erfolg! Playlist in Apple Music erstellt.',
+    'apple_playlist_partial': 'Playlist in Apple Music erstellt: {added} hinzugefügt, {failed} nicht gefunden.',
+    'apple_playlist_error': 'Die Apple Music-Playlist konnte nicht erstellt werden. Prüfe den Apple Music-Zugriff und versuche es erneut.',
     'analytics_share_text': 'Sieh dir meine Musikstatistiken auf Reczt an!',
     'calculating': 'Wird berechnet...',
     'connection_failed': 'Verbindung fehlgeschlagen',
@@ -1516,7 +1545,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Brano trovato!',
     'mic_denied': 'Autorizzazione microfono negata.',
     'settings_title': 'Preferenze App',
-    'pref_music_app': 'App musicale preferita (Nota: scegliendo Spotify avrai accesso a consigli più approfonditi su brani e playlist di Spotify)',    'pref_lang': 'Lingua preferita',
+    'pref_music_app': 'App musicale preferita',    'pref_lang': 'Lingua preferita',
     'open_spotify': 'Apri su Spotify',
     'open_apple': 'Apri su Apple Music',
     'history_title': 'Cronologia ricerche',
@@ -1600,6 +1629,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Scheda di condivisione',
     'create_spotify_playlist': 'Crea playlist Spotify',
     'create_apple_playlist': 'Crea playlist Apple Music',
+    'select_song_for_playlist': 'Seleziona prima almeno un brano.',
+    'apple_music_connecting': 'Connessione ad Apple Music...',
+    'apple_playlist_creating': 'Creazione della playlist Apple Music...',
+    'apple_playlist_success': 'Operazione completata! Playlist creata in Apple Music.',
+    'apple_playlist_partial': 'Playlist creata in Apple Music: {added} aggiunti, {failed} non trovati.',
+    'apple_playlist_error': 'Impossibile creare la playlist Apple Music. Controlla l’accesso ad Apple Music e riprova.',
     'analytics_share_text': 'Guarda le mie statistiche musicali su Reczt!',
     'calculating': 'Calcolo in corso...',
     'connection_failed': 'Connessione non riuscita',
@@ -1655,7 +1690,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Música encontrada!',
     'mic_denied': 'Permissão do microfone negada.',
     'settings_title': 'Preferências do App',
-    'pref_music_app': 'Aplicativo de música preferido (Nota: escolher o Spotify dará acesso a recomendações mais detalhadas de músicas e playlists do Spotify)',    'pref_lang': 'Idioma preferido',
+    'pref_music_app': 'Aplicativo de música preferido',    'pref_lang': 'Idioma preferido',
     'open_spotify': 'Abrir no Spotify',
     'open_apple': 'Abrir no Apple Music',
     'history_title': 'Histórico de busca',
@@ -1739,6 +1774,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Cartão de compartilhamento',
     'create_spotify_playlist': 'Criar playlist no Spotify',
     'create_apple_playlist': 'Criar playlist no Apple Music',
+    'select_song_for_playlist': 'Selecione pelo menos uma música primeiro.',
+    'apple_music_connecting': 'Conectando ao Apple Music...',
+    'apple_playlist_creating': 'Criando playlist no Apple Music...',
+    'apple_playlist_success': 'Sucesso! Playlist criada no Apple Music.',
+    'apple_playlist_partial': 'Playlist criada no Apple Music: {added} adicionadas, {failed} não encontradas.',
+    'apple_playlist_error': 'Não foi possível criar a playlist no Apple Music. Verifique o acesso ao Apple Music e tente novamente.',
     'analytics_share_text': 'Confira minhas estatísticas musicais no Reczt!',
     'calculating': 'Calculando...',
     'connection_failed': 'Falha na conexão',
@@ -1794,7 +1835,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': '曲が見つかりました！',
     'mic_denied': 'マイクのアクセス許可が拒否されました。',
     'settings_title': 'アプリ設定',
-    'pref_music_app': 'お気に入りの音楽アプリ（注：Spotifyを選択すると、Spotifyの曲やプレイリストのより詳細なおすすめ機能を利用できます）',    'pref_lang': '優先言語',
+    'pref_music_app': 'お気に入りの音楽アプリ',    'pref_lang': '優先言語',
     'open_spotify': 'Spotifyで開く',
     'open_apple': 'Apple Musicで開く',
     'history_title': '検索履歴',
@@ -1879,6 +1920,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'シェアカード',
     'create_spotify_playlist': 'Spotifyプレイリストを作成',
     'create_apple_playlist': 'Apple Musicプレイリストを作成',
+    'select_song_for_playlist': 'まず1曲以上選択してください。',
+    'apple_music_connecting': 'Apple Musicに接続しています...',
+    'apple_playlist_creating': 'Apple Musicプレイリストを作成しています...',
+    'apple_playlist_success': '成功しました！Apple Musicにプレイリストを作成しました。',
+    'apple_playlist_partial': 'Apple Musicにプレイリストを作成しました：{added}曲を追加、{failed}曲は見つかりませんでした。',
+    'apple_playlist_error': 'Apple Musicプレイリストを作成できませんでした。Apple Musicへのアクセスを確認して、もう一度お試しください。',
     'analytics_share_text': 'Recztで自分の音楽統計をチェックしよう！',
     'calculating': '計算中...',
     'connection_failed': '接続に失敗しました',
@@ -1934,7 +1981,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': '곡을 찾았습니다!',
     'mic_denied': '마이크 권한이 거부되었습니다.',
     'settings_title': '앱 설정',
-    'pref_music_app': '선호하는 음악 앱 (참고: Spotify를 선택하면 Spotify 노래 및 재생목록에 대한 더 심도 있는 추천을 받을 수 있습니다)',    'pref_lang': '선호하는 언어',
+    'pref_music_app': '선호하는 음악 앱',    'pref_lang': '선호하는 언어',
     'open_spotify': 'Spotify에서 열기',
     'open_apple': 'Apple Music에서 열기',
     'history_title': '검색 기록',
@@ -2019,6 +2066,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': '공유 카드',
     'create_spotify_playlist': 'Spotify 재생목록 만들기',
     'create_apple_playlist': 'Apple Music 재생목록 만들기',
+    'select_song_for_playlist': '먼저 노래를 하나 이상 선택하세요.',
+    'apple_music_connecting': 'Apple Music에 연결 중...',
+    'apple_playlist_creating': 'Apple Music 재생목록을 만드는 중...',
+    'apple_playlist_success': '성공! Apple Music에 재생목록이 생성되었습니다.',
+    'apple_playlist_partial': 'Apple Music에 재생목록이 생성되었습니다: {added}곡 추가, {failed}곡 찾지 못함.',
+    'apple_playlist_error': 'Apple Music 재생목록을 만들 수 없습니다. Apple Music 접근 권한을 확인하고 다시 시도하세요.',
     'analytics_share_text': 'Reczt에서 내 음악 분석을 확인해보세요!',
     'calculating': '계산 중...',
     'connection_failed': '연결 실패',
@@ -2074,7 +2127,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': '找到歌曲！',
     'mic_denied': '麦克风权限被拒绝。',
     'settings_title': '应用设置',
-    'pref_music_app': '首选音乐应用（注：选择 Spotify 将为您提供关于 Spotify 歌曲和歌单的更深入推荐）',    'pref_lang': '首选语言',
+    'pref_music_app': '首选音乐应用',    'pref_lang': '首选语言',
     'open_spotify': '在 Spotify 中打开',
     'open_apple': '在 Apple Music 中打开',
     'history_title': '搜索历史',
@@ -2159,6 +2212,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': '分享卡片',
     'create_spotify_playlist': '创建 Spotify 歌单',
     'create_apple_playlist': '创建 Apple Music 歌单',
+    'select_song_for_playlist': '请先至少选择一首歌曲。',
+    'apple_music_connecting': '正在连接 Apple Music...',
+    'apple_playlist_creating': '正在创建 Apple Music 歌单...',
+    'apple_playlist_success': '成功！已在 Apple Music 中创建歌单。',
+    'apple_playlist_partial': '已在 Apple Music 中创建歌单：添加 {added} 首，未找到 {failed} 首。',
+    'apple_playlist_error': '无法创建 Apple Music 歌单。请检查 Apple Music 访问权限后重试。',
     'analytics_share_text': '快来看看我在 Reczt 上的音乐数据吧！',
     'calculating': '计算中...',
     'connection_failed': '连接失败',
@@ -2214,7 +2273,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'गाना मिल गया!',
     'mic_denied': 'माइक अनुमति अस्वीकृत।',
     'settings_title': 'ऐप प्राथमिकताएं',
-    'pref_music_app': 'पसंदीदा संगीत ऐप (कृपया ध्यान दें: Spotify चुनने से आपको Spotify गानों और प्लेलिस्ट की अधिक विस्तृत सिफारिशें मिलेंगी)',    'pref_lang': 'पसंदीदा भाषा',
+    'pref_music_app': 'पसंदीदा संगीत ऐप',    'pref_lang': 'पसंदीदा भाषा',
     'open_spotify': 'Spotify में खोलें',
     'open_apple': 'Apple Music में खोलें',
     'history_title': 'खोज इतिहास',
@@ -2299,6 +2358,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'शेयर कार्ड',
     'create_spotify_playlist': 'Spotify प्लेलिस्ट बनाएं',
     'create_apple_playlist': 'Apple Music प्लेलिस्ट बनाएं',
+    'select_song_for_playlist': 'पहले कम से कम एक गाना चुनें।',
+    'apple_music_connecting': 'Apple Music से कनेक्ट हो रहा है...',
+    'apple_playlist_creating': 'Apple Music प्लेलिस्ट बनाई जा रही है...',
+    'apple_playlist_success': 'सफल! Apple Music में प्लेलिस्ट बन गई।',
+    'apple_playlist_partial': 'Apple Music में प्लेलिस्ट बन गई: {added} जोड़े गए, {failed} नहीं मिले।',
+    'apple_playlist_error': 'Apple Music प्लेलिस्ट नहीं बन सकी। Apple Music की अनुमति जाँचें और फिर कोशिश करें।',
     'analytics_share_text': 'Reczt पर मेरे संगीत आँकड़े देखें!',
     'calculating': 'गणना हो रही है...',
     'connection_failed': 'कनेक्ट करने में विफल',
@@ -2354,7 +2419,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Песня найдена!',
     'mic_denied': 'Доступ к микрофону запрещен.',
     'settings_title': 'Настройки приложения',
-    'pref_music_app': 'Предпочитаемое музыкальное приложение (Примечание: выбор Spotify даст доступ к более подробным рекомендациям треков и плейлистов Spotify)',    'pref_lang': 'Предпочитаемый язык',
+    'pref_music_app': 'Предпочитаемое музыкальное приложение',    'pref_lang': 'Предпочитаемый язык',
     'open_spotify': 'Открыть в Spotify',
     'open_apple': 'Открыть в Apple Music',
     'history_title': 'История поиска',
@@ -2439,6 +2504,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Карточка шеринга',
     'create_spotify_playlist': 'Создать плейлист Spotify',
     'create_apple_playlist': 'Создать плейлист Apple Music',
+    'select_song_for_playlist': 'Сначала выберите хотя бы одну песню.',
+    'apple_music_connecting': 'Подключение к Apple Music...',
+    'apple_playlist_creating': 'Создание плейлиста Apple Music...',
+    'apple_playlist_success': 'Готово! Плейлист создан в Apple Music.',
+    'apple_playlist_partial': 'Плейлист создан в Apple Music: добавлено {added}, не найдено {failed}.',
+    'apple_playlist_error': 'Не удалось создать плейлист Apple Music. Проверьте доступ к Apple Music и повторите попытку.',
     'analytics_share_text': 'Посмотри мою музыкальную статистику в Reczt!',
     'calculating': 'Вычисление...',
     'connection_failed': 'Не удалось подключиться',
@@ -2494,7 +2565,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Eşleşme Bulundu!',
     'mic_denied': 'Mikrofon izni reddedildi.',
     'settings_title': 'Uygulama Tercihleri',
-    'pref_music_app': 'Tercih Edilen Müzik Uygulaması (Lütfen unutmayın: Spotify\'ı seçmek, Spotify şarkıları ve çalma listeleri hakkında daha ayrıntılı önerilere erişmenizi sağlar)',    'pref_lang': 'Tercih Edilen Dil',
+    'pref_music_app': 'Tercih Edilen Müzik Uygulaması',    'pref_lang': 'Tercih Edilen Dil',
     'open_spotify': 'Spotify\'da Aç',
     'open_apple': 'Apple Music\'te Aç',
     'history_title': 'Arama Geçmişi',
@@ -2579,6 +2650,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Paylaşım Kartı',
     'create_spotify_playlist': 'Spotify Çalma Listesi Oluştur',
     'create_apple_playlist': 'Apple Music Çalma Listesi Oluştur',
+    'select_song_for_playlist': 'Önce en az bir şarkı seçin.',
+    'apple_music_connecting': 'Apple Music’e bağlanılıyor...',
+    'apple_playlist_creating': 'Apple Music çalma listesi oluşturuluyor...',
+    'apple_playlist_success': 'Başarılı! Apple Music’te çalma listesi oluşturuldu.',
+    'apple_playlist_partial': 'Apple Music’te çalma listesi oluşturuldu: {added} eklendi, {failed} bulunamadı.',
+    'apple_playlist_error': 'Apple Music çalma listesi oluşturulamadı. Apple Music erişimini kontrol edip tekrar deneyin.',
     'analytics_share_text': 'Reczt\'teki müzik istatistiklerime göz at!',
     'calculating': 'Hesaplanıyor...',
     'connection_failed': 'Bağlantı başarısız oldu',
@@ -2634,7 +2711,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'تم العثور على الأغنية!',
     'mic_denied': 'تم رفض إذن الميكروفون.',
     'settings_title': 'تفضيلات التطبيق',
-    'pref_music_app': 'تطبيق الموسيقى المفضل (يرجى الملاحظة: اختيار Spotify سيمنحك إمكانية الوصول إلى توصيات أكثر تعمقًا لأغاني وقوائم تشغيل Spotify)',    'pref_lang': 'اللغة المفضلة',
+    'pref_music_app': 'تطبيق الموسيقى المفضل',    'pref_lang': 'اللغة المفضلة',
     'open_spotify': 'فتح في Spotify',
     'open_apple': 'فتح في Apple Music',
     'history_title': 'سجل البحث',
@@ -2719,6 +2796,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'بطاقة المشاركة',
     'create_spotify_playlist': 'إنشاء قائمة تشغيل Spotify',
     'create_apple_playlist': 'إنشاء قائمة تشغيل Apple Music',
+    'select_song_for_playlist': 'اختر أغنية واحدة على الأقل أولاً.',
+    'apple_music_connecting': 'جارٍ الاتصال بـ Apple Music...',
+    'apple_playlist_creating': 'جارٍ إنشاء قائمة تشغيل Apple Music...',
+    'apple_playlist_success': 'تم بنجاح! تم إنشاء قائمة التشغيل في Apple Music.',
+    'apple_playlist_partial': 'تم إنشاء قائمة التشغيل في Apple Music: تمت إضافة {added}، وتعذر العثور على {failed}.',
+    'apple_playlist_error': 'تعذر إنشاء قائمة تشغيل Apple Music. تحقق من صلاحية الوصول إلى Apple Music وحاول مرة أخرى.',
     'analytics_share_text': 'شاهد إحصائيات موسيقاي على Reczt!',
     'calculating': 'جارٍ الحساب...',
     'connection_failed': 'فشل الاتصال',
@@ -2774,7 +2857,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Nummer Gevonden!',
     'mic_denied': 'Microfoontoegang geweigerd.',
     'settings_title': 'App Voorkeuren',
-    'pref_music_app': 'Voorkeursmuziek-app (Let op: het kiezen van Spotify geeft je toegang tot diepgaandere aanbevelingen voor Spotify-nummers en -afspeellijsten)',    'pref_lang': 'Voorkeurstaal',
+    'pref_music_app': 'Voorkeursmuziek-app',    'pref_lang': 'Voorkeurstaal',
     'open_spotify': 'Openen in Spotify',
     'open_apple': 'Openen in Apple Music',
     'history_title': 'Zoekgeschiedenis',
@@ -2859,6 +2942,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Deelkaart',
     'create_spotify_playlist': 'Spotify-afspeellijst maken',
     'create_apple_playlist': 'Apple Music-afspeellijst maken',
+    'select_song_for_playlist': 'Selecteer eerst minstens één nummer.',
+    'apple_music_connecting': 'Verbinding maken met Apple Music...',
+    'apple_playlist_creating': 'Apple Music-afspeellijst maken...',
+    'apple_playlist_success': 'Gelukt! Afspeellijst aangemaakt in Apple Music.',
+    'apple_playlist_partial': 'Afspeellijst aangemaakt in Apple Music: {added} toegevoegd, {failed} niet gevonden.',
+    'apple_playlist_error': 'De Apple Music-afspeellijst kon niet worden gemaakt. Controleer de toegang tot Apple Music en probeer het opnieuw.',
     'analytics_share_text': 'Bekijk mijn muziekstatistieken op Reczt!',
     'calculating': 'Berekenen...',
     'connection_failed': 'Verbinding mislukt',
@@ -2914,7 +3003,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'match_found': 'Znaleziono utwór!',
     'mic_denied': 'Odmowa dostępu do mikrofonu.',
     'settings_title': 'Preferencje Aplikacji',
-    'pref_music_app': 'Preferowana aplikacja muzyczna (Uwaga: wybór Spotify zapewni dostęp do bardziej szczegółowych rekomendacji utworów i playlist Spotify)',    'pref_lang': 'Preferowany język',
+    'pref_music_app': 'Preferowana aplikacja muzyczna',    'pref_lang': 'Preferowany język',
     'open_spotify': 'Otwórz w Spotify',
     'open_apple': 'Otwórz w Apple Music',
     'history_title': 'Historia wyszukiwania',
@@ -2999,6 +3088,12 @@ final Map<String, Map<String, String>> localizedStrings = {
     'share_card': 'Karta udostępniania',
     'create_spotify_playlist': 'Utwórz playlistę Spotify',
     'create_apple_playlist': 'Utwórz playlistę Apple Music',
+    'select_song_for_playlist': 'Najpierw wybierz co najmniej jeden utwór.',
+    'apple_music_connecting': 'Łączenie z Apple Music...',
+    'apple_playlist_creating': 'Tworzenie playlisty Apple Music...',
+    'apple_playlist_success': 'Gotowe! Playlista została utworzona w Apple Music.',
+    'apple_playlist_partial': 'Playlista utworzona w Apple Music: dodano {added}, nie znaleziono {failed}.',
+    'apple_playlist_error': 'Nie udało się utworzyć playlisty Apple Music. Sprawdź dostęp do Apple Music i spróbuj ponownie.',
     'analytics_share_text': 'Sprawdź moje statystyki muzyczne w Reczt!',
     'calculating': 'Obliczanie...',
     'connection_failed': 'Nie udało się połączyć',
@@ -6520,6 +6615,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         'saved_curated_playlist_spotify_url',
         'saved_curated_playlist_apple_title',
         'saved_curated_playlist_apple_url',
+        'saved_curated_playlist_apple_personalized',
+        'saved_curated_playlist_apple_timestamp',
       };
 
       final keysToRemove = prefs.getKeys().where(
@@ -7044,6 +7141,43 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     return '${title.substring(0, 23).trim()}…';
   }
 
+  Future<Map<String, String>?> _fetchAppleMusicPersonalRecommendation() async {
+    if (kIsWeb || !Platform.isIOS) return null;
+
+    try {
+      final dynamic rawResult =
+          await _recztAppleMusicChannel.invokeMethod<dynamic>(
+        'getPersonalRecommendation',
+      );
+
+      if (rawResult is! Map) return null;
+      final result = Map<String, dynamic>.from(rawResult);
+      if (result['success'] != true) return null;
+
+      final title = result['title']?.toString().trim() ?? '';
+      final url = result['url']?.toString().trim() ?? '';
+      final reason = result['reason']?.toString().trim() ?? '';
+
+      if (title.isEmpty || url.isEmpty) return null;
+
+      return <String, String>{
+        'title': title,
+        'url': url,
+        'reason': reason,
+      };
+    } on MissingPluginException catch (e) {
+      debugPrint('Apple Music recommendation bridge is unavailable: $e');
+    } on PlatformException catch (e) {
+      debugPrint(
+        'Apple Music recommendations failed (${e.code}): ${e.message}',
+      );
+    } catch (e) {
+      debugPrint('Apple Music recommendations failed: $e');
+    }
+
+    return null;
+  }
+
   Future<void> _handleBiWeeklyPlaylistRotation(SharedPreferences prefs) async {
     const int fourteenDaysInMs = 14 * 24 * 60 * 60 * 1000;
     final int now = DateTime.now().millisecondsSinceEpoch;
@@ -7065,75 +7199,132 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     String? savedAppleUrl =
         prefs.getString('saved_curated_playlist_apple_url');
 
-    // A recommendation refreshes every two weeks, but it also refreshes
-    // immediately when the user's dominant emotion/genre profile changes.
-    // This keeps the box genuinely responsive to what the user has sung.
-    final bool missingDirectLinks =
-        savedSpotifyTitle == null ||
-        savedAppleTitle == null ||
-        savedSpotifyUrl == null ||
-        savedAppleUrl == null;
+    bool savedApplePersonalized =
+        prefs.getBool('saved_curated_playlist_apple_personalized') ?? false;
+    int? appleRecommendationTimestamp =
+        prefs.getInt('saved_curated_playlist_apple_timestamp');
+
+    final bool missingSpotify =
+        savedSpotifyTitle == null || savedSpotifyUrl == null;
+    final bool missingApple =
+        savedAppleTitle == null || savedAppleUrl == null;
     final bool profileChanged = savedSignature != profileSignature;
     final bool rotationExpired = lastGeneratedTime == null ||
         now - lastGeneratedTime > fourteenDaysInMs;
 
-    if (missingDirectLinks || profileChanged || rotationExpired) {
+    // Spotify keeps Reczt's existing profile-driven Vibe Match behavior.
+    if (missingSpotify || profileChanged || rotationExpired) {
       savedSpotifyTitle = _compactPlaylistTitle(
         freshPlaylistData['spotify_title'] ?? 'Happy Hits!',
       );
+      savedSpotifyUrl = freshPlaylistData['spotify_url'] ?? '';
+    }
+
+    // Apple Music can use MusicKit's personal recommendations when authorized.
+    // Those recommendations are based on the user's Apple Music library and
+    // listening history. If MusicKit cannot return one, Reczt falls back to the
+    // same emotion/genre profile-driven Apple Music playlist it used before.
+    final bool appleRecommendationExpired =
+        appleRecommendationTimestamp == null ||
+        now - appleRecommendationTimestamp > fourteenDaysInMs;
+
+    if (_preferredApp == 'apple_music' &&
+        (missingApple || appleRecommendationExpired)) {
+      final personalRecommendation =
+          await _fetchAppleMusicPersonalRecommendation();
+
+      if (personalRecommendation != null) {
+        savedAppleTitle = _compactPlaylistTitle(
+          personalRecommendation['title'] ?? 'Apple Music',
+        );
+        savedAppleUrl = personalRecommendation['url'] ?? '';
+        savedApplePersonalized = true;
+      } else {
+        savedAppleTitle = _compactPlaylistTitle(
+          freshPlaylistData['apple_title'] ?? 'Feeling Happy',
+        );
+        savedAppleUrl = freshPlaylistData['apple_url'] ?? '';
+        savedApplePersonalized = false;
+      }
+
+      appleRecommendationTimestamp = now;
+      await prefs.setInt(
+        'saved_curated_playlist_apple_timestamp',
+        appleRecommendationTimestamp,
+      );
+      await prefs.setBool(
+        'saved_curated_playlist_apple_personalized',
+        savedApplePersonalized,
+      );
+    } else if (missingApple ||
+        (!savedApplePersonalized && profileChanged)) {
+      // Keep a profile-driven fallback current even before Apple Music access
+      // is granted. A personalized Apple recommendation is never overwritten
+      // merely because the Reczt singing profile changes.
       savedAppleTitle = _compactPlaylistTitle(
         freshPlaylistData['apple_title'] ?? 'Feeling Happy',
       );
-      savedSpotifyUrl = freshPlaylistData['spotify_url'] ?? '';
       savedAppleUrl = freshPlaylistData['apple_url'] ?? '';
-      savedSignature = profileSignature;
-      lastGeneratedTime = now;
-
-      await prefs.setInt('playlist_timestamp', now);
-      await prefs.setString(
-        'saved_curated_playlist_profile',
-        savedSignature,
-      );
-      await prefs.setString(
-        'saved_curated_playlist_spotify_title',
-        savedSpotifyTitle,
-      );
-      await prefs.setString(
-        'saved_curated_playlist_apple_title',
-        savedAppleTitle,
-      );
-      await prefs.setString(
-        'saved_curated_playlist_spotify_url',
-        savedSpotifyUrl,
-      );
-      await prefs.setString(
-        'saved_curated_playlist_apple_url',
-        savedAppleUrl,
-      );
-
-      // Keep the legacy key populated so users upgrading from older builds do
-      // not lose state if they later run an older version of Reczt.
-      await prefs.setString(
-        'saved_curated_playlist',
-        _preferredApp == 'apple_music'
-            ? savedAppleTitle
-            : savedSpotifyTitle,
+      savedApplePersonalized = false;
+      await prefs.setBool(
+        'saved_curated_playlist_apple_personalized',
+        false,
       );
     }
 
+    savedSignature = profileSignature;
+
+    if (lastGeneratedTime == null || profileChanged || rotationExpired) {
+      lastGeneratedTime = now;
+      await prefs.setInt('playlist_timestamp', now);
+    }
+
+    await prefs.setString(
+      'saved_curated_playlist_profile',
+      savedSignature,
+    );
+    await prefs.setString(
+      'saved_curated_playlist_spotify_title',
+      savedSpotifyTitle ?? '',
+    );
+    await prefs.setString(
+      'saved_curated_playlist_apple_title',
+      savedAppleTitle ?? '',
+    );
+    await prefs.setString(
+      'saved_curated_playlist_spotify_url',
+      savedSpotifyUrl ?? '',
+    );
+    await prefs.setString(
+      'saved_curated_playlist_apple_url',
+      savedAppleUrl ?? '',
+    );
+
+    // Keep the legacy key populated for users upgrading/downgrading builds.
+    await prefs.setString(
+      'saved_curated_playlist',
+      _preferredApp == 'apple_music'
+          ? (savedAppleTitle ?? '')
+          : (savedSpotifyTitle ?? ''),
+    );
+
     final String selectedTitle = _compactPlaylistTitle(
       _preferredApp == 'apple_music'
-          ? savedAppleTitle
-          : savedSpotifyTitle,
+          ? (savedAppleTitle ?? 'Feeling Happy')
+          : (savedSpotifyTitle ?? 'Happy Hits!'),
     );
     final String selectedUrl = _preferredApp == 'apple_music'
-        ? savedAppleUrl
-        : savedSpotifyUrl;
+        ? (savedAppleUrl ?? '')
+        : (savedSpotifyUrl ?? '');
 
-    final int safeLastGeneratedTime = lastGeneratedTime;
+    final int safeLastGeneratedTime = lastGeneratedTime ?? now;
+    final int selectedTimestamp = _preferredApp == 'apple_music'
+        ? (appleRecommendationTimestamp ?? safeLastGeneratedTime)
+        : safeLastGeneratedTime;
+
     final int timeLeft = max(
       0,
-      fourteenDaysInMs - (now - safeLastGeneratedTime),
+      fourteenDaysInMs - (now - selectedTimestamp),
     ).toInt();
     final int daysLeft = timeLeft ~/ (24 * 60 * 60 * 1000);
     final int hoursLeft =
@@ -8838,6 +9029,21 @@ String? _parseAlbumCover(String rawItem) {
   return null;
 }
 
+String? _parseAppleMusicUrl(String rawItem) {
+  if (rawItem.trimLeft().startsWith('{')) {
+    try {
+      final parsed = jsonDecode(rawItem);
+      if (parsed is Map) {
+        final value =
+            parsed['appleMusicUrl'] ?? parsed['apple_music_url'];
+        final url = value?.toString().trim() ?? '';
+        if (url.isNotEmpty) return url;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
 bool _parseFoundOffline(String rawItem) {
   if (rawItem.startsWith('{')) {
     try {
@@ -8968,27 +9174,107 @@ Future<void> _togglePlayClip(String? path) async {
   }
 
   Future<void> _exportToAppleMusic() async {
-    final selectedTitles = _selectedItems
+    final selectedSongs = _selectedItems
         .map((item) {
-          final title = _parseSongTitle(item);
-          final artist = _parseArtist(item);
-          return artist.isEmpty ? title : '$title $artist';
+          final title = _parseSongTitle(item).trim();
+          final artist = _parseArtist(item).trim();
+          return <String, String>{
+            'title': title,
+            'artist': artist,
+            'appleMusicUrl': _parseAppleMusicUrl(item) ?? '',
+          };
         })
-        .toList();
+        .where((song) => song['title']!.isNotEmpty)
+        .toList(growable: false);
 
-    if (selectedTitles.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
 
-    final primaryTitle = selectedTitles.first;
-    final encodedQuery = Uri.encodeComponent(primaryTitle);
-    final Uri appleUrl = Uri.parse("https://music.apple.com/us/search?term=$encodedQuery");
-
-    if (await canLaunchUrl(appleUrl)) {
-      await launchUrl(appleUrl, mode: LaunchMode.externalApplication);
+    if (selectedSongs.isEmpty) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(t('select_song_for_playlist'))),
+      );
+      return;
     }
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${t('opening_apple_search')} "$primaryTitle"')),
+    if (kIsWeb || !Platform.isIOS) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(t('apple_playlist_error'))),
+      );
+      return;
+    }
+
+    messenger.showSnackBar(
+      SnackBar(content: Text(t('apple_music_connecting'))),
+    );
+
+    try {
+      final dynamic rawResult =
+          await _recztAppleMusicChannel.invokeMethod<dynamic>(
+        'createPlaylist',
+        <String, dynamic>{
+          'name': t('playlist_name'),
+          'description': t('playlist_desc'),
+          'songs': selectedSongs,
+        },
+      );
+
+      final resultMap = rawResult is Map
+          ? Map<String, dynamic>.from(rawResult)
+          : <String, dynamic>{};
+
+      final bool success = resultMap['success'] == true;
+      final int addedCount =
+          (resultMap['addedCount'] as num?)?.toInt() ?? 0;
+      final int failedCount =
+          (resultMap['failedCount'] as num?)?.toInt() ?? 0;
+      final String playlistUrl =
+          resultMap['playlistUrl']?.toString().trim() ?? '';
+
+      if (!mounted) return;
+
+      if (!success) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(t('apple_playlist_error'))),
+        );
+        return;
+      }
+
+      if (failedCount > 0) {
+        final message = t('apple_playlist_partial')
+            .replaceAll('{added}', addedCount.toString())
+            .replaceAll('{failed}', failedCount.toString());
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      } else {
+        messenger.showSnackBar(
+          SnackBar(content: Text(t('apple_playlist_success'))),
+        );
+      }
+
+      if (playlistUrl.isNotEmpty) {
+        final uri = Uri.tryParse(playlistUrl);
+        if (uri != null && await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      }
+    } on MissingPluginException catch (e) {
+      debugPrint('Apple Music playlist bridge is unavailable: $e');
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(t('apple_playlist_error'))),
+      );
+    } on PlatformException catch (e) {
+      debugPrint(
+        'Apple Music playlist creation failed (${e.code}): ${e.message}',
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(t('apple_playlist_error'))),
+      );
+    } catch (e) {
+      debugPrint('Apple Music playlist creation failed: $e');
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(t('apple_playlist_error'))),
       );
     }
   }
