@@ -928,7 +928,7 @@ final class OfflineUploadManager: NSObject,
 }
 
 
-@available(iOS 15.0, *)
+@available(iOS 16.0, *)
 final class AppleMusicPlaylistBridge {
     static let shared = AppleMusicPlaylistBridge()
 
@@ -1401,11 +1401,11 @@ final class AppleMusicPlaylistBridge {
         appleMusicChannel.setMethodCallHandler { call, result in
             switch call.method {
             case "createPlaylist":
-                guard #available(iOS 15.0, *) else {
+                guard #available(iOS 16.0, *) else {
                     result(
                         FlutterError(
                             code: "APPLE_MUSIC_UNSUPPORTED_IOS",
-                            message: "Apple Music playlist creation requires iOS 15 or later.",
+                            message: "Apple Music playlist creation requires iOS 16 or later.",
                             details: nil
                         )
                     )
@@ -1429,7 +1429,7 @@ final class AppleMusicPlaylistBridge {
                 )
 
             case "getPersonalRecommendation":
-                guard #available(iOS 15.0, *) else {
+                guard #available(iOS 16.0, *) else {
                     result([
                         "success": false,
                         "reason": "unsupported_ios"
