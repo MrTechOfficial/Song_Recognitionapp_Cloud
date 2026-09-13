@@ -3994,10 +3994,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     });
 
     if (!kIsWeb) {
-      // One MethodChannel handler owns every Siri entry point. Registering a
-      // second handler on the same channel replaces the first one.
+      // One MethodChannel handler owns every external iOS recognition entry
+      // point, including Siri and the Control Center button.
       unawaited(_initSiriListener());
-      unawaited(_checkColdStartSiri());
     }
   }
   
@@ -4018,13 +4017,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
 
   Future<void> _checkColdStartSiri() async {
-    final prefs = await SharedPreferences.getInstance();
-    final bool launchedFromSiri = prefs.getBool('launchedFromSiri') ?? false;
-
-    if (launchedFromSiri) {
-      await prefs.setBool('launchedFromSiri', false);
-      unawaited(_checkAndStartSiriRecording());
-    }
+    // Native iOS owns and clears the pending-recognition launch flag. Keeping
+    // the check in one place avoids clearing the same UserDefaults value in
+    // Dart before the native bridge has had a chance to read it.
+    await _checkAndStartSiriRecording();
   }
 
   Future<void> _checkAndStartSiriRecording() async {
@@ -4598,20 +4594,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       }
     });
 
-    try {
-      final url = await _siriChannel.invokeMethod<String>('getInitialUrl');
-      if (url != null && url.isNotEmpty) {
-        _triggerAutoRecordingFromSiri();
-        return;
-      }
-      final triggered =
-          await _siriChannel.invokeMethod<bool>('checkSiriTrigger');
-      if (triggered == true) {
-        _triggerAutoRecordingFromSiri();
-      }
-    } catch (e) {
-      debugPrint('Siri listener unavailable: $e');
-    }
+    // Catch a pending cold-launch trigger after the Flutter channel is ready.
+    // This same path works for both Siri and the Control Center button.
+    await _checkColdStartSiri();
   }
 
   void _triggerAutoRecordingFromSiri() {
