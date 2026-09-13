@@ -1344,6 +1344,14 @@ final class AppleMusicPlaylistBridge {
 
         SiriBridge.channel = siriChannel
 
+        NotificationCenter.default.addObserver(
+            forName: .recztControlIdentifySong,
+            object: nil,
+            queue: .main
+        ) { _ in
+            SiriBridge.sendSiriSignal()
+        }
+
         siriChannel.setMethodCallHandler { call, result in
             switch call.method {
             case "checkSiriTrigger":
