@@ -5,6 +5,7 @@ import AVFoundation
 import Speech
 import UserNotifications
 import MusicKit
+import StoreKit
 
 class SiriBridge {
     static var channel: FlutterMethodChannel?
@@ -1440,6 +1441,46 @@ final class AppleMusicPlaylistBridge {
                 AppleMusicPlaylistBridge.shared.getPersonalRecommendation(
                     result: result
                 )
+
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
+
+        let storeReviewChannel = FlutterMethodChannel(
+            name: "reczt/store_review",
+            binaryMessenger: controller.binaryMessenger
+        )
+
+        storeReviewChannel.setMethodCallHandler { call, result in
+            switch call.method {
+            case "requestReview":
+                DispatchQueue.main.async {
+                    guard
+                        let scene = UIApplication.shared.connectedScenes
+                            .compactMap({ $0 as? UIWindowScene })
+                            .first(where: {
+                                $0.activationState == .foregroundActive
+                            })
+                    else {
+                        result(
+                            FlutterError(
+                                code: "STORE_REVIEW_NO_SCENE",
+                                message: "Reczt could not find an active iOS scene for the review prompt.",
+                                details: nil
+                            )
+                        )
+                        return
+                    }
+
+                    if #available(iOS 18.0, *) {
+                        AppStore.requestReview(in: scene)
+                    } else {
+                        SKStoreReviewController.requestReview(in: scene)
+                    }
+
+                    result(nil)
+                }
 
             default:
                 result(FlutterMethodNotImplemented)
