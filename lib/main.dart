@@ -416,6 +416,15 @@ const MethodChannel _recztVoiceChoiceChannel = MethodChannel('reczt/voice_choice
 const MethodChannel _recztAppleMusicChannel =
     MethodChannel('reczt/apple_music');
 
+/// Native iOS StoreKit bridge used for Apple's system review prompt.
+const MethodChannel _recztStoreReviewChannel =
+    MethodChannel('reczt/store_review');
+
+const String _recztReviewSuccessCountKey = 'reczt_review_success_count_v1';
+const String _recztReviewLastRequestKey = 'reczt_review_last_request_ms_v1';
+const int _recztReviewFirstPromptAt = 8;
+const Duration _recztReviewRequestInterval = Duration(days: 30);
+
 /// Captures a Flutter preview widget only for use as LPLinkMetadata artwork.
 /// The PNG is NOT shared as an attachment; on iOS it becomes the image inside
 /// the tappable rich-link card.
@@ -528,11 +537,75 @@ Future<Position?> getCurrentDeviceLocation() async {
 /// Lightweight metadata returned by the iTunes Search API.
 /// Reczt uses this only as a catalog metadata fallback after recognition;
 /// recognition itself still comes from your existing backend / ACRCloud pipeline.
+bool _artistLooksMeaningful(String raw) {
+  final value = raw.trim();
+  if (value.isEmpty) return false;
+
+  // A real artist name can contain punctuation, numbers, accents, and any of
+  // Reczt's supported writing systems. Reject only values that are effectively
+  // made of separators, line-drawing glyphs, replacement characters, or other
+  // catalog corruption.
+  if (value == '!!!') return true; // Legitimate artist name.
+
+  if (RegExp(r'[\u2500-\u259F\uFFFD]').hasMatch(value)) return false;
+
+  final compact = value.replaceAll(RegExp(r'\s+'), '');
+  if (compact.isEmpty) return false;
+
+  final meaningful = RegExp(
+    r'[A-Za-z0-9\u00C0-\u024F\u0370-\u052F\u0590-\u08FF\u0900-\u097F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]',
+    unicode: true,
+  ).allMatches(compact).length;
+
+  final visibleCount = compact.runes.length;
+  if (meaningful == 0) return false;
+  if (visibleCount >= 4 && meaningful / visibleCount < 0.35) return false;
+
+  final mojibakeMarkers = RegExp(r'[ÃÂÐÑ�]').allMatches(value).length;
+  if (mojibakeMarkers >= 2) return false;
+
+  return true;
+}
+
+String _sanitizeArtistName(String? raw) {
+  var value = (raw ?? '')
+      .replaceAll(
+        RegExp(
+          r'[\u0000-\u001F\u007F-\u009F\u200B\u200C\u200D\u2060\uFEFF]',
+          unicode: true,
+        ),
+        ' ',
+      )
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  value = value
+      .replaceAll(RegExp(r'^[\s|=_~\-–—•·…]+'), '')
+      .replaceAll(RegExp(r'[\s|=_~\-–—•·…]+$'), '')
+      .trim();
+
+  return _artistLooksMeaningful(value) ? value : '';
+}
+
+bool _isTraditionalSongTitle(String title) {
+  final normalized = _catalogComparable(title);
+  return normalized == 'happy birthday' ||
+      normalized == 'happy birthday to you';
+}
+
+String _fallbackArtistForTitle(String title) =>
+    _isTraditionalSongTitle(title) ? 'Traditional' : '';
+
 class _SongLookupMetadata {
   final String? artworkUrl;
   final String? genre;
+  final String? artist;
 
-  const _SongLookupMetadata({this.artworkUrl, this.genre});
+  const _SongLookupMetadata({
+    this.artworkUrl,
+    this.genre,
+    this.artist,
+  });
 }
 
 /// Keeps real catalog genres instead of collapsing anything unfamiliar into
@@ -800,11 +873,14 @@ Future<_SongLookupMetadata> fetchSongMetadataForSong(
           final artwork = (best['artworkUrl100'] ?? '').toString();
           final rawGenre = best['primaryGenreName']?.toString();
           final normalizedGenre = _normalizeGenre(rawGenre);
+          final catalogArtist =
+              _sanitizeArtistName(best['artistName']?.toString());
           return _SongLookupMetadata(
             artworkUrl: artwork.isEmpty
                 ? null
                 : artwork.replaceAll('100x100bb', '600x600bb'),
             genre: normalizedGenre.isEmpty ? null : normalizedGenre,
+            artist: catalogArtist.isEmpty ? null : catalogArtist,
           );
         }
       }
@@ -834,6 +910,46 @@ String refineEmotionFromTitle(String title, String backendEmotion) =>
       backendEmotion: backendEmotion,
     );
 
+
+
+Future<void> _recordSuccessfulRecognitionAndMaybeRequestReview() async {
+  final prefs = await SharedPreferences.getInstance();
+  final successfulCount =
+      (prefs.getInt(_recztReviewSuccessCountKey) ?? 0) + 1;
+  await prefs.setInt(_recztReviewSuccessCountKey, successfulCount);
+
+  if (successfulCount < _recztReviewFirstPromptAt) return;
+
+  final now = DateTime.now();
+  final lastRequestMs = prefs.getInt(_recztReviewLastRequestKey);
+  if (lastRequestMs != null) {
+    final lastRequest =
+        DateTime.fromMillisecondsSinceEpoch(lastRequestMs);
+    if (now.difference(lastRequest) < _recztReviewRequestInterval) {
+      return;
+    }
+  }
+
+  // Store the request time before invoking StoreKit. Apple intentionally
+  // doesn't tell apps whether the review sheet actually appeared, so Reczt
+  // throttles its own request attempts to once every 30 days.
+  await prefs.setInt(
+    _recztReviewLastRequestKey,
+    now.millisecondsSinceEpoch,
+  );
+
+  if (kIsWeb || !Platform.isIOS) return;
+
+  try {
+    await _recztStoreReviewChannel.invokeMethod<void>('requestReview');
+  } on MissingPluginException catch (e) {
+    debugPrint('Reczt review bridge is unavailable: $e');
+  } on PlatformException catch (e) {
+    debugPrint('Reczt review request failed (${e.code}): ${e.message}');
+  } catch (e) {
+    debugPrint('Reczt review request failed: $e');
+  }
+}
 
 // --------------------------------------------------------------------
 // 🔔 LOCAL NOTIFICATIONS (offline-queue "song found" alert)
@@ -935,6 +1051,11 @@ void main() async {
 // --------------------------------------------------------------------
 final Map<String, Map<String, String>> localizedStrings = {
   'en': {
+    "clear_this_data": 'Clear This Data?',
+    "clear_this_data_confirm": 'Clear only the {section} data? Your other Reczt data will stay.',
+    "data_box_cleared": 'This data box was cleared.',
+    "emotions": 'Emotions',
+    "cleared": 'Cleared',
     'clear_reczt_data': 'Clear Reczt Data',
     'clear_reczt_data_desc': 'Deletes saved history, singing clips, analytics, Acoustic Memory pins, and queued offline recordings from this device. App preferences are kept.',
     'clear_reczt_data_confirm': 'This will permanently delete your saved song history, singing clips, analytics, Acoustic Memory locations, and queued offline recordings from this device. Your language, music-app, theme, Auto Play, and legal preferences will be kept. This cannot be undone.',
@@ -1083,6 +1204,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Other',
   },
   'es': {
+    "clear_this_data": '¿Borrar estos datos?',
+    "clear_this_data_confirm": '¿Borrar solo los datos de {section}? Tus otros datos de Reczt se conservarán.',
+    "data_box_cleared": 'Se borraron los datos de esta tarjeta.',
+    "emotions": 'Emociones',
+    "cleared": 'Borrado',
     'clear_reczt_data': 'Borrar datos de Reczt',
     'clear_reczt_data_desc': 'Borra del dispositivo el historial, clips de voz, estadísticas, pines de Memoria Acústica y grabaciones sin conexión en cola. Se conservan las preferencias de la app.',
     'clear_reczt_data_confirm': 'Esto eliminará permanentemente de este dispositivo el historial de canciones, clips de voz, estadísticas, ubicaciones de Memoria Acústica y grabaciones sin conexión en cola. Se conservarán el idioma, la app de música, el tema, Auto Play y las preferencias legales. Esta acción no se puede deshacer.',
@@ -1228,6 +1354,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Otro',
   },
   'fr': {
+    "clear_this_data": 'Effacer ces données ?',
+    "clear_this_data_confirm": 'Effacer uniquement les données de {section} ? Vos autres données Reczt seront conservées.',
+    "data_box_cleared": 'Les données de cette carte ont été effacées.',
+    "emotions": 'Émotions',
+    "cleared": 'Effacé',
     'clear_reczt_data': 'Effacer les données Reczt',
     'clear_reczt_data_desc': 'Supprime de cet appareil l’historique, les extraits chantés, les statistiques, les repères de Mémoire acoustique et les enregistrements hors ligne en attente. Les préférences de l’app sont conservées.',
     'clear_reczt_data_confirm': 'Cette action supprimera définitivement de cet appareil votre historique de chansons, vos extraits chantés, vos statistiques, les emplacements de Mémoire acoustique et les enregistrements hors ligne en attente. La langue, l’app musicale, le thème, Auto Play et les préférences juridiques seront conservés. Cette action est irréversible.',
@@ -1373,6 +1504,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Autre',
   },
   'de': {
+    "clear_this_data": 'Diese Daten löschen?',
+    "clear_this_data_confirm": 'Nur die Daten für {section} löschen? Deine anderen Reczt-Daten bleiben erhalten.',
+    "data_box_cleared": 'Die Daten dieser Karte wurden gelöscht.',
+    "emotions": 'Emotionen',
+    "cleared": 'Gelöscht',
     'clear_reczt_data': 'Reczt-Daten löschen',
     'clear_reczt_data_desc': 'Löscht Verlauf, Gesangsclips, Analysen, Acoustic-Memory-Pins und wartende Offline-Aufnahmen von diesem Gerät. App-Einstellungen bleiben erhalten.',
     'clear_reczt_data_confirm': 'Dadurch werden dein Songverlauf, Gesangsclips, Analysen, Acoustic-Memory-Standorte und wartende Offline-Aufnahmen dauerhaft von diesem Gerät gelöscht. Sprache, Musik-App, Design, Auto Play und rechtliche Einstellungen bleiben erhalten. Dies kann nicht rückgängig gemacht werden.',
@@ -1518,6 +1654,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Andere',
   },
   'it': {
+    "clear_this_data": 'Cancellare questi dati?',
+    "clear_this_data_confirm": 'Cancellare solo i dati di {section}? Gli altri dati Reczt resteranno invariati.',
+    "data_box_cleared": 'I dati di questa scheda sono stati cancellati.',
+    "emotions": 'Emozioni',
+    "cleared": 'Cancellato',
     'clear_reczt_data': 'Cancella dati Reczt',
     'clear_reczt_data_desc': 'Elimina da questo dispositivo cronologia, clip cantate, statistiche, pin di Memoria Acustica e registrazioni offline in coda. Le preferenze dell’app vengono mantenute.',
     'clear_reczt_data_confirm': 'Questa azione eliminerà definitivamente da questo dispositivo la cronologia dei brani, le clip cantate, le statistiche, le posizioni di Memoria Acustica e le registrazioni offline in coda. Lingua, app musicale, tema, Auto Play e preferenze legali verranno mantenuti. L’operazione non può essere annullata.',
@@ -1663,6 +1804,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Altro',
   },
   'pt': {
+    "clear_this_data": 'Limpar estes dados?',
+    "clear_this_data_confirm": 'Limpar apenas os dados de {section}? Os outros dados do Reczt serão mantidos.',
+    "data_box_cleared": 'Os dados deste cartão foram limpos.',
+    "emotions": 'Emoções',
+    "cleared": 'Limpo',
     'clear_reczt_data': 'Limpar dados do Reczt',
     'clear_reczt_data_desc': 'Apaga deste dispositivo o histórico, clipes de canto, análises, pinos da Memória Acústica e gravações offline na fila. As preferências do app são mantidas.',
     'clear_reczt_data_confirm': 'Isso apagará permanentemente deste dispositivo seu histórico de músicas, clipes de canto, análises, locais da Memória Acústica e gravações offline na fila. Idioma, app de música, tema, Auto Play e preferências legais serão mantidos. Esta ação não pode ser desfeita.',
@@ -1808,6 +1954,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Outro',
   },
   'ja': {
+    "clear_this_data": 'このデータを消去しますか？',
+    "clear_this_data_confirm": '{section} のデータだけを消去しますか？その他の Reczt データは残ります。',
+    "data_box_cleared": 'このデータカードを消去しました。',
+    "emotions": '感情',
+    "cleared": '消去済み',
     'clear_reczt_data': 'Recztデータを消去',
     'clear_reczt_data_desc': 'このデバイスの履歴、歌唱クリップ、分析、Acoustic Memoryのピン、オフライン待機中の録音を削除します。アプリ設定は保持されます。',
     'clear_reczt_data_confirm': 'このデバイスに保存されている曲の履歴、歌唱クリップ、分析、Acoustic Memoryの位置情報、オフライン待機中の録音を完全に削除します。言語、音楽アプリ、テーマ、Auto Play、法的設定は保持されます。この操作は元に戻せません。',
@@ -1954,6 +2105,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'その他',
   },
   'ko': {
+    "clear_this_data": '이 데이터를 지울까요?',
+    "clear_this_data_confirm": '{section} 데이터만 지울까요? 다른 Reczt 데이터는 그대로 유지됩니다.',
+    "data_box_cleared": '이 데이터 카드가 지워졌습니다.',
+    "emotions": '감정',
+    "cleared": '지움',
     'clear_reczt_data': 'Reczt 데이터 지우기',
     'clear_reczt_data_desc': '이 기기의 기록, 노래 클립, 분석, Acoustic Memory 핀 및 대기 중인 오프라인 녹음을 삭제합니다. 앱 환경설정은 유지됩니다.',
     'clear_reczt_data_confirm': '이 기기에 저장된 노래 기록, 노래 클립, 분석, Acoustic Memory 위치 및 대기 중인 오프라인 녹음을 영구적으로 삭제합니다. 언어, 음악 앱, 테마, Auto Play 및 법적 환경설정은 유지됩니다. 이 작업은 취소할 수 없습니다.',
@@ -2100,6 +2256,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '기타',
   },
   'zh': {
+    "clear_this_data": '清除这些数据？',
+    "clear_this_data_confirm": '只清除 {section} 数据吗？其他 Reczt 数据将保留。',
+    "data_box_cleared": '此数据卡已清除。',
+    "emotions": '情绪',
+    "cleared": '已清除',
     'clear_reczt_data': '清除 Reczt 数据',
     'clear_reczt_data_desc': '删除此设备上的历史记录、演唱片段、分析数据、Acoustic Memory 标记和排队的离线录音。应用偏好设置会保留。',
     'clear_reczt_data_confirm': '这将永久删除此设备上的歌曲历史记录、演唱片段、分析数据、Acoustic Memory 位置信息和排队的离线录音。语言、音乐应用、主题、Auto Play 和法律偏好设置会保留。此操作无法撤销。',
@@ -2246,6 +2407,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '其他',
   },
   'hi': {
+    "clear_this_data": 'यह डेटा साफ़ करें?',
+    "clear_this_data_confirm": 'केवल {section} का डेटा साफ़ करें? आपका बाकी Reczt डेटा बना रहेगा।',
+    "data_box_cleared": 'यह डेटा कार्ड साफ़ कर दिया गया।',
+    "emotions": 'भावनाएँ',
+    "cleared": 'साफ़ किया गया',
     'clear_reczt_data': 'Reczt डेटा साफ़ करें',
     'clear_reczt_data_desc': 'इस डिवाइस से सेव किया गया इतिहास, गाने के क्लिप, एनालिटिक्स, Acoustic Memory पिन और कतार में रखी ऑफ़लाइन रिकॉर्डिंग हटाता है। ऐप की प्राथमिकताएँ बनी रहती हैं।',
     'clear_reczt_data_confirm': 'यह इस डिवाइस से आपके सेव किए गए गानों का इतिहास, गाने के क्लिप, एनालिटिक्स, Acoustic Memory स्थान और कतार में रखी ऑफ़लाइन रिकॉर्डिंग स्थायी रूप से हटा देगा। भाषा, संगीत ऐप, थीम, Auto Play और कानूनी प्राथमिकताएँ बनी रहेंगी। इसे वापस नहीं किया जा सकता।',
@@ -2392,6 +2558,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'अन्य',
   },
   'ru': {
+    "clear_this_data": 'Очистить эти данные?',
+    "clear_this_data_confirm": 'Очистить только данные «{section}»? Остальные данные Reczt сохранятся.',
+    "data_box_cleared": 'Данные этой карточки очищены.',
+    "emotions": 'Эмоции',
+    "cleared": 'Очищено',
     'clear_reczt_data': 'Очистить данные Reczt',
     'clear_reczt_data_desc': 'Удаляет с устройства историю, записи пения, аналитику, метки Acoustic Memory и ожидающие офлайн-записи. Настройки приложения сохраняются.',
     'clear_reczt_data_confirm': 'Это навсегда удалит с устройства историю песен, записи пения, аналитику, местоположения Acoustic Memory и ожидающие офлайн-записи. Язык, музыкальное приложение, тема, Auto Play и юридические настройки сохранятся. Отменить это действие нельзя.',
@@ -2538,6 +2709,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Другое',
   },
   'tr': {
+    "clear_this_data": 'Bu veriler temizlensin mi?',
+    "clear_this_data_confirm": 'Yalnızca {section} verileri temizlensin mi? Diğer Reczt verileriniz korunur.',
+    "data_box_cleared": 'Bu veri kartı temizlendi.',
+    "emotions": 'Duygular',
+    "cleared": 'Temizlendi',
     'clear_reczt_data': 'Reczt Verilerini Temizle',
     'clear_reczt_data_desc': 'Bu cihazdaki geçmişi, şarkı söyleme kliplerini, analizleri, Acoustic Memory pinlerini ve sıradaki çevrimdışı kayıtları siler. Uygulama tercihleri korunur.',
     'clear_reczt_data_confirm': 'Bu işlem, bu cihazdaki şarkı geçmişinizi, şarkı söyleme kliplerinizi, analizlerinizi, Acoustic Memory konumlarınızı ve sıradaki çevrimdışı kayıtları kalıcı olarak siler. Dil, müzik uygulaması, tema, Auto Play ve yasal tercihler korunur. Bu işlem geri alınamaz.',
@@ -2684,6 +2860,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Diğer',
   },
   'ar': {
+    "clear_this_data": 'مسح هذه البيانات؟',
+    "clear_this_data_confirm": 'هل تريد مسح بيانات {section} فقط؟ ستبقى بيانات Reczt الأخرى كما هي.',
+    "data_box_cleared": 'تم مسح بيانات هذه البطاقة.',
+    "emotions": 'المشاعر',
+    "cleared": 'تم المسح',
     'clear_reczt_data': 'مسح بيانات Reczt',
     'clear_reczt_data_desc': 'يحذف من هذا الجهاز السجل ومقاطع الغناء والتحليلات ودبابيس Acoustic Memory والتسجيلات غير المتصلة المنتظرة. يتم الاحتفاظ بتفضيلات التطبيق.',
     'clear_reczt_data_confirm': 'سيؤدي هذا إلى حذف سجل الأغاني ومقاطع الغناء والتحليلات ومواقع Acoustic Memory والتسجيلات غير المتصلة المنتظرة نهائيًا من هذا الجهاز. سيتم الاحتفاظ باللغة وتطبيق الموسيقى والمظهر وAuto Play والتفضيلات القانونية. لا يمكن التراجع عن هذا الإجراء.',
@@ -2830,6 +3011,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'أخرى',
   },
   'nl': {
+    "clear_this_data": 'Deze gegevens wissen?',
+    "clear_this_data_confirm": 'Alleen de gegevens van {section} wissen? Je andere Reczt-gegevens blijven behouden.',
+    "data_box_cleared": 'De gegevens van deze kaart zijn gewist.',
+    "emotions": 'Emoties',
+    "cleared": 'Gewist',
     'clear_reczt_data': 'Reczt-gegevens wissen',
     'clear_reczt_data_desc': 'Verwijdert van dit apparaat geschiedenis, zangclips, analyses, Acoustic Memory-pinnen en offline opnamen in de wachtrij. Appvoorkeuren blijven behouden.',
     'clear_reczt_data_confirm': 'Hiermee worden je opgeslagen songgeschiedenis, zangclips, analyses, Acoustic Memory-locaties en offline opnamen in de wachtrij permanent van dit apparaat verwijderd. Taal, muziekapp, thema, Auto Play en juridische voorkeuren blijven behouden. Dit kan niet ongedaan worden gemaakt.',
@@ -2976,6 +3162,11 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Overig',
   },
   'pl': {
+    "clear_this_data": 'Wyczyścić te dane?',
+    "clear_this_data_confirm": 'Wyczyścić tylko dane {section}? Pozostałe dane Reczt zostaną zachowane.',
+    "data_box_cleared": 'Dane tej karty zostały wyczyszczone.',
+    "emotions": 'Emocje',
+    "cleared": 'Wyczyszczono',
     'clear_reczt_data': 'Wyczyść dane Reczt',
     'clear_reczt_data_desc': 'Usuwa z tego urządzenia historię, nagrania śpiewu, analizy, pinezki Acoustic Memory i oczekujące nagrania offline. Ustawienia aplikacji pozostają zachowane.',
     'clear_reczt_data_confirm': 'Spowoduje to trwałe usunięcie z tego urządzenia historii utworów, nagrań śpiewu, analiz, lokalizacji Acoustic Memory i oczekujących nagrań offline. Język, aplikacja muzyczna, motyw, Auto Play i ustawienia prawne pozostaną zachowane. Tej operacji nie można cofnąć.',
@@ -3644,6 +3835,8 @@ class _SongMatchCandidate {
         if (url != null) appleMusicUrl = url.toString();
       }
     }
+
+    artist = _sanitizeArtistName(artist);
 
     return _SongMatchCandidate(
       raw: item,
@@ -5456,14 +5649,17 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     bool notifyQueuedMatch = true,
   }) async {
     final String title = candidate.title;
-    final String artist = candidate.artist == 'Unknown Artist'
-        ? t('unknown_artist')
-        : candidate.artist;
+    final String rawCandidateArtist =
+        candidate.artist == 'Unknown Artist' ? '' : candidate.artist;
+    String resolvedArtist = _sanitizeArtistName(rawCandidateArtist);
+    String displayArtist = resolvedArtist.isNotEmpty
+        ? resolvedArtist
+        : t('unknown_artist');
 
     if (mounted) {
       setState(() {
         _songTitle = title;
-        _artist = artist;
+        _artist = displayArtist;
         _spotifyUrl = candidate.spotifyUrl;
         _appleMusicUrl = candidate.appleMusicUrl;
         _albumArtUrl = candidate.coverUrl;
@@ -5499,9 +5695,21 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     // actually missing; this removes a redundant network request from the
     // normal recognition path.
     _SongLookupMetadata metadata = const _SongLookupMetadata();
-    if (candidateCover == null || candidateGenre.isEmpty) {
-      metadata = await fetchSongMetadataForSong(title, artist);
+    if (candidateCover == null ||
+        candidateGenre.isEmpty ||
+        resolvedArtist.isEmpty) {
+      metadata = await fetchSongMetadataForSong(title, resolvedArtist);
     }
+
+    if (resolvedArtist.isEmpty) {
+      resolvedArtist = _fallbackArtistForTitle(title);
+    }
+    if (resolvedArtist.isEmpty) {
+      resolvedArtist = _sanitizeArtistName(metadata.artist);
+    }
+    displayArtist = resolvedArtist.isNotEmpty
+        ? resolvedArtist
+        : t('unknown_artist');
 
     final String? albumArt = candidateCover ?? metadata.artworkUrl;
     final String genre = candidateGenre.isNotEmpty
@@ -5509,21 +5717,23 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         : _normalizeGenre(metadata.genre);
     final String emotion = _resolveSongEmotion(
       title: title,
-      artist: artist,
+      artist: displayArtist,
       backendEmotion: candidate.emotion,
       genre: genre,
     );
 
-    if (mounted && albumArt != _albumArtUrl) {
+    if (mounted &&
+        (albumArt != _albumArtUrl || displayArtist != _artist)) {
       setState(() {
         _albumArtUrl = albumArt;
+        _artist = displayArtist;
       });
     }
 
     await _saveToHistory(
-      '$title - $artist',
+      '$title - $displayArtist',
       title: title,
-      artist: artist,
+      artist: displayArtist,
       audioPath: audioPath,
       albumCover: albumArt,
       genre: genre,
@@ -5535,12 +5745,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     await recordSessionToAnalytics(
       songTitle: title,
-      artistName: artist,
+      artistName: displayArtist,
       primaryEmotion: emotion,
       genre: genre,
       latitude: _sessionLocation?.latitude,
       longitude: _sessionLocation?.longitude,
     );
+
+    await _recordSuccessfulRecognitionAndMaybeRequestReview();
 
     if (isFromOfflineQueue && notifyQueuedMatch) {
       unawaited(showQueuedSongFoundNotification(_selectedLanguage));
@@ -5556,6 +5768,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     double? longitude,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+
+    // If the user manually cleared the Vibe Match card, the next successful
+    // recognition makes it eligible to generate a fresh recommendation.
+    await prefs.remove('analytics_playlist_user_cleared_v1');
 
     final int totalSongs = (prefs.getInt('analytics_total_songs') ?? 0) + 1;
     await prefs.setInt('analytics_total_songs', totalSongs);
@@ -5577,7 +5793,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       } catch (_) {}
     }
 
-    final cleanedArtist = artistName.trim();
+    final cleanedArtist = _sanitizeArtistName(artistName);
     if (cleanedArtist.isNotEmpty &&
         cleanedArtist.toLowerCase() != t('unknown_artist').toLowerCase()) {
       String storageKey = cleanedArtist;
@@ -6521,6 +6737,130 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     }
   }
 
+  Future<void> _showClearAnalyticsSectionDialog({
+    required String sectionKey,
+    required String sectionLabel,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(t('clear_this_data')),
+          content: Text(
+            t('clear_this_data_confirm')
+                .replaceAll('{section}', sectionLabel),
+            style: const TextStyle(height: 1.35),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsOverflowAlignment: OverflowBarAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(t('cancel')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                t('clear'),
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _clearAnalyticsSection(sectionKey);
+    }
+  }
+
+  Future<void> _clearAnalyticsSection(String sectionKey) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    switch (sectionKey) {
+      case 'streak':
+        await prefs.remove('analytics_session_dates');
+        break;
+
+      case 'artist':
+        await prefs.setString('analytics_artist_counts', '{}');
+        // Prevent the one-time repair path from repopulating the card from
+        // older History. New successful songs still accumulate normally.
+        await prefs.setBool('analytics_artist_user_cleared_v1', true);
+        break;
+
+      case 'playlist':
+        for (final key in const <String>[
+          'playlist_timestamp',
+          'saved_curated_playlist',
+          'saved_curated_playlist_profile',
+          'saved_curated_playlist_spotify_title',
+          'saved_curated_playlist_spotify_url',
+          'saved_curated_playlist_apple_title',
+          'saved_curated_playlist_apple_url',
+          'saved_curated_playlist_apple_personalized',
+          'saved_curated_playlist_apple_timestamp',
+        ]) {
+          await prefs.remove(key);
+        }
+        // Keep the card intentionally blank until the next successful song.
+        await prefs.setBool('analytics_playlist_user_cleared_v1', true);
+        break;
+
+      case 'map':
+        for (final key in const <String>[
+          _acousticUsageKey,
+          'acoustic_mic_locations',
+          'acoustic_memories',
+          'active_singing_locations',
+        ]) {
+          await prefs.remove(key);
+        }
+        await prefs.setBool(_acousticUsageMigratedKey, true);
+        break;
+
+      case 'genres':
+        await prefs.setString('analytics_genre_counts', '{}');
+        // Do not refill the cleared chart from pre-clear History.
+        await prefs.setBool('analytics_genre_backfill_v2', true);
+        await prefs.setBool('analytics_genre_user_cleared_v1', true);
+        break;
+
+      case 'emotions':
+        for (final key in const ['happy', 'sad', 'hype', 'romantic']) {
+          await prefs.setInt('analytics_emotion_$key', 0);
+        }
+        await prefs.setInt('analytics_emotion_schema_version', 2);
+        await prefs.setBool('analytics_emotion_user_cleared_v1', true);
+        break;
+    }
+
+    await _computeAnalytics(allowGenreBackfill: false);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(t('data_box_cleared'))),
+      );
+  }
+
+  Widget _buildClearableAnalyticsCard({
+    required String sectionKey,
+    required String sectionLabel,
+    required Widget child,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: () => _showClearAnalyticsSectionDialog(
+        sectionKey: sectionKey,
+        sectionLabel: sectionLabel,
+      ),
+      child: _buildThemedCard(child: child),
+    );
+  }
+
   Future<void> _clearLocalRecztData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -6684,6 +7024,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       title = songText.trim();
     }
 
+    artist = _sanitizeArtistName(artist);
+    if (artist.isEmpty) {
+      artist = _fallbackArtistForTitle(title);
+    }
+
     record['title'] = title;
     record['artist'] = artist;
     return record;
@@ -6775,17 +7120,24 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     final Map<String, String> mergedDisplay = <String, String>{};
 
     persistedArtists.forEach((name, rawCount) {
-      final key = _canonicalArtistKey(name);
+      final sanitizedName = _sanitizeArtistName(name);
+      if (sanitizedName.isEmpty) return;
+      final key = _canonicalArtistKey(sanitizedName);
       if (key.isEmpty) return;
       final count = rawCount is num ? rawCount.toInt() : 0;
       mergedCounts[key] = max(mergedCounts[key] ?? 0, count).toInt();
-      mergedDisplay.putIfAbsent(key, () => name);
+      mergedDisplay.putIfAbsent(key, () => sanitizedName);
     });
 
-    historyArtistCounts.forEach((key, count) {
-      mergedCounts[key] = max(mergedCounts[key] ?? 0, count).toInt();
-      mergedDisplay[key] = artistDisplayNames[key] ?? mergedDisplay[key] ?? key;
-    });
+    final bool artistWasManuallyCleared =
+        prefs.getBool('analytics_artist_user_cleared_v1') ?? false;
+    if (!artistWasManuallyCleared) {
+      historyArtistCounts.forEach((key, count) {
+        mergedCounts[key] = max(mergedCounts[key] ?? 0, count).toInt();
+        mergedDisplay[key] =
+            artistDisplayNames[key] ?? mergedDisplay[key] ?? key;
+      });
+    }
 
     final repairedArtistMap = <String, int>{};
     mergedCounts.forEach((key, count) {
@@ -7007,7 +7359,19 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       _majorityEmotion = calculatedMajority;
     });
 
-    await _handleBiWeeklyPlaylistRotation(prefs);
+    final bool playlistWasManuallyCleared =
+        prefs.getBool('analytics_playlist_user_cleared_v1') ?? false;
+    if (playlistWasManuallyCleared) {
+      if (mounted) {
+        setState(() {
+          _curatedPlaylistTitle = t('none');
+          _streamingUrl = '';
+          _countdownText = t('cleared');
+        });
+      }
+    } else {
+      await _handleBiWeeklyPlaylistRotation(prefs);
+    }
 
     // Older history entries did not save genre. Backfill a limited number in
     // the background once, then refresh this page. New songs already arrive
@@ -7020,6 +7384,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   Future<void> _backfillLegacyHistoryGenres() async {
     final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('analytics_genre_user_cleared_v1') ?? false) return;
     if (prefs.getBool('analytics_genre_backfill_v2') ?? false) return;
 
     final history = prefs.getStringList('song_history') ?? <String>[];
@@ -8221,7 +8586,9 @@ void _showShareCardModal(BuildContext context) {
                     children: [
                       // Card 1: Streak
                       Expanded(
-                        child: _buildThemedCard(
+                        child: _buildClearableAnalyticsCard(
+                          sectionKey: 'streak',
+                          sectionLabel: t('streak_title'),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -8249,7 +8616,9 @@ void _showShareCardModal(BuildContext context) {
                       const SizedBox(width: 8),
                       // Card 2: Top Artist
                       Expanded(
-                        child: _buildThemedCard(
+                        child: _buildClearableAnalyticsCard(
+                          sectionKey: 'artist',
+                          sectionLabel: t('top_artist'),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -8277,7 +8646,9 @@ void _showShareCardModal(BuildContext context) {
                       const SizedBox(width: 8),
                       // Card 3: Recommended Vibes Playlist
                       Expanded(
-                        child: _buildThemedCard(
+                        child: _buildClearableAnalyticsCard(
+                          sectionKey: 'playlist',
+                          sectionLabel: t('vibe_match_playlist'),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -8329,7 +8700,9 @@ void _showShareCardModal(BuildContext context) {
                 // ROW 2: FULL-WIDTH ACOUSTIC MAP (DYNAMICALLY PROPORTIONED HEIGHT)
                 SizedBox(
                   height: mapHeight,
-                  child: _buildThemedCard(
+                  child: _buildClearableAnalyticsCard(
+                    sectionKey: 'map',
+                    sectionLabel: t('acoustic_map'),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -8390,7 +8763,9 @@ void _showShareCardModal(BuildContext context) {
                 const SizedBox(height: 12),
 
                 // ROW 3: FULL-WIDTH MOST SUNG GENRES
-                _buildThemedCard(
+                _buildClearableAnalyticsCard(
+                  sectionKey: 'genres',
+                  sectionLabel: t('most_sung_genres'),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -8434,7 +8809,9 @@ void _showShareCardModal(BuildContext context) {
                 const SizedBox(height: 12),
 
                 // ROW 4: FULL-WIDTH EMOTIONS DONUT CHART
-                _buildThemedCard(
+                _buildClearableAnalyticsCard(
+  sectionKey: 'emotions',
+  sectionLabel: t('emotions'),
   child: Row(
     children: [
       // Legend Column
@@ -8990,23 +9367,31 @@ String _parseSongTitle(dynamic rawItem) {
 
 String _parseArtist(dynamic rawItem) {
   String str = rawItem.toString();
+  String title = _parseSongTitle(rawItem);
+
   if (str.trimLeft().startsWith('{')) {
     try {
       final parsed = jsonDecode(str);
       if (parsed is Map) {
-        final explicitArtist = parsed['artist']?.toString().trim() ?? '';
+        final explicitArtist =
+            _sanitizeArtistName(parsed['artist']?.toString());
         if (explicitArtist.isNotEmpty) return explicitArtist;
         str = parsed['song']?.toString() ?? str;
       }
     } catch (_) {}
   }
+
   if (str.contains(' - ')) {
     final parts = str.split(' - ');
     if (parts.length > 1) {
-      return parts.sublist(1).join(' - ').trim();
+      final parsedArtist =
+          _sanitizeArtistName(parts.sublist(1).join(' - '));
+      if (parsedArtist.isNotEmpty) return parsedArtist;
     }
   }
-  return '';
+
+  final fallback = _fallbackArtistForTitle(title);
+  return fallback.isNotEmpty ? fallback : t('unknown_artist');
 }
 
 String? _parseAudioPath(String rawItem) {
