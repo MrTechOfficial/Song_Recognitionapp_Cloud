@@ -6,7 +6,7 @@ These Terms of Use (“Terms”) govern your use of the Reczt mobile application
 
 By using Reczt, or by tapping Agree & Continue when the Terms are presented in the app, you agree to these Terms. If you do not agree, do not use Reczt.
 
-Questions about these Terms may be sent to georgethomasbazos@gmail.com.
+Questions about these Terms may be sent to recztsupport@gmail.com.
 
 1. Eligibility and General Audience
 
@@ -162,4 +162,4 @@ These Terms, the Reczt Privacy Policy, and applicable Apple license terms consti
 
 Leslie Kane
 Operator / Publisher of Reczt
-Email: georgethomasbazos@gmail.com
+Email: recztsupport@gmail.com

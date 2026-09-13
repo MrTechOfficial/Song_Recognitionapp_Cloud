@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reczt Support</title>
+  <meta name="description" content="Support and help for the Reczt song recognition app.">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #ffffff;
+      --card: #f7f7f9;
+      --text: #1c1c1e;
+      --muted: #6e6e73;
+      --border: #dedee3;
+      --accent: #5b3fd8;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111113;
+        --card: #1c1c1f;
+        --text: #f5f5f7;
+        --muted: #b0b0b7;
+        --border: #34343a;
+        --accent: #9d8cff;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                   "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    main {
+      width: min(860px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 64px 0 80px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    h1 {
+      font-size: clamp(38px, 7vw, 58px);
+      line-height: 1.05;
+      margin: 0 0 14px;
+      letter-spacing: -0.03em;
+    }
+
+    .tagline {
+      color: var(--muted);
+      font-size: 20px;
+      margin: 0 auto;
+      max-width: 640px;
+    }
+
+    section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      margin: 18px 0;
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 24px;
+      letter-spacing: -0.01em;
+    }
+
+    h3 {
+      margin: 24px 0 6px;
+      font-size: 18px;
+    }
+
+    p { margin: 8px 0; }
+
+    ul {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover { text-decoration: underline; }
+
+    .contact {
+      text-align: center;
+      padding: 34px 28px;
+    }
+
+    .button {
+      display: inline-block;
+      margin-top: 10px;
+      background: var(--accent);
+      color: white;
+      padding: 11px 18px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    .button:hover {
+      text-decoration: none;
+      opacity: 0.9;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 42px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <h1>Reczt Support</h1>
+      <p class="tagline">
+        Help with song recognition, Siri, Control Center, offline searches,
+        QuickShare, preferences, and your Reczt data.
+      </p>
+    </header>
+
+    <section>
+      <h2>Getting Started</h2>
+      <p>
+        Reczt helps identify songs by listening to you sing, hum, or play audio
+        near your device. Choose your preferred music service, select your
+        environment, and tap the microphone to begin.
+      </p>
+      <p>
+        Reczt is free to use, has no ads, and does not require a Reczt account.
+      </p>
+    </section>
+
+    <section>
+      <h2>Song Recognition</h2>
+      <h3>Reczt is not recognizing a song</h3>
+      <ul>
+        <li>Make sure microphone access is enabled for Reczt in iOS Settings.</li>
+        <li>Try singing or humming a clear, recognizable section of the melody.</li>
+        <li>Reduce background noise when possible.</li>
+        <li>Try a different environment setting in Reczt.</li>
+        <li>If the first attempt fails, try again with a longer or clearer sample.</li>
+      </ul>
+
+      <h3>Using Siri</h3>
+      <p>
+        You can start Reczt hands-free using Siri. Make sure Siri is enabled on
+        your device and Reczt has the permissions it needs.
+      </p>
+
+      <h3>Using Control Center</h3>
+      <p>
+        On iOS 18 or later, you can add the Reczt “Identify Song” control to
+        Control Center. Open Control Center, enter edit mode, choose
+        “Add a Control,” search for Reczt, and add it. Tapping the control opens
+        Reczt and starts recognition.
+      </p>
+    </section>
+
+    <section>
+      <h2>Offline Mode</h2>
+      <p>
+        If you do not have an internet connection, Reczt can save your recording
+        locally in an offline queue. When connectivity returns, Reczt can process
+        the queued recording and notify you if a song is successfully identified.
+      </p>
+      <p>
+        If an offline search remains pending, reopen Reczt after your connection
+        returns and allow it time to finish processing.
+      </p>
+    </section>
+
+    <section>
+      <h2>QuickShare</h2>
+      <p>
+        QuickShare lets you share individual song discoveries or Reczt analytics
+        with friends and family using the iOS share sheet.
+      </p>
+      <p>
+        If sharing does not work as expected, close and reopen Reczt and try again.
+      </p>
+    </section>
+
+    <section>
+      <h2>Music Services</h2>
+      <p>
+        Reczt can open recognized songs in supported music services, including
+        Apple Music and Spotify, depending on your selected preference and the
+        availability of a matching track.
+      </p>
+      <p>
+        If a direct song link is unavailable, Reczt may open a search for the song
+        and artist instead.
+      </p>
+    </section>
+
+    <section>
+      <h2>Customize Reczt</h2>
+      <p>
+        Reczt supports 15 languages and lets you customize your preferred music
+        service, app theme, Auto Play behavior, and other preferences.
+      </p>
+    </section>
+
+    <section>
+      <h2>Your Data &amp; Privacy</h2>
+      <p>
+        Reczt stores features such as history, analytics, saved clips, preferences,
+        and Acoustic Memory data locally on your device. You can clear individual
+        categories of data or clear all Reczt data from within the app.
+      </p>
+      <p>
+        For more information, review the
+        <a href="privacy.html">Reczt Privacy Policy</a> and
+        <a href="terms.html">Reczt Terms of Use</a>.
+      </p>
+    </section>
+
+    <section class="contact">
+      <h2>Still Need Help?</h2>
+      <p>
+        If you have a question, problem, or feedback about Reczt, contact support:
+      </p>
+      <a class="button" href="mailto:recztsupport@gmail.com">
+        Email Reczt Support
+      </a>
+      <p style="margin-top:16px;">
+        recztsupport@gmail.com
+      </p>
+    </section>
+
+    <footer>
+      © 2026 George Bazos. All rights reserved.
+    </footer>
+  </main>
+</body>
+</html>

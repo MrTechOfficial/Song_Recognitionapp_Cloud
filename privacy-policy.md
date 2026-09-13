@@ -4,7 +4,7 @@ Effective Date: September 1, 2026
 
 Reczt (“Reczt,” “we,” “us,” or “our”) is operated by Leslie Kane. This Privacy Policy explains how Reczt handles information when you use the Reczt mobile application and related song-recognition services.
 
-If you have questions about this Privacy Policy, contact us at georgethomasbazos@gmail.com.
+If you have questions about this Privacy Policy, contact us at recztsupport@gmail.com.
 
 1. Summary
 
@@ -138,7 +138,7 @@ You may:
 - revoke Spotify authorization through Spotify if you choose to do so; and
 - delete Reczt from your device to remove Reczt’s locally stored app data, subject to any device backup settings controlled by Apple.
 
-For privacy questions or requests concerning information Reczt may control, contact georgethomasbazos@gmail.com.
+For privacy questions or requests concerning information Reczt may control, contact recztsupport@gmail.com.
 
 7. No Sale, Advertising, or Cross-App Tracking
 
@@ -156,7 +156,7 @@ Reczt is a general-audience service and is not directed to children under 13.
 
 If you are under 13, you should not use Reczt. Users who are under the age of majority in their jurisdiction should use Reczt only with permission of a parent or legal guardian.
 
-Reczt does not ask users to provide a date of birth and does not knowingly create profiles about children. If you believe a child under 13 has provided personal information to Reczt in a manner that should be deleted, contact georgethomasbazos@gmail.com.
+Reczt does not ask users to provide a date of birth and does not knowingly create profiles about children. If you believe a child under 13 has provided personal information to Reczt in a manner that should be deleted, contact recztsupport@gmail.com.
 
 10. International Processing
 
@@ -174,4 +174,4 @@ We may update this Privacy Policy as Reczt changes. If we make a material change
 
 Leslie Kane
 Operator / Publisher of Reczt
-Email: georgethomasbazos@gmail.com
+Email: recztsupport@gmail.com
