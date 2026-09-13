@@ -32,18 +32,18 @@ jobs:
       - name: Get Dependencies
         run: flutter pub get
      
-      - name: Patch iOS Target & Inject xcconfig Overrides
+      - name: Inject xcconfig Overrides
         run: |
-          # Set deployment target to iOS 14.0
-          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*;/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/g' ios/Runner.xcodeproj/project.pbxproj
-          
+          # Keep the deployment targets committed in the Xcode project.
+          # Runner supports its existing minimum iOS version, while
+          # RecztControlExtension requires iOS 18.0.
+
           # Inject dummy Team ID and disable signing directly via Release.xcconfig
           echo "DEVELOPMENT_TEAM=ABC1234567" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
           echo "EXPANDED_CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
-
       - name: Generate Flutter iOS Files (Creates Generated.xcconfig)
         run: flutter build ios --release --no-codesign --config-only
 
