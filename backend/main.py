@@ -266,6 +266,71 @@ def clean_text(value: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
+
+def sanitize_artist_name(value: Any) -> str:
+    """Return a display-safe artist name without damaging legitimate scripts.
+
+    Catalogs occasionally return control characters, replacement glyphs, or
+    line-drawing garbage. Preserve real punctuation and all Unicode letters,
+    marks, and numbers, but reject values that are mostly non-name symbols.
+    """
+    raw = unicodedata.normalize("NFKC", str(value or ""))
+    if not raw:
+        return ""
+
+    cleaned_chars: List[str] = []
+    for ch in raw:
+        category = unicodedata.category(ch)
+        codepoint = ord(ch)
+
+        if ch == "\ufffd":
+            continue
+        if 0x2500 <= codepoint <= 0x259F:
+            # Box drawing/block characters are a strong corruption signal.
+            continue
+        if category.startswith("C"):
+            # Control/format/surrogate/private-use/unassigned.
+            continue
+        cleaned_chars.append(ch)
+
+    cleaned = re.sub(r"\s+", " ", "".join(cleaned_chars)).strip()
+    cleaned = cleaned.strip(" \t\r\n|=_~-–—•·…")
+    if not cleaned:
+        return ""
+
+    # "!!!" is a legitimate artist name and should not be erased.
+    if cleaned == "!!!":
+        return cleaned
+
+    visible = [ch for ch in cleaned if not ch.isspace()]
+    if not visible:
+        return ""
+
+    meaningful = [
+        ch for ch in visible
+        if unicodedata.category(ch)[:1] in {"L", "M", "N"}
+    ]
+    if not meaningful:
+        return ""
+
+    if len(visible) >= 4 and (len(meaningful) / len(visible)) < 0.35:
+        return ""
+
+    # Common UTF-8/Latin-1 mojibake markers. A single Ñ/Ð can be legitimate;
+    # repeated markers are much more likely to be broken catalog text.
+    if sum(cleaned.count(marker) for marker in ("Ã", "Â", "Ð", "Ñ", "�")) >= 2:
+        return ""
+
+    return cleaned
+
+
+def fallback_artist_for_title(title: str) -> str:
+    normalized = clean_text(title)
+    if normalized in {"happy birthday", "happy birthday to you"}:
+        return "Traditional"
+    return ""
+
+
 def similarity(a: str, b: str) -> float:
     a_clean, b_clean = clean_text(a), clean_text(b)
     if not a_clean or not b_clean:
@@ -446,15 +511,15 @@ def _artist_similarity(first_artist: str, second_artist: str) -> float:
     return similarity(first_artist, second_artist)
 
 def extract_artist(item: Dict[str, Any]) -> str:
-    artist = item.get("artist")
-    if isinstance(artist, str) and artist.strip():
-        return artist.strip()
+    artist = sanitize_artist_name(item.get("artist"))
+    if artist:
+        return artist
     artists = item.get("artists")
     if isinstance(artists, list) and artists:
         first = artists[0]
         if isinstance(first, dict):
-            return str(first.get("name") or "").strip()
-        return str(first).strip()
+            return sanitize_artist_name(first.get("name"))
+        return sanitize_artist_name(first)
     return ""
 
 
@@ -1281,9 +1346,9 @@ def genius_candidates_from_lyrics(
         for rank, hit in enumerate(hits):
             result = hit.get("result") or {}
             title = str(result.get("title") or "").strip()
-            artist = str(
-                (result.get("primary_artist") or {}).get("name") or ""
-            ).strip()
+            artist = sanitize_artist_name(
+                (result.get("primary_artist") or {}).get("name")
+            )
             if not title or is_unwanted_version(title, artist):
                 continue
 
@@ -2255,7 +2320,8 @@ def collapse_same_title_autoplay_choices(
 def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]:
     enriched = dict(candidate)
     original_title = str(enriched.get("title") or "").strip()
-    original_artist = str(enriched.get("artist") or "").strip()
+    original_artist = sanitize_artist_name(enriched.get("artist"))
+    enriched["artist"] = original_artist
     original_kind = version_kind(original_title, original_artist)
     original_penalty = version_preference_penalty(
         original_title,
@@ -2314,7 +2380,7 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
     # Canonicalization guard: require a strong catalog match and strong base-title
     # + artist agreement before replacing an identified alternate release.
     spotify_title = str(spotify.get("title") or "")
-    spotify_artist = str(spotify.get("artist") or "")
+    spotify_artist = sanitize_artist_name(spotify.get("artist"))
     spotify_same_work = (
         spotify_title
         and _same_song_base_title(spotify_title, original_title) >= 0.94
@@ -2331,7 +2397,7 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
     )
 
     apple_title = str(apple.get("title") or "")
-    apple_artist = str(apple.get("artist") or "")
+    apple_artist = sanitize_artist_name(apple.get("artist"))
     apple_same_work = (
         apple_title
         and _same_song_base_title(apple_title, original_title) >= 0.94
@@ -2398,7 +2464,46 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
         enriched["artist"] = spotify_artist or enriched.get("artist") or original_artist
 
     final_title = str(enriched.get("title") or original_title)
-    final_artist = str(enriched.get("artist") or original_artist)
+    final_artist = sanitize_artist_name(
+        enriched.get("artist") or original_artist
+    )
+
+    traditional_fallback = (
+        fallback_artist_for_title(final_title)
+        if not original_artist
+        else ""
+    )
+    if traditional_fallback:
+        final_artist = traditional_fallback
+
+    if not final_artist:
+        catalog_artist_options = [
+            (
+                spotify_artist,
+                spotify_quality,
+                _same_song_base_title(spotify_title, final_title)
+                if spotify_title else 0.0,
+            ),
+            (
+                apple_artist,
+                apple_quality,
+                _same_song_base_title(apple_title, final_title)
+                if apple_title else 0.0,
+            ),
+        ]
+        catalog_artist_options.sort(
+            key=lambda item: (item[1], item[2]),
+            reverse=True,
+        )
+        for catalog_artist, quality, title_match in catalog_artist_options:
+            if catalog_artist and quality >= 0.58 and title_match >= 0.84:
+                final_artist = catalog_artist
+                break
+
+    if not final_artist:
+        final_artist = fallback_artist_for_title(final_title)
+
+    enriched["artist"] = final_artist
     final_kind = version_kind(final_title, final_artist)
 
     # If a derivative was safely mapped to a clean catalog track, do not continue
