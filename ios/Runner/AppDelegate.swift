@@ -1329,21 +1329,14 @@ final class AppleMusicPlaylistBridge {
 }
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     override func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        let controller =
-            window?.rootViewController as! FlutterViewController
-
-        let siriChannel = FlutterMethodChannel(
-            name: "com.handsfreefinder/siri",
-            binaryMessenger: controller.binaryMessenger
-        )
-
-        SiriBridge.channel = siriChannel
-
+        // Control Center / App Intent bridge. This observer is process-level,
+        // so it stays in AppDelegate. If the Flutter engine is not ready yet,
+        // SiriBridge.sendSiriSignal() still records the pending trigger in UserDefaults.
         NotificationCenter.default.addObserver(
             forName: Notification.Name("reczt.control.identifySong"),
             object: nil,
@@ -1351,6 +1344,33 @@ final class AppleMusicPlaylistBridge {
         ) { _ in
             SiriBridge.sendSiriSignal()
         }
+
+        // Reconnect to any URLSession transfers that iOS preserved while the
+        // process was suspended/terminated.
+        OfflineUploadManager.shared.restoreBackgroundSession()
+
+        return super.application(
+            application,
+            didFinishLaunchingWithOptions: launchOptions
+        )
+    }
+
+    func didInitializeImplicitFlutterEngine(
+        _ engineBridge: FlutterImplicitEngineBridge
+    ) {
+        // Flutter 3.41+ / Xcode 27 UIScene lifecycle: plugins and all channels
+        // must be registered after the implicit Flutter engine exists.
+        GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+        let messenger = engineBridge.applicationRegistrar.messenger()
+        
+        RecztIOS27Bridge.register(with: messenger)
+        
+        let siriChannel = FlutterMethodChannel(
+            name: "com.handsfreefinder/siri",
+            binaryMessenger: messenger
+        )
+
+        SiriBridge.channel = siriChannel
 
         siriChannel.setMethodCallHandler { call, result in
             switch call.method {
@@ -1376,7 +1396,7 @@ final class AppleMusicPlaylistBridge {
 
         let voiceChoiceChannel = FlutterMethodChannel(
             name: "reczt/voice_choice",
-            binaryMessenger: controller.binaryMessenger
+            binaryMessenger: messenger
         )
 
         voiceChoiceChannel.setMethodCallHandler { call, result in
@@ -1404,7 +1424,7 @@ final class AppleMusicPlaylistBridge {
 
         let appleMusicChannel = FlutterMethodChannel(
             name: "reczt/apple_music",
-            binaryMessenger: controller.binaryMessenger
+            binaryMessenger: messenger
         )
 
         appleMusicChannel.setMethodCallHandler { call, result in
@@ -1457,7 +1477,7 @@ final class AppleMusicPlaylistBridge {
 
         let storeReviewChannel = FlutterMethodChannel(
             name: "reczt/store_review",
-            binaryMessenger: controller.binaryMessenger
+            binaryMessenger: messenger
         )
 
         storeReviewChannel.setMethodCallHandler { call, result in
@@ -1497,7 +1517,7 @@ final class AppleMusicPlaylistBridge {
 
         let offlineQueueChannel = FlutterMethodChannel(
             name: "reczt/offline_queue",
-            binaryMessenger: controller.binaryMessenger
+            binaryMessenger: messenger
         )
 
         OfflineUploadManager.shared.resultReadyHandler = {
@@ -1554,19 +1574,7 @@ final class AppleMusicPlaylistBridge {
                 result(FlutterMethodNotImplemented)
             }
         }
-
-        // Reconnect to any URLSession transfers that iOS preserved while the
-        // process was suspended/terminated.
-        OfflineUploadManager.shared.restoreBackgroundSession()
-
-        GeneratedPluginRegistrant.register(with: self)
-
-        return super.application(
-            application,
-            didFinishLaunchingWithOptions: launchOptions
-        )
     }
-
 
     override func application(
         _ application: UIApplication,
@@ -1588,29 +1596,18 @@ final class AppleMusicPlaylistBridge {
     }
 }
 
-@available(iOS 16.0, *)
+@available(iOS 27.0, *)
 struct AppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
-            intent: IdentifySongIntent(),
+            intent: ActivateRecztShortcutIntent(),
             phrases: [
                 "Activate \(.applicationName)",
-                "Find Song With \(.applicationName)"
+                "Identify a song with \(.applicationName)",
+                "What song is this with \(.applicationName)",
+                "Find this song with \(.applicationName)"
             ],
             shortTitle: "Identify Song",
-            systemImageName: "waveform"
-        )
-    }
-}
-
-@available(iOS 16.0, *)
-struct IdentifySongIntent: AppIntent {
-    static var title: LocalizedStringResource = "Identify Song"
-    static var openAppWhenRun: Bool = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        SiriBridge.sendSiriSignal()
-        return .result()
+            systemImageName: "mic.fill"        )
     }
 }

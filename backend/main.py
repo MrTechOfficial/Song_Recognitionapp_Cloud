@@ -150,26 +150,6 @@ BLOCKED_VERSION_PHRASES = (
     "8d audio",
 )
 
-# Balanced policy: keep obvious karaoke/tribute/imitation products hard-blocked,
-# but let ordinary covers/remakes survive as recognition evidence. They can then
-# be canonicalized to the original when catalog evidence is strong.
-HARD_BLOCKED_VERSION_PHRASES = tuple(
-    phrase for phrase in BLOCKED_VERSION_PHRASES
-    if "cover" not in phrase and phrase not in {"originally performed by"}
-)
-
-SOFT_COVER_PHRASES = (
-    "instrumental cover",
-    "cover version",
-    "acoustic cover",
-    "piano cover",
-    "guitar cover",
-    "orchestral cover",
-    "cover by",
-    "originally performed by",
-)
-
-
 # These are not hard-blocked because a major artist can legitimately release an
 # official remix or alternate version. They are, however, strongly disfavored.
 STRONG_DERIVATIVE_PHRASES = (
@@ -230,7 +210,7 @@ _VERSION_WORDS_RE = re.compile(
     re.IGNORECASE,
 )
 
-app = FastAPI(title="Reczt Song Recognition Engine", version="3.2")
+app = FastAPI(title="Reczt Song Recognition Engine", version="3.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOW_ORIGINS,
@@ -344,87 +324,6 @@ def sanitize_artist_name(value: Any) -> str:
     return cleaned
 
 
-def artist_name_is_suspicious(value: Any) -> bool:
-    """Return True when an artist string looks corrupted rather than like a name.
-
-    This is intentionally more conservative than ``sanitize_artist_name``.  It
-    preserves legitimate punctuation-heavy artist names (P!nk, AC/DC, will.i.am,
-    Ke$ha, !!!) and non-Latin scripts, while flagging control/mojibake-heavy or
-    mostly-symbol strings so catalog metadata can repair them.
-    """
-    raw = unicodedata.normalize("NFKC", str(value or "")).strip()
-    if not raw:
-        return True
-    if raw == "!!!":
-        return False
-
-    # Explicit corruption signals seen in malformed provider metadata.
-    if "\ufffd" in raw:
-        return True
-    if any(0x2500 <= ord(ch) <= 0x259F for ch in raw):
-        return True
-    if any(unicodedata.category(ch).startswith("C") for ch in raw):
-        return True
-    if sum(raw.count(marker) for marker in ("Ã", "Â", "Ð", "Ñ", "�")) >= 2:
-        return True
-
-    cleaned = sanitize_artist_name(raw)
-    if not cleaned:
-        return True
-
-    visible = [ch for ch in cleaned if not ch.isspace()]
-    if not visible:
-        return True
-    meaningful = [
-        ch for ch in visible
-        if unicodedata.category(ch)[:1] in {"L", "M", "N"}
-    ]
-    punctuation_or_symbols = [
-        ch for ch in visible
-        if unicodedata.category(ch)[:1] in {"P", "S"}
-    ]
-
-    # Normal artist punctuation is fine.  A longer value in which symbols rival
-    # letters/numbers is much more likely to be provider garbage.
-    if len(visible) >= 5:
-        meaningful_ratio = len(meaningful) / len(visible)
-        symbol_ratio = len(punctuation_or_symbols) / len(visible)
-        if meaningful_ratio < 0.40 or symbol_ratio > 0.60:
-            return True
-
-    # Repeated unusual glyph runs are another strong corruption signal.
-    if re.search(r"[^\w\s.'’&+!/$-]{4,}", cleaned, flags=re.UNICODE):
-        return True
-
-    return False
-
-
-def title_name_is_suspicious(value: Any) -> bool:
-    """Flag obviously corrupted display titles without over-policing punctuation."""
-    raw = unicodedata.normalize("NFKC", str(value or "")).strip()
-    if not raw:
-        return True
-    if "\ufffd" in raw:
-        return True
-    if any(0x2500 <= ord(ch) <= 0x259F for ch in raw):
-        return True
-    if any(unicodedata.category(ch).startswith("C") for ch in raw):
-        return True
-
-    visible = [ch for ch in raw if not ch.isspace()]
-    meaningful = [
-        ch for ch in visible
-        if unicodedata.category(ch)[:1] in {"L", "M", "N"}
-    ]
-    if not visible or not meaningful:
-        return True
-    if len(visible) >= 5 and (len(meaningful) / len(visible)) < 0.35:
-        return True
-    if re.search(r"[^\w\s.'’&+!/$()\[\]-]{5,}", raw, flags=re.UNICODE):
-        return True
-    return False
-
-
 def fallback_artist_for_title(title: str) -> str:
     normalized = clean_text(title)
     if normalized in {"happy birthday", "happy birthday to you"}:
@@ -455,16 +354,16 @@ def version_kind(title: str, artist: str = "") -> str:
     # Tribute/cover branding is often placed in the artist field, so the hard
     # reject scans title + artist. Remix/live descriptors, however, are evaluated
     # on the title only so an artist name cannot accidentally trigger them.
-    if any(phrase in combined for phrase in HARD_BLOCKED_VERSION_PHRASES):
+    if any(phrase in combined for phrase in BLOCKED_VERSION_PHRASES):
         return "blocked_cover_or_novelty"
 
-    if any(phrase in combined for phrase in SOFT_COVER_PHRASES) or re.search(
+    if re.search(
         r"(?:\(|\[|\-|–|—|:)\s*(?:cover|remake)(?:\s+version)?\b|"
         r"\b(?:cover|remake)\s+version\b",
         title_text,
         flags=re.IGNORECASE,
     ):
-        return "cover"
+        return "blocked_cover_or_novelty"
 
     if any(phrase in title_text for phrase in STRONG_DERIVATIVE_PHRASES):
         if re.search(r"\b(?:club|dance|extended|dj|dub|house|techno|festival|vip)\b", title_text):
@@ -555,10 +454,6 @@ def version_preference_penalty(
 
     if kind == "blocked_cover_or_novelty":
         return 1.0
-    if kind == "cover":
-        # Prefer a confirmed original, but do not throw away a useful recognition
-        # result just because a provider labels it as a cover.
-        return 0.06 if popularity >= 0.70 else 0.09
     if kind == "club_or_extended_mix":
         return 0.30 if popularity >= 0.75 else 0.36 if popularity >= 0.50 else 0.42
     if kind == "bootleg_or_rework":
@@ -972,7 +867,7 @@ def recognize_with_acrcloud(audio_path: str) -> Tuple[str, List[Dict[str, Any]]]
             continue
         title = str(item.get("title") or item.get("name") or "").strip()
         artist = extract_artist(item)
-        if not title or title_name_is_suspicious(title) or is_unwanted_version(title, artist):
+        if not title or is_unwanted_version(title, artist):
             continue
 
         default_score = 0.55 if kind == "humming" else 0.88
@@ -1371,27 +1266,24 @@ def transcribe_with_groq(
 
 def transcript_looks_useful(text: str) -> bool:
     words = [w for w in re.split(r"\s+", text.strip()) if w]
-    if len(words) < 2:
+    if len(words) < 3:
         return False
     normalized = clean_text(text)
-    if len(normalized) < 7:
+    if len(normalized) < 10:
         return False
-    # Keep hallucination protection, but allow short sung phrases through.
-    normalized_words = [clean_text(w) for w in words if clean_text(w)]
-    unique_ratio = len(set(normalized_words)) / max(1, len(normalized_words))
-    if len(words) <= 3:
-        return unique_ratio >= 0.50
-    return unique_ratio >= 0.28
+    # Whisper hallucinations on silence often repeat the same short token.
+    unique_ratio = len(set(words)) / max(1, len(words))
+    return unique_ratio >= 0.35
 
 
 def build_lyric_queries(lyrics: str) -> List[str]:
     words = [w for w in lyrics.strip().split() if w]
     if not words:
         return []
-    if len(words) <= 7:
+    if len(words) <= 8:
         return [" ".join(words)]
 
-    window = 5
+    window = 7
     starts = [0]
     if len(words) >= 14:
         starts.append(max(0, len(words) // 2 - window // 2))
@@ -1433,7 +1325,7 @@ def genius_candidates_from_lyrics(
             )
             if response.status_code != 200:
                 return query_index, []
-            hits = response.json().get("response", {}).get("hits", [])[:7]
+            hits = response.json().get("response", {}).get("hits", [])[:5]
             return query_index, hits if isinstance(hits, list) else []
         except Exception as exc:
             print(f"[GENIUS ERROR] {exc}")
@@ -1457,7 +1349,7 @@ def genius_candidates_from_lyrics(
             artist = sanitize_artist_name(
                 (result.get("primary_artist") or {}).get("name")
             )
-            if not title or title_name_is_suspicious(title) or is_unwanted_version(title, artist):
+            if not title or is_unwanted_version(title, artist):
                 continue
 
             key = str(result.get("id") or candidate_key(title, artist))
@@ -1890,172 +1782,6 @@ def apple_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
         "catalog_query_title": base_title,
     }
 
-
-@lru_cache(maxsize=256)
-def _spotify_title_only_candidates(title: str, language: str) -> List[Dict[str, Any]]:
-    """Exact-title canonical Spotify candidates for vocal disambiguation."""
-    token = get_spotify_access_token()
-    base_title = strip_version_descriptors(title)
-    if not token or not base_title:
-        return []
-    market = LANGUAGE_TO_MARKET.get(language, LANGUAGE_TO_MARKET["en"])["spotify"]
-    try:
-        response = requests.get(
-            "https://api.spotify.com/v1/search",
-            params={"q": base_title, "type": "track", "limit": 20, "market": market},
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=(2.5, 5),
-        )
-        if response.status_code != 200:
-            return []
-        tracks = response.json().get("tracks", {}).get("items", [])
-    except Exception as exc:
-        print(f"[SPOTIFY TITLE-ONLY ERROR] {type(exc).__name__}")
-        return []
-
-    results: List[Dict[str, Any]] = []
-    for rank, track in enumerate(tracks):
-        track_title = str(track.get("name") or "").strip()
-        artists = track.get("artists") or []
-        track_artist = sanitize_artist_name(
-            (artists[0] or {}).get("name") if artists else ""
-        )
-        if not track_title or not track_artist:
-            continue
-        title_score = _same_song_base_title(track_title, base_title)
-        if title_score < 0.97:
-            continue
-        if version_kind(track_title, track_artist) != "canonical":
-            continue
-        track_id = str(track.get("id") or "").strip()
-        url = str((track.get("external_urls") or {}).get("spotify") or "")
-        if not url and track_id:
-            url = f"https://open.spotify.com/track/{track_id}"
-        album = track.get("album") or {}
-        results.append({
-            "title": track_title,
-            "artist": track_artist,
-            "spotify_url": url,
-            "spotify_popularity": int(track.get("popularity") or 0),
-            "spotify_title_rank": rank,
-            "spotify_title_score": round(title_score, 4),
-            "release_date": str(album.get("release_date") or ""),
-        })
-    return results
-
-
-@lru_cache(maxsize=256)
-def _apple_title_only_candidates(title: str, language: str) -> List[Dict[str, Any]]:
-    """Exact-title canonical Apple catalog candidates for cross-checking."""
-    base_title = strip_version_descriptors(title)
-    if not base_title:
-        return []
-    country = LANGUAGE_TO_MARKET.get(language, LANGUAGE_TO_MARKET["en"])["apple"]
-    try:
-        response = requests.get(
-            "https://itunes.apple.com/search",
-            params={"term": base_title, "entity": "song", "limit": 25, "country": country},
-            timeout=(2.5, 5),
-        )
-        if response.status_code != 200:
-            return []
-        items = response.json().get("results", [])
-    except Exception as exc:
-        print(f"[APPLE TITLE-ONLY ERROR] {type(exc).__name__}")
-        return []
-
-    results: List[Dict[str, Any]] = []
-    for rank, item in enumerate(items):
-        track_title = str(item.get("trackName") or "").strip()
-        track_artist = sanitize_artist_name(item.get("artistName"))
-        if not track_title or not track_artist:
-            continue
-        title_score = _same_song_base_title(track_title, base_title)
-        if title_score < 0.97:
-            continue
-        if version_kind(track_title, track_artist) != "canonical":
-            continue
-        artwork = str(item.get("artworkUrl100") or "")
-        if artwork:
-            artwork = artwork.replace("100x100bb", "600x600bb")
-        results.append({
-            "title": track_title,
-            "artist": track_artist,
-            "apple_music_url": str(item.get("trackViewUrl") or ""),
-            "cover_url": artwork,
-            "genre": str(item.get("primaryGenreName") or ""),
-            "apple_title_rank": rank,
-            "apple_title_score": round(title_score, 4),
-            "release_date": str(item.get("releaseDate") or ""),
-        })
-    return results
-
-
-def title_only_catalog_consensus(title: str, language: str) -> Dict[str, Any]:
-    """Return a canonical exact-title identity only when Spotify + Apple agree.
-
-    This is intentionally stricter than ordinary enrichment.  It is used to repair
-    corrupted artist metadata and to disambiguate singing/humming, where the user
-    normally wants the canonical recording rather than an obscure cover.
-    """
-    if not title:
-        return {}
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        spotify_future = executor.submit(_spotify_title_only_candidates, title, language)
-        apple_future = executor.submit(_apple_title_only_candidates, title, language)
-        spotify_candidates = spotify_future.result()
-        apple_candidates = apple_future.result()
-
-    agreements: List[Dict[str, Any]] = []
-    for spotify in spotify_candidates:
-        s_artist = str(spotify.get("artist") or "")
-        s_title = str(spotify.get("title") or "")
-        best_apple: Optional[Dict[str, Any]] = None
-        best_artist_score = 0.0
-        for apple in apple_candidates:
-            a_artist = str(apple.get("artist") or "")
-            a_title = str(apple.get("title") or "")
-            if _same_song_base_title(s_title, a_title) < 0.98:
-                continue
-            artist_score = _artist_similarity(s_artist, a_artist)
-            if artist_score >= 0.90 and artist_score > best_artist_score:
-                best_artist_score = artist_score
-                best_apple = apple
-        if best_apple is None:
-            continue
-
-        popularity = int(spotify.get("spotify_popularity") or 0)
-        spotify_rank = int(spotify.get("spotify_title_rank") or 0)
-        apple_rank = int(best_apple.get("apple_title_rank") or 0)
-        # Popularity is useful for distinguishing an established canonical track
-        # from an obscure same-title cover, but cross-catalog rank agreement also
-        # matters so popularity never acts alone.
-        consensus_score = (
-            popularity
-            + max(0, 12 - spotify_rank)
-            + max(0, 10 - apple_rank)
-        )
-        merged = dict(spotify)
-        merged.update({
-            "apple_music_url": best_apple.get("apple_music_url", ""),
-            "cover_url": best_apple.get("cover_url", ""),
-            "genre": best_apple.get("genre", ""),
-            "apple_title_rank": apple_rank,
-            "catalog_artist_agreement": round(best_artist_score, 4),
-            "catalog_consensus_score": consensus_score,
-        })
-        agreements.append(merged)
-
-    if not agreements:
-        return {}
-    agreements.sort(
-        key=lambda item: (
-            int(item.get("catalog_consensus_score") or 0),
-            int(item.get("spotify_popularity") or 0),
-        ),
-        reverse=True,
-    )
-    return agreements[0]
 
 
 def _playback_artist_matches(recognized_artist: str, catalog_artists: List[str]) -> bool:
@@ -2620,22 +2346,18 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
                 acr_spotify_url = f"https://open.spotify.com/track/{spotify_id}"
                 enriched["acr_spotify_url"] = acr_spotify_url
 
-    # Search the canonicalized base title in both catalogs. If the provider artist
-    # looks corrupted, let the title drive the lookup so clean catalog metadata
-    # has a chance to repair the artist instead of searching for the garbage text.
-    suspicious_artist = artist_name_is_suspicious(original_artist)
-    catalog_lookup_artist = "" if suspicious_artist else original_artist
+    # Search the canonicalized base title in both catalogs.
     with ThreadPoolExecutor(max_workers=2) as executor:
         spotify_future = executor.submit(
             spotify_lookup,
             original_title,
-            catalog_lookup_artist,
+            original_artist,
             language,
         )
         apple_future = executor.submit(
             apple_lookup,
             original_title,
-            catalog_lookup_artist,
+            original_artist,
             language,
         )
         spotify = spotify_future.result()
@@ -2648,70 +2370,6 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
     )
     apple_quality = float(apple.get("apple_match_quality") or 0.0)
 
-    # Artist repair / vocal canonicalization uses a separate title-only lookup and
-    # requires Spotify + Apple to agree.  Ambient/fingerprint recognition is never
-    # rewritten merely because another performer is more popular.
-    source_text = str(enriched.get("source") or "").casefold()
-    recognition_type = str(enriched.get("recognition_type") or "").casefold()
-    vocal_or_lyric_result = (
-        recognition_type == "humming"
-        or "groq" in source_text
-        or "genius" in source_text
-        or "lyrics" in source_text
-    )
-    catalog_consensus: Dict[str, Any] = {}
-    if suspicious_artist or vocal_or_lyric_result:
-        catalog_consensus = title_only_catalog_consensus(original_title, language)
-
-    if catalog_consensus:
-        consensus_artist = sanitize_artist_name(catalog_consensus.get("artist"))
-        consensus_title = str(catalog_consensus.get("title") or original_title).strip()
-        consensus_popularity = int(catalog_consensus.get("spotify_popularity") or 0)
-        current_popularity = int(spotify.get("spotify_popularity") or 0)
-        current_artist_matches = bool(
-            original_artist
-            and consensus_artist
-            and _artist_similarity(original_artist, consensus_artist) >= 0.82
-        )
-
-        repair_corrupt_artist = bool(
-            suspicious_artist
-            and consensus_artist
-            and _same_song_base_title(consensus_title, original_title) >= 0.98
-        )
-        prefer_vocal_canonical = bool(
-            vocal_or_lyric_result
-            and consensus_artist
-            and not current_artist_matches
-            and consensus_popularity >= 50
-            and consensus_popularity >= current_popularity + 22
-            and _same_song_base_title(consensus_title, original_title) >= 0.98
-        )
-
-        if repair_corrupt_artist or prefer_vocal_canonical:
-            enriched["title"] = consensus_title or original_title
-            enriched["artist"] = consensus_artist or original_artist
-            original_artist = enriched["artist"]
-            if catalog_consensus.get("spotify_url"):
-                enriched["spotify_url"] = catalog_consensus["spotify_url"]
-            if catalog_consensus.get("apple_music_url"):
-                enriched["apple_music_url"] = catalog_consensus["apple_music_url"]
-            if catalog_consensus.get("cover_url"):
-                enriched["cover_url"] = catalog_consensus["cover_url"]
-            if catalog_consensus.get("genre"):
-                enriched["genre"] = catalog_consensus["genre"]
-            enriched["artist_repaired_from_catalog"] = repair_corrupt_artist
-            enriched["vocal_canonicalized_from_catalog"] = prefer_vocal_canonical
-            enriched["catalog_consensus_artist"] = consensus_artist
-            enriched["catalog_consensus_popularity"] = consensus_popularity
-            print(
-                "[CATALOG IDENTITY REPAIR] "
-                f"corrupt_artist={repair_corrupt_artist} "
-                f"vocal_canonical={prefer_vocal_canonical} "
-                f"title={_song_identity_title(consensus_title)!r} "
-                f"artist={consensus_artist!r}"
-            )
-
     if spotify.get("spotify_popularity") is not None:
         enriched["spotify_popularity"] = int(spotify.get("spotify_popularity") or 0)
     if spotify.get("spotify_match_quality") is not None:
@@ -2721,35 +2379,6 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
 
     # Canonicalization guard: require a strong catalog match and strong base-title
     # + artist agreement before replacing an identified alternate release.
-    # If title-only consensus repaired the identity, refresh the lookup reference
-    # values so later guards do not restore the corrupted/cover artist.
-    if enriched.get("artist_repaired_from_catalog") or enriched.get("vocal_canonicalized_from_catalog"):
-        repaired_title = str(enriched.get("title") or original_title).strip()
-        repaired_artist = sanitize_artist_name(enriched.get("artist"))
-        if repaired_title:
-            original_title = repaired_title
-        if repaired_artist:
-            original_artist = repaired_artist
-        original_kind = version_kind(original_title, original_artist)
-        # Refresh normal title+artist catalog lookups for the repaired identity.
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            spotify_future = executor.submit(spotify_lookup, original_title, original_artist, language)
-            apple_future = executor.submit(apple_lookup, original_title, original_artist, language)
-            spotify = spotify_future.result()
-            apple = apple_future.result()
-        spotify_quality = float(spotify.get("spotify_match_quality") or 0.0)
-        spotify_popularity = max(
-            0.0,
-            min(float(spotify.get("spotify_popularity") or 0) / 100.0, 1.0),
-        )
-        apple_quality = float(apple.get("apple_match_quality") or 0.0)
-        if spotify.get("spotify_popularity") is not None:
-            enriched["spotify_popularity"] = int(spotify.get("spotify_popularity") or 0)
-        if spotify.get("spotify_match_quality") is not None:
-            enriched["spotify_match_quality"] = spotify_quality
-        if apple.get("apple_match_quality") is not None:
-            enriched["apple_match_quality"] = apple_quality
-
     spotify_title = str(spotify.get("title") or "")
     spotify_artist = sanitize_artist_name(spotify.get("artist"))
     spotify_same_work = (
@@ -2846,9 +2475,6 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
     )
     if traditional_fallback:
         final_artist = traditional_fallback
-
-    if artist_name_is_suspicious(final_artist):
-        final_artist = ""
 
     if not final_artist:
         catalog_artist_options = [
@@ -3084,8 +2710,8 @@ def merge_candidates(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def read_root() -> Dict[str, Any]:
     return {
         "status": "Reczt recognition backend online",
-        "version": "3.2",
-        "pipeline": "ACRCloud multi-pass consensus + Groq/Genius cross-check + balanced canonical-release selection + Spotify + Apple Music",
+        "version": "3.1",
+        "pipeline": "ACRCloud multi-pass consensus + Groq/Genius cross-check + strict canonical-release selection + Spotify + Apple Music",
     }
 
 
@@ -3175,13 +2801,8 @@ def recognize_audio(
                 if acr_candidates
                 else 0.0
             )
-            top_acr_title = str(acr_candidates[0].get("title") or "") if acr_candidates else ""
-            top_acr_artist = str(acr_candidates[0].get("artist") or "") if acr_candidates else ""
             should_crosscheck_lyrics = (
-                acr_kind == "humming"
-                or title_name_is_suspicious(top_acr_title)
-                or artist_name_is_suspicious(top_acr_artist)
-                or not acr_decisive
+                not acr_decisive
                 or top_acr_votes < 2
                 or top_acr_confidence < 0.88
             )
@@ -3208,8 +2829,8 @@ def recognize_audio(
                 return {
                     "success": False,
                     "message": (
-                        "Could not confidently recognize this song yet. "
-                        "Try another clear 8–12 second section."
+                        "Could not confidently recognize this song. "
+                        "Try singing a clear 8–12 second melodic or lyric section."
                     ),
                     "retryable": True,
                 }
@@ -3443,7 +3064,7 @@ def recognize_audio(
                 "recognition_type": top.get("recognition_type", acr_kind),
                 "results": client_results[:3],
                 "recognition_meta": {
-                    "pipeline_version": "3.2",
+                    "pipeline_version": "3.1",
                     "environment": environment,
                     "acr_passes_attempted": acr_meta.get("passes_attempted", 0),
                     "acr_passes_with_candidates": acr_meta.get(

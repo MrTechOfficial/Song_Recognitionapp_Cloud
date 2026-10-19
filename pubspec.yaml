@@ -41,6 +41,9 @@ flutter:
     - assets/ding.mp3
     - assets/world_map.png
     - assets/reczt_error.wav
+    - assets/seasonal/halloween/
+    - assets/seasonal/halloween_v2/
+    - assets/seasonal/christmas/
     
 dependency_overrides:
   record_platform_interface: ^2.1.0

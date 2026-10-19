@@ -19,9 +19,15 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'seasonal/halloween_scene_v2.dart';
+import 'seasonal/christmas_scene.dart';
+import 'seasonal/seasonal_scene_support.dart';
 
 
 
+
+// iOS 27 system integration preview: Dynamic Island + background App Intents +
+// native song entities + Music Understanding analytics. Seasonal UI is left intact.
 
 const String recztRecognitionBackendUrl =
     'https://song-recognitionapp-cloud.onrender.com/recognize';
@@ -31,6 +37,158 @@ const String recztRecognitionBackendUrl =
 /// automatically waits for connectivity to return.
 const MethodChannel _recztOfflineQueueChannel =
     MethodChannel('reczt/offline_queue');
+
+
+/// Native iOS 27 bridge for Live Activities / Dynamic Island, background
+/// App Intents, App Entity history sync, and Music Understanding analysis.
+const MethodChannel _recztIOS27Channel = MethodChannel('reczt/ios27');
+
+const String _recztIOS27ImportedResultIdsKey =
+    'ios27_imported_result_ids_v1';
+const String _analyticsMusicCountKey = 'analytics_mu_analyzed_count';
+const String _analyticsMusicBpmSumKey = 'analytics_mu_bpm_sum';
+const String _analyticsMusicPaceSumKey = 'analytics_mu_pace_sum';
+const String _analyticsMusicLoudnessSumKey = 'analytics_mu_loudness_sum';
+const String _analyticsMusicKeyCountsKey = 'analytics_mu_key_counts';
+const String _analyticsMusicInstrumentCountsKey =
+    'analytics_mu_instrument_counts';
+const String _analyticsMusicCacheKey = 'analytics_mu_song_cache_v1';
+const String _analyticsMusicLatestKey = 'analytics_mu_latest';
+
+class _RecztIOS27Bridge {
+  const _RecztIOS27Bridge._();
+
+  static bool get isAvailable => !kIsWeb && Platform.isIOS;
+
+  static Future<void> startRecognitionActivity({
+    required int durationSeconds,
+    required String environment,
+    String source = 'app',
+  }) async {
+    if (!isAvailable) return;
+    try {
+      await _recztIOS27Channel.invokeMethod('startRecognitionActivity', {
+        'durationSeconds': durationSeconds,
+        'environment': environment,
+        'source': source,
+      });
+    } catch (e) {
+      debugPrint('iOS 27 Live Activity start unavailable: $e');
+    }
+  }
+
+  static Future<void> updateRecognitionActivity({
+    required String phase,
+    int? secondsRemaining,
+  }) async {
+    if (!isAvailable) return;
+    try {
+      await _recztIOS27Channel.invokeMethod('updateRecognitionActivity', {
+        'phase': phase,
+        if (secondsRemaining != null) 'secondsRemaining': secondsRemaining,
+      });
+    } catch (e) {
+      debugPrint('iOS 27 Live Activity update unavailable: $e');
+    }
+  }
+
+  static Future<void> showRecognitionResult({
+    required String title,
+    required String artist,
+    String? artworkUrl,
+  }) async {
+    if (!isAvailable) return;
+    try {
+      await _recztIOS27Channel.invokeMethod('showRecognitionResult', {
+        'title': title,
+        'artist': artist,
+        'artworkUrl': artworkUrl ?? '',
+      });
+    } catch (e) {
+      debugPrint('iOS 27 result activity update unavailable: $e');
+    }
+  }
+
+  static Future<void> endRecognitionActivity({
+    String phase = 'idle',
+  }) async {
+    if (!isAvailable) return;
+    try {
+      await _recztIOS27Channel.invokeMethod('endRecognitionActivity', {
+        'phase': phase,
+      });
+    } catch (e) {
+      debugPrint('iOS 27 Live Activity end unavailable: $e');
+    }
+  }
+
+  static Future<void> syncRecognitionSettings({
+    required String language,
+    required String environment,
+    required int durationSeconds,
+  }) async {
+    if (!isAvailable) return;
+    try {
+      await _recztIOS27Channel.invokeMethod('syncRecognitionSettings', {
+        'language': language,
+        'environment': environment,
+        'durationSeconds': durationSeconds,
+        'backendUrl': recztRecognitionBackendUrl,
+      });
+    } catch (e) {
+      debugPrint('iOS 27 settings sync unavailable: $e');
+    }
+  }
+
+  static Future<void> syncSongHistory(List<String> encodedHistory) async {
+    if (!isAvailable) return;
+    try {
+      await _recztIOS27Channel.invokeMethod('syncSongHistory', {
+        'history': encodedHistory.take(100).toList(),
+      });
+    } catch (e) {
+      debugPrint('iOS 27 song entity sync unavailable: $e');
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> drainExternalRecognitions() async {
+    if (!isAvailable) return const <Map<String, dynamic>>[];
+    try {
+      final dynamic raw =
+          await _recztIOS27Channel.invokeMethod('drainExternalRecognitions');
+      if (raw is! List) return const <Map<String, dynamic>>[];
+      return raw
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } catch (e) {
+      debugPrint('iOS 27 external result drain unavailable: $e');
+      return const <Map<String, dynamic>>[];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> analyzeMusicPreview({
+    required String previewUrl,
+    required String title,
+    required String artist,
+  }) async {
+    if (!isAvailable || previewUrl.trim().isEmpty) return null;
+    try {
+      final dynamic raw = await _recztIOS27Channel.invokeMethod(
+        'analyzeMusicPreview',
+        {
+          'previewUrl': previewUrl,
+          'title': title,
+          'artist': artist,
+        },
+      );
+      return raw is Map ? Map<String, dynamic>.from(raw) : null;
+    } catch (e) {
+      debugPrint('Music Understanding analysis unavailable: $e');
+      return null;
+    }
+  }
+}
 
 // --------------------------------------------------------------------
 // 🔗 SHARED APP CONSTANTS & HELPERS
@@ -600,11 +758,13 @@ class _SongLookupMetadata {
   final String? artworkUrl;
   final String? genre;
   final String? artist;
+  final String? previewUrl;
 
   const _SongLookupMetadata({
     this.artworkUrl,
     this.genre,
     this.artist,
+    this.previewUrl,
   });
 }
 
@@ -875,12 +1035,14 @@ Future<_SongLookupMetadata> fetchSongMetadataForSong(
           final normalizedGenre = _normalizeGenre(rawGenre);
           final catalogArtist =
               _sanitizeArtistName(best['artistName']?.toString());
+          final preview = (best['previewUrl'] ?? '').toString().trim();
           return _SongLookupMetadata(
             artworkUrl: artwork.isEmpty
                 ? null
                 : artwork.replaceAll('100x100bb', '600x600bb'),
             genre: normalizedGenre.isEmpty ? null : normalizedGenre,
             artist: catalogArtist.isEmpty ? null : catalogArtist,
+            previewUrl: preview.isEmpty ? null : preview,
           );
         }
       }
@@ -1039,8 +1201,14 @@ void main() async {
   final Color initialSeedColor =
       savedColorValue != null ? Color(savedColorValue) : Colors.deepPurple;
   final String initialLang = prefs.getString('preferred_language') ?? 'en';
+  final RecztSeason initialSeason =
+      _recztSeasonFromId(prefs.getString('seasonal_theme_preview'));
 
-  runApp(MyApp(currentLang: initialLang, seedColor: initialSeedColor));
+  runApp(MyApp(
+    currentLang: initialLang,
+    seedColor: initialSeedColor,
+    seasonalTheme: initialSeason,
+  ));
   // Notification setup no longer blocks the first frame. Any queued-song
   // notification still awaits this same Future before it is shown.
   unawaited(ensureLocalNotificationsInitialized());
@@ -3396,31 +3564,1945 @@ const Map<String, Map<String, String>> _voiceChoiceStrings = {
   },
 };
 
+
+// --------------------------------------------------------------------
+// 🍂🎃❄️ RECZT SEASONAL THEME LAB
+// --------------------------------------------------------------------
+// TEST BUILD: every seasonal look is intentionally available year-round so
+// it can be previewed in Xcode before date windows are introduced. The user's
+// normal color theme is preserved and comes back whenever Standard is chosen.
+
+enum RecztSeason {
+  standard,
+  autumn,
+  halloween,
+  thanksgiving,
+  winter,
+  christmas,
+  spring,
+  easter,
+}
+
+extension RecztSeasonDetails on RecztSeason {
+  String get storageId => name;
+
+  String get displayName {
+    switch (this) {
+      case RecztSeason.standard:
+        return 'Standard Reczt';
+      case RecztSeason.autumn:
+        return 'Autumn';
+      case RecztSeason.halloween:
+        return 'Halloween';
+      case RecztSeason.thanksgiving:
+        return 'Thanksgiving';
+      case RecztSeason.winter:
+        return 'Winter Snow';
+      case RecztSeason.christmas:
+        return 'Christmas Lights';
+      case RecztSeason.spring:
+        return 'Spring Bloom';
+      case RecztSeason.easter:
+        return 'Easter Pastels';
+    }
+  }
+
+  String get emoji {
+    switch (this) {
+      case RecztSeason.standard:
+        return '🎵';
+      case RecztSeason.autumn:
+        return '🍂';
+      case RecztSeason.halloween:
+        return '🎃';
+      case RecztSeason.thanksgiving:
+        return '🍁';
+      case RecztSeason.winter:
+        return '❄️';
+      case RecztSeason.christmas:
+        return '🎄';
+      case RecztSeason.spring:
+        return '🌸';
+      case RecztSeason.easter:
+        return '🐣';
+    }
+  }
+
+  String get editionLabel {
+    switch (this) {
+      case RecztSeason.standard:
+        return '';
+      case RecztSeason.autumn:
+        return 'GOLDEN HOUR EDITION';
+      case RecztSeason.halloween:
+        return 'MIDNIGHT EDITION';
+      case RecztSeason.thanksgiving:
+        return 'HARVEST EDITION';
+      case RecztSeason.winter:
+        return 'SNOWFALL EDITION';
+      case RecztSeason.christmas:
+        return 'HOLIDAY LIGHTS EDITION';
+      case RecztSeason.spring:
+        return 'BLOOM EDITION';
+      case RecztSeason.easter:
+        return 'PASTEL EDITION';
+    }
+  }
+}
+
+RecztSeason _recztSeasonFromId(String? value) {
+  return RecztSeason.values.firstWhere(
+    (season) => season.storageId == value,
+    orElse: () => RecztSeason.standard,
+  );
+}
+
+class _RecztSeasonStyle {
+  final Color seed;
+  final Color lightPrimary;
+  final Color darkPrimary;
+  final Color accent;
+  final List<Color> lightGradient;
+  final List<Color> darkGradient;
+  final Color lightCard;
+  final Color darkCard;
+  final Color particle;
+
+  const _RecztSeasonStyle({
+    required this.seed,
+    required this.lightPrimary,
+    required this.darkPrimary,
+    required this.accent,
+    required this.lightGradient,
+    required this.darkGradient,
+    required this.lightCard,
+    required this.darkCard,
+    required this.particle,
+  });
+}
+
+_RecztSeasonStyle _recztSeasonStyle(RecztSeason season) {
+  switch (season) {
+    case RecztSeason.autumn:
+      return const _RecztSeasonStyle(
+        seed: Color(0xFFB85C24),
+        lightPrimary: Color(0xFF9A461C),
+        darkPrimary: Color(0xFFFFA65B),
+        accent: Color(0xFFD9A441),
+        lightGradient: [Color(0xFFFFF5E8), Color(0xFFF7DFC3), Color(0xFFE8B878)],
+        darkGradient: [Color(0xFF1C100B), Color(0xFF422016), Color(0xFF6B351D)],
+        lightCard: Color(0xFFFDF2E5),
+        darkCard: Color(0xFF2D1C16),
+        particle: Color(0xFFFFB45F),
+      );
+    case RecztSeason.halloween:
+      return const _RecztSeasonStyle(
+        seed: Color(0xFF7C3AED),
+        lightPrimary: Color(0xFF6C2FC7),
+        darkPrimary: Color(0xFFC59AFF),
+        accent: Color(0xFFFF8A26),
+        lightGradient: [Color(0xFFF7F0FF), Color(0xFFE6D7F7), Color(0xFFFFDFC5)],
+        darkGradient: [Color(0xFF09070D), Color(0xFF21102F), Color(0xFF371344)],
+        lightCard: Color(0xFFF7F0FC),
+        darkCard: Color(0xFF1C1226),
+        particle: Color(0xFFFF8A26),
+      );
+    case RecztSeason.thanksgiving:
+      return const _RecztSeasonStyle(
+        seed: Color(0xFF8F3D32),
+        lightPrimary: Color(0xFF7C352C),
+        darkPrimary: Color(0xFFFFA27D),
+        accent: Color(0xFFDDAA44),
+        lightGradient: [Color(0xFFFFF6E8), Color(0xFFF2D8B6), Color(0xFFD99D69)],
+        darkGradient: [Color(0xFF1B0D0B), Color(0xFF48231C), Color(0xFF6A3A24)],
+        lightCard: Color(0xFFFFF0DE),
+        darkCard: Color(0xFF2B1713),
+        particle: Color(0xFFF0B35A),
+      );
+    case RecztSeason.winter:
+      return const _RecztSeasonStyle(
+        seed: Color(0xFF3D7DAE),
+        lightPrimary: Color(0xFF2F6F9F),
+        darkPrimary: Color(0xFFAEDCFF),
+        accent: Color(0xFFD9F2FF),
+        lightGradient: [Color(0xFFF6FBFF), Color(0xFFDDEFFC), Color(0xFFBFDDEF)],
+        darkGradient: [Color(0xFF07131E), Color(0xFF102A3E), Color(0xFF1E4660)],
+        lightCard: Color(0xFFF2FAFF),
+        darkCard: Color(0xFF102431),
+        particle: Color(0xFFFFFFFF),
+      );
+    case RecztSeason.christmas:
+      return const _RecztSeasonStyle(
+        seed: Color(0xFF1E6B4E),
+        lightPrimary: Color(0xFF17563F),
+        darkPrimary: Color(0xFF7DD9AD),
+        accent: Color(0xFFD8AF55),
+        lightGradient: [Color(0xFFF7FAF5), Color(0xFFE4EFE6), Color(0xFFF3D9D5)],
+        darkGradient: [Color(0xFF071610), Color(0xFF103327), Color(0xFF4A171B)],
+        lightCard: Color(0xFFF4F8F1),
+        darkCard: Color(0xFF10251D),
+        particle: Color(0xFFFFE6A7),
+      );
+    case RecztSeason.spring:
+      return const _RecztSeasonStyle(
+        seed: Color(0xFF4F9D75),
+        lightPrimary: Color(0xFF397E5B),
+        darkPrimary: Color(0xFF90E0B4),
+        accent: Color(0xFFF0A6C1),
+        lightGradient: [Color(0xFFF7FFF9), Color(0xFFE3F5EA), Color(0xFFF9E6EF)],
+        darkGradient: [Color(0xFF0A1711), Color(0xFF153426), Color(0xFF3B2435)],
+        lightCard: Color(0xFFF2FBF5),
+        darkCard: Color(0xFF13291F),
+        particle: Color(0xFFFFBBD2),
+      );
+    case RecztSeason.easter:
+      return const _RecztSeasonStyle(
+        seed: Color(0xFF8A6BC2),
+        lightPrimary: Color(0xFF7357AA),
+        darkPrimary: Color(0xFFD1B9FF),
+        accent: Color(0xFFF5B9CF),
+        lightGradient: [Color(0xFFFFFAFF), Color(0xFFEDE4FA), Color(0xFFDDF3F0)],
+        darkGradient: [Color(0xFF15101C), Color(0xFF2C2140), Color(0xFF193A38)],
+        lightCard: Color(0xFFFAF4FF),
+        darkCard: Color(0xFF251C32),
+        particle: Color(0xFFF4C3D8),
+      );
+    case RecztSeason.standard:
+      return const _RecztSeasonStyle(
+        seed: Colors.deepPurple,
+        lightPrimary: Colors.deepPurple,
+        darkPrimary: Color(0xFFCE93D8),
+        accent: Colors.deepPurpleAccent,
+        lightGradient: [Color(0xFFFFFFFF), Color(0xFFFFFFFF)],
+        darkGradient: [Color(0xFF121212), Color(0xFF121212)],
+        lightCard: Colors.white,
+        darkCard: Color(0xFF1E1E1E),
+        particle: Colors.transparent,
+      );
+  }
+}
+
+class RecztSeasonalScope extends InheritedWidget {
+  final RecztSeason season;
+
+  const RecztSeasonalScope({
+    super.key,
+    required this.season,
+    required super.child,
+  });
+
+  static RecztSeason of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<RecztSeasonalScope>()?.season ??
+        RecztSeason.standard;
+  }
+
+  @override
+  bool updateShouldNotify(RecztSeasonalScope oldWidget) => oldWidget.season != season;
+}
+
+ThemeData _buildRecztTheme({
+  required Brightness brightness,
+  required Color standardSeed,
+  required RecztSeason season,
+}) {
+  if (season == RecztSeason.standard) {
+    return ThemeData(
+      brightness: brightness,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: standardSeed,
+        brightness: brightness,
+      ),
+    );
+  }
+
+  final style = _recztSeasonStyle(season);
+  // These illustrated night scenes need readable controls in either OS theme.
+  final illustrated = season == RecztSeason.halloween || season == RecztSeason.christmas;
+  final sceneBrightness = illustrated ? Brightness.dark : brightness;
+  final isDark = sceneBrightness == Brightness.dark;
+  final baseScheme = ColorScheme.fromSeed(
+    seedColor: style.seed,
+    brightness: sceneBrightness,
+  );
+  final primary = season == RecztSeason.halloween
+      ? const Color(0xFFFFBB68)
+      : season == RecztSeason.christmas
+          ? const Color(0xFFBDE9FF)
+          : isDark ? style.darkPrimary : style.lightPrimary;
+  final cardColor = isDark ? style.darkCard : style.lightCard;
+  final onCard = isDark ? Colors.white : const Color(0xFF201712);
+
+  return ThemeData(
+    brightness: sceneBrightness,
+    colorScheme: baseScheme.copyWith(
+      primary: primary,
+      onPrimary: illustrated ? const Color(0xFF112232) : baseScheme.onPrimary,
+      secondary: style.accent,
+      surface: cardColor,
+      onSurface: onCard,
+    ),
+    scaffoldBackgroundColor: Colors.transparent,
+    cardColor: cardColor.withValues(alpha: isDark ? 0.90 : 0.88),
+    dividerColor: primary.withValues(alpha: 0.20),
+    appBarTheme: AppBarTheme(
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: true,
+      backgroundColor: illustrated
+          ? Colors.transparent
+          : cardColor.withValues(alpha: isDark ? 0.86 : 0.80),
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: onCard,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: cardColor.withValues(alpha: 0.98),
+      surfaceTintColor: Colors.transparent,
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: isDark ? const Color(0xFF111111) : const Color(0xFF2B2521),
+      contentTextStyle: const TextStyle(color: Colors.white),
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+class _SeasonalAppBackground extends StatefulWidget {
+  final RecztSeason season;
+  final Widget child;
+
+  const _SeasonalAppBackground({
+    required this.season,
+    required this.child,
+  });
+
+  @override
+  State<_SeasonalAppBackground> createState() => _SeasonalAppBackgroundState();
+}
+
+class _SeasonalAppBackgroundState extends SeasonalSceneState<_SeasonalAppBackground> {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 18),
+    );
+  }
+
+  @override
+  void onMotionChanged(bool enabled) => _syncAtmosphere();
+
+  @override
+  void didUpdateWidget(covariant _SeasonalAppBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncAtmosphere();
+  }
+
+  void _syncAtmosphere() {
+    final usesPainter = widget.season != RecztSeason.halloween &&
+        widget.season != RecztSeason.christmas &&
+        widget.season != RecztSeason.standard;
+    if (motionEnabled && usesPainter) {
+      if (!_controller.isAnimating) _controller.repeat();
+    } else {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.season == RecztSeason.standard) return widget.child;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final style = _recztSeasonStyle(widget.season);
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final colors = isDark ? style.darkGradient : style.lightGradient;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: colors,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+if (widget.season == RecztSeason.halloween)
+  const IgnorePointer(
+    child: HalloweenLayeredSceneV2(),
+  )
+else if (widget.season == RecztSeason.christmas)
+  const IgnorePointer(
+    child: ChristmasScene(),
+  )
+else
+  IgnorePointer(
+    child: AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _SeasonalAtmospherePainter(
+            season: widget.season,
+            progress: reduceMotion ? 0.22 : _controller.value,
+            brightness: Theme.of(context).brightness,
+          ),
+        );
+      },
+    ),
+  ),
+        widget.child,
+      ],
+    );
+  }
+}
+
+
+// --------------------------------------------------------------------
+// 🎃 HALLOWEEN — MIDNIGHT EDITION ASSET-BASED ANIMATED SCENE
+// --------------------------------------------------------------------
+// The illustrated PNG background provides the finished hand-drawn look.
+// Transparent PNG overlays add subtle, independent motion without changing
+// any of Reczt's real Flutter controls above this layer.
+
+class _HalloweenAnimatedScene extends StatefulWidget {
+  const _HalloweenAnimatedScene();
+
+  @override
+  State<_HalloweenAnimatedScene> createState() => _HalloweenAnimatedSceneState();
+}
+
+class _HalloweenAnimatedSceneState extends State<_HalloweenAnimatedScene>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  static const _assetRoot = 'assets/seasonal/halloween';
+  static const double _sourceWidth = 406;
+  static const double _sourceHeight = 696;
+
+  late final AnimationController _motionController;
+  late final AnimationController _fogFarController;
+  late final AnimationController _fogNearController;
+  late final AnimationController _windController;
+  late final AnimationController _headController;
+  late final AnimationController _leafController;
+  late final AnimationController _moonCloudController;
+
+  Timer? _pumpkinTimer;
+  Timer? _pumpkinResetTimer;
+  Timer? _blinkTimer;
+  Timer? _gustTimer;
+  Timer? _headMoveTimer;
+  Timer? _leafTimer;
+  Timer? _moonCloudTimer;
+  final Random _random = Random();
+
+  int _pumpkinFace = 0;
+  int _nextPumpkinFace = 2;
+  bool _skullBlinking = false;
+  bool _headMoving = false;
+  bool _reduceMotion = false;
+  bool _appActive = true;
+  bool _didPrecache = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // The tree motion you liked stays intact: one gentle idle cycle every
+    // seven seconds, plus occasional wind gusts.
+    _motionController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 7),
+    )..repeat();
+
+    // Keep the fog exactly as the version you approved.
+    _fogFarController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 64),
+    )..repeat();
+
+    _fogNearController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 46),
+    )..repeat();
+
+    _windController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1750),
+    );
+
+    // Rare skeleton "look around" animation.
+    _headController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    );
+
+    _leafController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 5200),
+    );
+
+    _moonCloudController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 8800),
+    );
+
+    _schedulePumpkinFace();
+    _scheduleSkullBlink();
+    _scheduleWindGust();
+    _scheduleHeadMove();
+    _scheduleFallingLeaf();
+    _scheduleMoonCloud();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (!_didPrecache) {
+      _didPrecache = true;
+      for (final asset in <String>[
+        '$_assetRoot/halloween_background.png',
+        '$_assetRoot/fog_far.png',
+        '$_assetRoot/fog_near.png',
+        '$_assetRoot/tree_sway_patch.png',
+        '$_assetRoot/bat_clear_patch.png',
+        '$_assetRoot/bat_left_wing.png',
+        '$_assetRoot/bat_body.png',
+        '$_assetRoot/bat_right_wing.png',
+        '$_assetRoot/pumpkin_surprised_patch_v5.png',
+        '$_assetRoot/pumpkin_sly_patch_v5.png',
+        '$_assetRoot/skeleton_blink_overlay.png',
+        '$_assetRoot/skeleton_head_foreground_v5.png',
+        '$_assetRoot/skeleton_head_clear_patch_v5.png',
+      ]) {
+        unawaited(precacheImage(AssetImage(asset), context));
+      }
+    }
+
+    final shouldReduce = MediaQuery.of(context).disableAnimations;
+    if (shouldReduce == _reduceMotion) return;
+    _reduceMotion = shouldReduce;
+    _updateControllerState();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appActive = state == AppLifecycleState.resumed;
+    _updateControllerState();
+  }
+
+  void _updateControllerState() {
+    final shouldAnimate = !_reduceMotion && _appActive;
+    if (shouldAnimate) {
+      if (!_motionController.isAnimating) _motionController.repeat();
+      if (!_fogFarController.isAnimating) _fogFarController.repeat();
+      if (!_fogNearController.isAnimating) _fogNearController.repeat();
+    } else {
+      _motionController.stop();
+      _fogFarController.stop();
+      _fogNearController.stop();
+      _windController.stop();
+      _headController.stop();
+      _leafController.stop();
+      _moonCloudController.stop();
+    }
+  }
+
+  void _schedulePumpkinFace() {
+    _pumpkinTimer?.cancel();
+
+    // Give each face change enough time to read as an intentional expression.
+    _pumpkinTimer = Timer(Duration(seconds: 8 + _random.nextInt(5)), () {
+      if (!mounted) return;
+      if (!_reduceMotion && _appActive) {
+        final face = _nextPumpkinFace;
+        _nextPumpkinFace = face == 2 ? 3 : 2;
+        setState(() => _pumpkinFace = face);
+
+        _pumpkinResetTimer?.cancel();
+        _pumpkinResetTimer = Timer(const Duration(milliseconds: 2800), () {
+          if (mounted) setState(() => _pumpkinFace = 0);
+        });
+      }
+      _schedulePumpkinFace();
+    });
+  }
+
+  void _scheduleSkullBlink() {
+    _blinkTimer?.cancel();
+
+    // Calm, occasional blink: roughly every 18–30 seconds.
+    _blinkTimer = Timer(Duration(seconds: 18 + _random.nextInt(13)), () async {
+      if (!mounted) return;
+      if (!_reduceMotion && _appActive && !_headMoving) {
+        await _performBlink();
+      }
+      _scheduleSkullBlink();
+    });
+  }
+
+  Future<void> _performBlink() async {
+    if (!mounted) return;
+    setState(() => _skullBlinking = true);
+    await Future.delayed(const Duration(milliseconds: 190));
+    if (!mounted) return;
+    setState(() => _skullBlinking = false);
+  }
+
+  void _scheduleHeadMove() {
+    _headMoveTimer?.cancel();
+
+    // Rare personality beat: roughly every 22–35 seconds the skeleton looks around.
+    _headMoveTimer = Timer(Duration(seconds: 22 + _random.nextInt(14)), () async {
+      if (!mounted) return;
+      if (!_reduceMotion && _appActive) {
+        setState(() {
+          _headMoving = true;
+          _skullBlinking = false;
+        });
+        await _headController.forward(from: 0);
+        if (!mounted) return;
+        setState(() => _headMoving = false);
+      }
+      _scheduleHeadMove();
+    });
+  }
+
+  void _scheduleFallingLeaf() {
+    _leafTimer?.cancel();
+    _leafTimer = Timer(Duration(seconds: 18 + _random.nextInt(7)), () async {
+      if (!mounted) return;
+      if (!_reduceMotion && _appActive) {
+        await _leafController.forward(from: 0);
+      }
+      _scheduleFallingLeaf();
+    });
+  }
+
+  void _scheduleMoonCloud() {
+    _moonCloudTimer?.cancel();
+    _moonCloudTimer = Timer(Duration(seconds: 32 + _random.nextInt(19)), () async {
+      if (!mounted) return;
+      if (!_reduceMotion && _appActive) {
+        await _moonCloudController.forward(from: 0);
+      }
+      _scheduleMoonCloud();
+    });
+  }
+
+  void _scheduleWindGust() {
+    _gustTimer?.cancel();
+    _gustTimer = Timer(Duration(seconds: 5 + _random.nextInt(5)), () async {
+      if (!mounted) return;
+      if (!_reduceMotion && _appActive) {
+        await _windController.forward(from: 0);
+        if (!mounted) return;
+        await _windController.reverse();
+      }
+      _scheduleWindGust();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _pumpkinTimer?.cancel();
+    _pumpkinResetTimer?.cancel();
+    _blinkTimer?.cancel();
+    _gustTimer?.cancel();
+    _headMoveTimer?.cancel();
+    _leafTimer?.cancel();
+    _moonCloudTimer?.cancel();
+    _motionController.dispose();
+    _fogFarController.dispose();
+    _fogNearController.dispose();
+    _windController.dispose();
+    _headController.dispose();
+    _leafController.dispose();
+    _moonCloudController.dispose();
+    super.dispose();
+  }
+
+  Rect _sourceRectOnScreen(BoxConstraints constraints, Rect sourceRect) {
+    final scale = max(
+      constraints.maxWidth / _sourceWidth,
+      constraints.maxHeight / _sourceHeight,
+    );
+    final renderedWidth = _sourceWidth * scale;
+    final renderedHeight = _sourceHeight * scale;
+    final dx = (constraints.maxWidth - renderedWidth) / 2;
+    final dy = (constraints.maxHeight - renderedHeight) / 2;
+
+    return Rect.fromLTWH(
+      dx + sourceRect.left * scale,
+      dy + sourceRect.top * scale,
+      sourceRect.width * scale,
+      sourceRect.height * scale,
+    );
+  }
+
+  Widget _sourceImage(
+    BoxConstraints constraints,
+    Rect sourceRect,
+    String asset, {
+    FilterQuality filterQuality = FilterQuality.high,
+  }) {
+    return Positioned.fromRect(
+      rect: _sourceRectOnScreen(constraints, sourceRect),
+      child: Image.asset(
+        asset,
+        fit: BoxFit.fill,
+        filterQuality: filterQuality,
+      ),
+    );
+  }
+
+  Widget _seamlessFog({
+    required BoxConstraints constraints,
+    required String asset,
+    required double progress,
+    required double topFraction,
+    required double opacity,
+    required double widthMultiplier,
+  }) {
+    final fogWidth = constraints.maxWidth * widthMultiplier;
+    final x = -fogWidth + (progress * fogWidth);
+
+    Widget copy(double offset) {
+      return Positioned(
+        left: x + offset,
+        top: constraints.maxHeight * topFraction,
+        width: fogWidth,
+        child: Opacity(
+          opacity: opacity,
+          child: Image.asset(
+            asset,
+            fit: BoxFit.fitWidth,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      );
+    }
+
+    return SizedBox.expand(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [copy(0), copy(fogWidth)],
+      ),
+    );
+  }
+
+  Widget _treeSwayLayer(
+    BoxConstraints constraints,
+    double progress,
+    double wind,
+  ) {
+    final rect = _sourceRectOnScreen(
+      constraints,
+      const Rect.fromLTWH(0, 78, 286, 482),
+    );
+
+    final idle = sin(progress * pi * 2) * 0.0025;
+    final gust = wind * 0.0095;
+
+    return Positioned.fromRect(
+      rect: rect,
+      child: Transform.rotate(
+        angle: idle + gust,
+        alignment: Alignment.bottomLeft,
+        child: Transform.scale(
+          scale: 1.006,
+          alignment: Alignment.bottomLeft,
+          child: Image.asset(
+            '$_assetRoot/tree_sway_patch.png',
+            fit: BoxFit.fill,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _animatedBackgroundBat(
+    BoxConstraints constraints,
+    double progress,
+  ) {
+    // Keep the painted foreground bat you already liked.
+    final cycle = (progress + 0.28) % 1.0;
+    final inBurst = cycle < 0.24;
+    final burstT = inBurst ? cycle / 0.24 : 0.0;
+    final wingWave = inBurst ? sin(burstT * pi * 6) : 0.0;
+    final wingAngle = wingWave * 0.24;
+
+    final leftRect = _sourceRectOnScreen(
+      constraints,
+      const Rect.fromLTWH(310, 235, 33, 22),
+    );
+    final bodyRect = _sourceRectOnScreen(
+      constraints,
+      const Rect.fromLTWH(336, 228, 19, 30),
+    );
+    final rightRect = _sourceRectOnScreen(
+      constraints,
+      const Rect.fromLTWH(347, 227, 20, 22),
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _sourceImage(
+          constraints,
+          const Rect.fromLTWH(310, 216, 68, 50),
+          '$_assetRoot/bat_clear_patch.png',
+        ),
+        Positioned.fromRect(
+          rect: leftRect,
+          child: Transform.rotate(
+            angle: wingAngle,
+            alignment: Alignment.centerRight,
+            child: Image.asset(
+              '$_assetRoot/bat_left_wing.png',
+              fit: BoxFit.fill,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+        ),
+        Positioned.fromRect(
+          rect: rightRect,
+          child: Transform.rotate(
+            angle: -wingAngle,
+            alignment: Alignment.centerLeft,
+            child: Image.asset(
+              '$_assetRoot/bat_right_wing.png',
+              fit: BoxFit.fill,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+        ),
+        Positioned.fromRect(
+          rect: bodyRect,
+          child: Image.asset(
+            '$_assetRoot/bat_body.png',
+            fit: BoxFit.fill,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _distantBatSprite({
+    required double width,
+    required double flapAngle,
+    required double opacity,
+  }) {
+    final height = width * 0.53;
+
+    return Opacity(
+      opacity: opacity,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 0,
+              top: height * 0.16,
+              width: width * 0.50,
+              height: height * 0.72,
+              child: Transform.rotate(
+                angle: flapAngle,
+                alignment: Alignment.centerRight,
+                child: Image.asset(
+                  '$_assetRoot/bat_left_wing.png',
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              top: height * 0.16,
+              width: width * 0.39,
+              height: height * 0.72,
+              child: Transform.rotate(
+                angle: -flapAngle,
+                alignment: Alignment.centerLeft,
+                child: Image.asset(
+                  '$_assetRoot/bat_right_wing.png',
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+            ),
+            Positioned(
+              left: width * 0.41,
+              top: 0,
+              width: width * 0.27,
+              height: height,
+              child: Image.asset(
+                '$_assetRoot/bat_body.png',
+                fit: BoxFit.fill,
+                filterQuality: FilterQuality.medium,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _distantBatsLayer(
+    BoxConstraints constraints,
+    double progress,
+  ) {
+    // Three small, atmospheric bats around the moon. Unlike the closer bat,
+    // these flap continuously and slowly, with different phases.
+    Widget bat({
+      required Rect sourceRect,
+      required double phase,
+      required double opacity,
+    }) {
+      final rect = _sourceRectOnScreen(constraints, sourceRect);
+      final wave = sin((progress * pi * 2 * 1.65) + phase);
+      final angle = wave * 0.105;
+      final bob = sin((progress * pi * 2 * 0.70) + phase) * 0.75;
+
+      return Positioned(
+        left: rect.left,
+        top: rect.top + bob,
+        width: rect.width,
+        height: rect.height,
+        child: _distantBatSprite(
+          width: rect.width,
+          flapAngle: angle,
+          opacity: opacity,
+        ),
+      );
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        bat(
+          sourceRect: const Rect.fromLTWH(188, 68, 22, 12),
+          phase: 0.20,
+          opacity: 0.52,
+        ),
+        bat(
+          sourceRect: const Rect.fromLTWH(350, 78, 18, 10),
+          phase: 1.65,
+          opacity: 0.47,
+        ),
+        bat(
+          sourceRect: const Rect.fromLTWH(242, 128, 16, 9),
+          phase: 3.10,
+          opacity: 0.44,
+        ),
+        bat(
+          sourceRect: const Rect.fromLTWH(372, 158, 13, 7),
+          phase: 4.70,
+          opacity: 0.38,
+        ),
+      ],
+    );
+  }
+
+  Widget _pumpkinExpression(BoxConstraints constraints) {
+    // Full source-aligned pumpkin patches replace the entire painted pumpkin
+    // region during an expression. This avoids the "face sticker" look.
+    final asset = switch (_pumpkinFace) {
+      2 => '$_assetRoot/pumpkin_surprised_patch_v5.png',
+      3 => '$_assetRoot/pumpkin_sly_patch_v5.png',
+      _ => null,
+    };
+
+    return Positioned.fromRect(
+      rect: _sourceRectOnScreen(
+        constraints,
+        const Rect.fromLTWH(80, 600, 115, 96),
+      ),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 650),
+        reverseDuration: const Duration(milliseconds: 560),
+        switchInCurve: Curves.easeInOutCubic,
+        switchOutCurve: Curves.easeInOutCubic,
+        child: asset == null
+            ? const SizedBox.expand(key: ValueKey('pumpkin-base'))
+            : Image.asset(
+                asset,
+                key: ValueKey(asset),
+                fit: BoxFit.fill,
+                filterQuality: FilterQuality.high,
+              ),
+      ),
+    );
+  }
+
+  Widget _skullBlink(BoxConstraints constraints) {
+    if (_headMoving) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned.fromRect(
+      rect: _sourceRectOnScreen(
+        constraints,
+        const Rect.fromLTWH(309, 615, 65, 81),
+      ),
+      child: AnimatedOpacity(
+        opacity: _skullBlinking ? 1 : 0,
+        duration: const Duration(milliseconds: 65),
+        curve: Curves.easeInOut,
+        child: Image.asset(
+          '$_assetRoot/skeleton_blink_overlay.png',
+          fit: BoxFit.fill,
+          filterQuality: FilterQuality.high,
+        ),
+      ),
+    );
+  }
+
+  Widget _skeletonHeadLook(
+    BoxConstraints constraints,
+    double headProgress,
+  ) {
+    if (!_headMoving) return const SizedBox.shrink();
+
+    // One slow look right, through center, left, and back to center.
+    final wave = sin(headProgress * pi * 2);
+
+    final rect = _sourceRectOnScreen(
+      constraints,
+      const Rect.fromLTWH(296, 592, 84, 88),
+    );
+    final angle = wave * 0.115; // about 6.6 degrees: clearly visible, still gentle
+    final horizontal = wave * rect.width * 0.040;
+    final lift = -sin(headProgress * pi).abs() * rect.height * 0.014;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Erase the original fixed skull only while the moving skull is active.
+        _sourceImage(
+          constraints,
+          const Rect.fromLTWH(296, 592, 84, 88),
+          '$_assetRoot/skeleton_head_clear_patch_v5.png',
+        ),
+        Positioned.fromRect(
+          rect: rect,
+          child: Transform.translate(
+            offset: Offset(horizontal, lift),
+            child: Transform.rotate(
+              angle: angle,
+              alignment: const Alignment(0, 0.52),
+              child: Transform.scale(
+                scale: 1.018,
+                alignment: const Alignment(0, 0.52),
+                child: Image.asset(
+                '$_assetRoot/skeleton_head_foreground_v5.png',
+                fit: BoxFit.fill,
+                filterQuality: FilterQuality.high,
+              ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _fallingLeafLayer(
+    BoxConstraints constraints,
+    double progress,
+  ) {
+    final canvasRect = _sourceRectOnScreen(
+      constraints,
+      const Rect.fromLTWH(0, 0, _sourceWidth, _sourceHeight),
+    );
+
+    return CustomPaint(
+      painter: _HalloweenFallingLeafPainter(
+        progress: progress,
+        sourceCanvasRect: canvasRect,
+      ),
+      child: const SizedBox.expand(),
+    );
+  }
+
+  Widget _moonCloudLayer(
+    BoxConstraints constraints,
+    double progress,
+  ) {
+    if (progress <= 0 || progress >= 1) return const SizedBox.shrink();
+
+    final moonRect = _sourceRectOnScreen(
+      constraints,
+      const Rect.fromLTWH(225, 42, 176, 126),
+    );
+    final cloudWidth = moonRect.width * 0.96;
+    final cloudHeight = moonRect.height * 0.34;
+    final travel = moonRect.width + cloudWidth;
+    final x = moonRect.right - progress * travel;
+    final y = moonRect.top + moonRect.height * 0.48;
+    final fade = sin(progress * pi).clamp(0.0, 1.0).toDouble();
+
+    return Positioned(
+      left: x,
+      top: y,
+      width: cloudWidth,
+      height: cloudHeight,
+      child: Opacity(
+        opacity: 0.40 * fade,
+        child: Image.asset(
+          '$_assetRoot/fog_far.png',
+          fit: BoxFit.fill,
+          filterQuality: FilterQuality.medium,
+        ),
+      ),
+    );
+  }
+
+  Widget _pumpkinCandleFlicker(
+    BoxConstraints constraints,
+    double progress,
+  ) {
+    // Irregular-looking but loop-safe candlelight derived from the existing
+    // 7-second ambient controller. Frequencies are integers so the loop has no jump.
+    final raw =
+        sin(progress * pi * 2 * 17) * 0.46 +
+        sin(progress * pi * 2 * 29 + 0.8) * 0.31 +
+        sin(progress * pi * 2 * 41 + 2.0) * 0.23;
+    final normalized = (raw + 1.0) / 2.0;
+    final opacity = 0.035 + normalized.clamp(0.0, 1.0).toDouble() * 0.085;
+
+    final rect = _sourceRectOnScreen(
+      constraints,
+      const Rect.fromLTWH(96, 628, 82, 60),
+    );
+
+    return Positioned.fromRect(
+      rect: rect,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: const Alignment(0.02, 0.12),
+              radius: 0.78,
+              colors: [
+                const Color(0xFFFFD06A).withValues(alpha: opacity),
+                const Color(0xFFFF8A20).withValues(alpha: opacity * 0.45),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (_reduceMotion) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                '$_assetRoot/halloween_background.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                filterQuality: FilterQuality.high,
+              ),
+              Container(color: Colors.black.withValues(alpha: 0.035)),
+            ],
+          );
+        }
+
+        return AnimatedBuilder(
+          animation: Listenable.merge([
+            _motionController,
+            _fogFarController,
+            _fogNearController,
+            _windController,
+            _headController,
+            _leafController,
+            _moonCloudController,
+          ]),
+          builder: (context, _) {
+            final motion = _motionController.value;
+            final wind = Curves.easeInOutSine.transform(_windController.value);
+
+            return ClipRect(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.asset(
+                    '$_assetRoot/halloween_background.png',
+                    fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                    filterQuality: FilterQuality.high,
+                  ),
+
+                  // Far-away moon bats sit behind the main scene elements.
+                  _distantBatsLayer(constraints, motion),
+
+                  // A slow cloud occasionally crosses the moon.
+                  _moonCloudLayer(constraints, _moonCloudController.value),
+
+                  _seamlessFog(
+                    constraints: constraints,
+                    asset: '$_assetRoot/fog_far.png',
+                    progress: _fogFarController.value,
+                    topFraction: 0.45,
+                    opacity: 0.10,
+                    widthMultiplier: 1.42,
+                  ),
+
+                  _treeSwayLayer(constraints, motion, wind),
+
+                  if (_leafController.value > 0 && _leafController.value < 1)
+                    _fallingLeafLayer(constraints, _leafController.value),
+
+                  _animatedBackgroundBat(constraints, motion),
+
+                  _seamlessFog(
+                    constraints: constraints,
+                    asset: '$_assetRoot/fog_near.png',
+                    progress: _fogNearController.value,
+                    topFraction: 0.67,
+                    opacity: 0.085,
+                    widthMultiplier: 1.36,
+                  ),
+
+                  _pumpkinExpression(constraints),
+                  _pumpkinCandleFlicker(constraints, motion),
+                  _skullBlink(constraints),
+                  _skeletonHeadLook(constraints, _headController.value),
+
+                  Container(color: Colors.black.withValues(alpha: 0.025)),
+
+                  // As the cloud crosses the moon, the whole illustrated scene
+                  // gently dims and then recovers. Translucent UI cards inherit
+                  // the darker background without sacrificing text readability.
+                  if (_moonCloudController.value > 0 &&
+                      _moonCloudController.value < 1)
+                    Container(
+                      color: Colors.black.withValues(
+                        alpha: 0.095 *
+                            sin(_moonCloudController.value * pi).clamp(0.0, 1.0).toDouble(),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _HalloweenFallingLeafPainter extends CustomPainter {
+  final double progress;
+  final Rect sourceCanvasRect;
+
+  const _HalloweenFallingLeafPainter({
+    required this.progress,
+    required this.sourceCanvasRect,
+  });
+
+  Offset _sourcePoint(double x, double y) {
+    return Offset(
+      sourceCanvasRect.left + sourceCanvasRect.width * (x / 406.0),
+      sourceCanvasRect.top + sourceCanvasRect.height * (y / 696.0),
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = progress.clamp(0.0, 1.0).toDouble();
+    if (t <= 0 || t >= 1) return;
+
+    // Detach from a branch near the middle-left, then float diagonally down.
+    final start = _sourcePoint(173, 245);
+    final end = _sourcePoint(274, 510);
+    final fallT = Curves.easeInQuad.transform(t);
+    final sway = sin(t * pi * 5.0) * sourceCanvasRect.width * 0.020;
+    final x = ui.lerpDouble(start.dx, end.dx, fallT)! + sway;
+    final y = ui.lerpDouble(start.dy, end.dy, fallT)!;
+    final scale = sourceCanvasRect.width / 406.0;
+    final fade = t < 0.83 ? 1.0 : (1.0 - t) / 0.17;
+
+    canvas.save();
+    canvas.translate(x, y);
+    canvas.rotate(t * pi * 5.5 + sin(t * pi * 3.0) * 0.30);
+
+    final leafPath = Path()
+      ..moveTo(0, -6.5 * scale)
+      ..cubicTo(5.2 * scale, -3.7 * scale, 6.0 * scale, 3.2 * scale, 0, 7.0 * scale)
+      ..cubicTo(-5.0 * scale, 3.0 * scale, -5.6 * scale, -3.4 * scale, 0, -6.5 * scale)
+      ..close();
+
+    canvas.drawPath(
+      leafPath,
+      Paint()..color = const Color(0xFFD8652D).withValues(alpha: 0.90 * fade),
+    );
+    canvas.drawLine(
+      Offset(0, -5.0 * scale),
+      Offset(0, 6.0 * scale),
+      Paint()
+        ..color = const Color(0xFF5D2819).withValues(alpha: 0.65 * fade)
+        ..strokeWidth = max(0.8, 0.9 * scale),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _HalloweenFallingLeafPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.sourceCanvasRect != sourceCanvasRect;
+  }
+}
+
+class _SeasonalAtmospherePainter extends CustomPainter {
+  final RecztSeason season;
+  final double progress;
+  final Brightness brightness;
+
+  _SeasonalAtmospherePainter({
+    required this.season,
+    required this.progress,
+    required this.brightness,
+  });
+
+  double _wrap(double value, double max) {
+    if (max <= 0) return 0;
+    final result = value % max;
+    return result < 0 ? result + max : result;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final style = _recztSeasonStyle(season);
+    final random = Random(7127 + season.index * 811);
+    final isDark = brightness == Brightness.dark;
+
+    void drawLeaf(Offset center, double scale, Color color, double angle) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(angle);
+      final paint = Paint()..color = color;
+      final rect = Rect.fromCenter(center: Offset.zero, width: 11 * scale, height: 20 * scale);
+      canvas.drawOval(rect, paint);
+      canvas.drawLine(
+        Offset(0, -8 * scale),
+        Offset(0, 10 * scale),
+        Paint()
+          ..color = color.withValues(alpha: 0.55)
+          ..strokeWidth = 1,
+      );
+      canvas.restore();
+    }
+
+    void drawPetal(Offset center, double scale, Color color, double angle) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(angle);
+      canvas.drawOval(
+        Rect.fromCenter(center: Offset.zero, width: 8 * scale, height: 16 * scale),
+        Paint()..color = color,
+      );
+      canvas.restore();
+    }
+
+    void drawBat(Offset center, double scale, Color color) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      final path = Path()
+        ..moveTo(-14 * scale, 0)
+        ..quadraticBezierTo(-9 * scale, -8 * scale, -4 * scale, -2 * scale)
+        ..quadraticBezierTo(0, -7 * scale, 4 * scale, -2 * scale)
+        ..quadraticBezierTo(9 * scale, -8 * scale, 14 * scale, 0)
+        ..quadraticBezierTo(8 * scale, -2 * scale, 4 * scale, 4 * scale)
+        ..quadraticBezierTo(0, 1 * scale, -4 * scale, 4 * scale)
+        ..quadraticBezierTo(-8 * scale, -2 * scale, -14 * scale, 0)
+        ..close();
+      canvas.drawPath(path, Paint()..color = color);
+      canvas.restore();
+    }
+
+    if (season == RecztSeason.christmas) {
+      final wire = Paint()
+        ..color = (isDark ? Colors.white70 : Colors.black45).withValues(alpha: 0.35)
+        ..strokeWidth = 1.2;
+      final path = Path()..moveTo(0, 30);
+      for (int i = 1; i <= 12; i++) {
+        final x = size.width * i / 12;
+        final y = 28 + sin(i * 0.9) * 7;
+        path.lineTo(x, y);
+      }
+      canvas.drawPath(path, wire);
+      const bulbs = [
+        Color(0xFFFF5A5F),
+        Color(0xFFFFD166),
+        Color(0xFF6CE5E8),
+        Color(0xFF7BD389),
+      ];
+      for (int i = 0; i <= 12; i++) {
+        final x = size.width * i / 12;
+        final y = 28 + sin(i * 0.9) * 7;
+        final bulb = bulbs[i % bulbs.length];
+        canvas.drawCircle(
+          Offset(x, y + 5),
+          3.8,
+          Paint()
+            ..color = bulb
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+        canvas.drawCircle(Offset(x, y + 5), 2.4, Paint()..color = bulb);
+      }
+    }
+
+    final count = season == RecztSeason.winter || season == RecztSeason.christmas ? 34 : 22;
+    for (int i = 0; i < count; i++) {
+      final baseX = random.nextDouble() * size.width;
+      final baseY = random.nextDouble() * size.height;
+      final speed = 0.25 + random.nextDouble() * 0.65;
+      final sway = sin((progress * pi * 2) + i * 0.73) * (8 + random.nextDouble() * 14);
+      final y = _wrap(baseY + progress * size.height * speed, size.height + 50) - 25;
+      final x = _wrap(baseX + sway, size.width + 20) - 10;
+      final opacity = (0.12 + random.nextDouble() * 0.28) * (isDark ? 1.0 : 0.75);
+      final scale = 0.55 + random.nextDouble() * 0.85;
+
+      switch (season) {
+        case RecztSeason.autumn:
+          drawLeaf(
+            Offset(x, y),
+            scale,
+            [const Color(0xFFD96C2B), const Color(0xFFB64B2A), const Color(0xFFE3A332)][i % 3]
+                .withValues(alpha: opacity + 0.12),
+            progress * 4 + i,
+          );
+          break;
+        case RecztSeason.halloween:
+          if (i < 12) {
+            drawBat(
+              Offset(x, y),
+              scale * 0.55,
+              (isDark ? const Color(0xFFC59AFF) : const Color(0xFF4B206A))
+                  .withValues(alpha: opacity + 0.08),
+            );
+          } else {
+            canvas.drawCircle(
+              Offset(x, y),
+              2.5 * scale,
+              Paint()..color = style.accent.withValues(alpha: opacity),
+            );
+          }
+          break;
+        case RecztSeason.thanksgiving:
+          if (i.isEven) {
+            drawLeaf(
+              Offset(x, y),
+              scale,
+              [const Color(0xFF8F3D32), const Color(0xFFD88438), const Color(0xFFDDAA44)][i % 3]
+                  .withValues(alpha: opacity + 0.10),
+              progress * 3.5 + i * 0.4,
+            );
+          } else {
+            canvas.drawCircle(
+              Offset(x, y),
+              7 * scale,
+              Paint()
+                ..color = style.particle.withValues(alpha: opacity * 0.45)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+            );
+          }
+          break;
+        case RecztSeason.winter:
+        case RecztSeason.christmas:
+          canvas.drawCircle(
+            Offset(x, y),
+            (1.3 + random.nextDouble() * 2.2) * scale,
+            Paint()..color = Colors.white.withValues(alpha: opacity + 0.18),
+          );
+          break;
+        case RecztSeason.spring:
+          drawPetal(
+            Offset(x, y),
+            scale,
+            [const Color(0xFFFFB7CF), const Color(0xFFFFD5E3), const Color(0xFFE8A9C7)][i % 3]
+                .withValues(alpha: opacity + 0.12),
+            progress * 3 + i * 0.7,
+          );
+          break;
+        case RecztSeason.easter:
+          if (i < 10) {
+            final eggPaint = Paint()
+              ..color = [
+                const Color(0xFFF6C2D5),
+                const Color(0xFFBFE3DC),
+                const Color(0xFFD5C4F2),
+                const Color(0xFFFFD99F),
+              ][i % 4]
+                  .withValues(alpha: opacity + 0.12);
+            canvas.save();
+            canvas.translate(x, y);
+            canvas.rotate(progress * 1.5 + i);
+            canvas.drawOval(
+              Rect.fromCenter(center: Offset.zero, width: 12 * scale, height: 17 * scale),
+              eggPaint,
+            );
+            canvas.restore();
+          } else {
+            drawPetal(
+              Offset(x, y),
+              scale,
+              style.particle.withValues(alpha: opacity + 0.08),
+              progress * 2 + i,
+            );
+          }
+          break;
+        case RecztSeason.standard:
+          break;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SeasonalAtmospherePainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.season != season ||
+        oldDelegate.brightness != brightness;
+  }
+}
+
+class _SeasonalEditionBadge extends StatelessWidget {
+  final RecztSeason season;
+
+  const _SeasonalEditionBadge({required this.season});
+
+  @override
+  Widget build(BuildContext context) {
+    if (season == RecztSeason.standard) return const SizedBox.shrink();
+    final style = _recztSeasonStyle(season);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: style.accent.withValues(alpha: 0.60)),
+        boxShadow: [
+          BoxShadow(
+            color: style.accent.withValues(alpha: 0.12),
+            blurRadius: 14,
+          ),
+        ],
+      ),
+      child: Text(
+        '${season.emoji}  ${season.editionLabel}',
+        style: TextStyle(
+          fontSize: 10,
+          letterSpacing: 1.1,
+          fontWeight: FontWeight.w800,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _SeasonalAppTitle extends StatelessWidget {
+  final String text;
+
+  const _SeasonalAppTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final season = RecztSeasonalScope.of(context);
+    if (season == RecztSeason.standard) return Text(text);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(season.emoji, style: const TextStyle(fontSize: 18)),
+        const SizedBox(width: 7),
+        Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+}
+
+class _SeasonalMicVisual extends StatelessWidget {
+  final RecztSeason season;
+  final Color primaryColor;
+  final bool isRecording;
+  final double level;
+
+  const _SeasonalMicVisual({
+    required this.season,
+    required this.primaryColor,
+    required this.isRecording,
+    required this.level,
+  });
+
+  Widget _standardCore() {
+    return CircleAvatar(
+      radius: 50,
+      backgroundColor: primaryColor,
+      child: const Icon(Icons.mic_rounded, size: 50, color: Colors.white),
+    );
+  }
+
+  Widget _pumpkinCore() {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Positioned(
+          top: 0,
+          child: Container(
+            width: 16,
+            height: 18,
+            decoration: BoxDecoration(
+              color: const Color(0xFF497B44),
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        ),
+        Container(
+          width: 104,
+          height: 92,
+          margin: const EdgeInsets.only(top: 10),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFA33E), Color(0xFFF06A22)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.circular(46),
+            border: Border.all(color: const Color(0xFFFFC47A), width: 2),
+            boxShadow: const [
+              BoxShadow(color: Color(0x553C0B00), blurRadius: 16, offset: Offset(0, 7)),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              ...[-22.0, 0.0, 22.0].map(
+                (x) => Transform.translate(
+                  offset: Offset(x, 0),
+                  child: Container(
+                    width: 1.2,
+                    height: 70,
+                    color: const Color(0x55A83D12),
+                  ),
+                ),
+              ),
+              const Icon(Icons.mic_rounded, size: 46, color: Color(0xFFFFF3DE)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _ornamentCore() {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Positioned(
+          top: -3,
+          child: Container(
+            width: 28,
+            height: 16,
+            decoration: const BoxDecoration(
+              color: Color(0xFFD9B35F),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+            ),
+          ),
+        ),
+        Container(
+          width: 102,
+          height: 102,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [Color(0xFFB92835), Color(0xFF6C1120)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: const Color(0xFFE3BF65), width: 2.2),
+            boxShadow: const [
+              BoxShadow(color: Color(0x553D0B12), blurRadius: 18, offset: Offset(0, 7)),
+            ],
+          ),
+          child: const Icon(Icons.mic_rounded, size: 48, color: Color(0xFFFFF7DF)),
+        ),
+        const Positioned(right: 8, top: 17, child: Icon(Icons.auto_awesome, size: 16, color: Color(0xFFFFE29A))),
+      ],
+    );
+  }
+
+  Widget _winterCore() {
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 104,
+          height: 104,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(
+              colors: [Color(0xFFFFFFFF), Color(0xFFD8F0FF)],
+            ),
+            border: Border.all(color: const Color(0xFF9ED4F4), width: 2.5),
+            boxShadow: const [
+              BoxShadow(color: Color(0x553A93C6), blurRadius: 20, offset: Offset(0, 8)),
+            ],
+          ),
+          child: const Icon(Icons.mic_rounded, size: 47, color: Color(0xFF276A96)),
+        ),
+        const Positioned(left: -5, top: 7, child: Text('❄️', style: TextStyle(fontSize: 19))),
+        const Positioned(right: -3, bottom: 4, child: Text('❄️', style: TextStyle(fontSize: 15))),
+      ],
+    );
+  }
+
+  Widget _autumnCore() {
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 102,
+          height: 102,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE58B3D), Color(0xFF9F3F22)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: const Color(0xFFF0B95D), width: 2),
+            boxShadow: const [
+              BoxShadow(color: Color(0x55481A0F), blurRadius: 18, offset: Offset(0, 8)),
+            ],
+          ),
+          child: const Icon(Icons.mic_rounded, size: 48, color: Color(0xFFFFF2DB)),
+        ),
+        const Positioned(left: -10, top: 10, child: Text('🍁', style: TextStyle(fontSize: 22))),
+        const Positioned(right: -7, bottom: 7, child: Text('🍂', style: TextStyle(fontSize: 19))),
+      ],
+    );
+  }
+
+  Widget _thanksgivingCore() {
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 108,
+          height: 108,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const SweepGradient(
+              colors: [Color(0xFF7F332B), Color(0xFFD98A3D), Color(0xFFE2B34F), Color(0xFF7F332B)],
+            ),
+            boxShadow: const [BoxShadow(color: Color(0x554B2117), blurRadius: 20, offset: Offset(0, 8))],
+          ),
+          padding: const EdgeInsets.all(8),
+          child: Container(
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Color(0xFFFFE9CB),
+            ),
+            child: const Icon(Icons.mic_rounded, size: 46, color: Color(0xFF7F332B)),
+          ),
+        ),
+        const Positioned(left: -9, bottom: 4, child: Text('🍁', style: TextStyle(fontSize: 20))),
+        const Positioned(right: -8, top: 5, child: Text('🍂', style: TextStyle(fontSize: 20))),
+      ],
+    );
+  }
+
+  Widget _springCore() {
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        ...List.generate(8, (i) {
+          final angle = (pi * 2 * i / 8) - pi / 2;
+          return Transform.translate(
+            offset: Offset(cos(angle) * 45, sin(angle) * 45),
+            child: Transform.rotate(
+              angle: angle + pi / 2,
+              child: Container(
+                width: 26,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3AFC7).withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
+          );
+        }),
+        Container(
+          width: 82,
+          height: 82,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(colors: [Color(0xFF72BD91), Color(0xFF397E5B)]),
+          ),
+          child: const Icon(Icons.mic_rounded, size: 43, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  Widget _easterCore() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 88,
+          height: 108,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF7C6DA), Color(0xFFCDBCF0), Color(0xFFBDE3DC)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.elliptical(44, 58),
+              topRight: Radius.elliptical(44, 58),
+              bottomLeft: Radius.elliptical(38, 48),
+              bottomRight: Radius.elliptical(38, 48),
+            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.72), width: 2),
+            boxShadow: const [BoxShadow(color: Color(0x443B2B56), blurRadius: 18, offset: Offset(0, 7))],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned(top: 30, left: 8, right: 8, child: Container(height: 7, color: Colors.white.withValues(alpha: 0.36))),
+              Positioned(bottom: 28, left: 8, right: 8, child: Container(height: 7, color: const Color(0xFFFFE0A8).withValues(alpha: 0.60))),
+              const Icon(Icons.mic_rounded, size: 42, color: Color(0xFF5E4687)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pulseColor = isRecording ? Colors.red : primaryColor;
+    final core = isRecording
+        ? CircleAvatar(
+            radius: 50,
+            backgroundColor: Colors.red,
+            child: const Icon(Icons.stop_rounded, size: 50, color: Colors.white),
+          )
+        : switch (season) {
+            RecztSeason.standard => _standardCore(),
+            RecztSeason.autumn => _autumnCore(),
+            RecztSeason.halloween => _pumpkinCore(),
+            RecztSeason.thanksgiving => _thanksgivingCore(),
+            RecztSeason.winter => _winterCore(),
+            RecztSeason.christmas => _ornamentCore(),
+            RecztSeason.spring => _springCore(),
+            RecztSeason.easter => _easterCore(),
+          };
+
+    return SizedBox(
+      width: 138,
+      height: 138,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            width: 110 + (isRecording ? level * 22 : 0),
+            height: 110 + (isRecording ? level * 22 : 0),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: pulseColor.withValues(alpha: isRecording ? 0.10 + (level * 0.12) : 0.08),
+              boxShadow: season == RecztSeason.standard
+                  ? const []
+                  : [
+                      BoxShadow(
+                        color: _recztSeasonStyle(season).accent.withValues(alpha: 0.18),
+                        blurRadius: 26,
+                        spreadRadius: 3,
+                      ),
+                    ],
+            ),
+          ),
+          core,
+        ],
+      ),
+    );
+  }
+}
+
 class MyApp extends StatelessWidget {
   final String currentLang;
   final Color seedColor;
-  
-  const MyApp({super.key, this.currentLang = 'en', this.seedColor = Colors.deepPurple});
+  final RecztSeason seasonalTheme;
+
+  const MyApp({
+    super.key,
+    this.currentLang = 'en',
+    this.seedColor = Colors.deepPurple,
+    this.seasonalTheme = RecztSeason.standard,
+  });
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       locale: Locale(currentLang),
-      theme: ThemeData(
+      theme: _buildRecztTheme(
         brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.light,
-        ),
+        standardSeed: seedColor,
+        season: seasonalTheme,
       ),
-      darkTheme: ThemeData(
+      darkTheme: _buildRecztTheme(
         brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.dark,
-        ),
+        standardSeed: seedColor,
+        season: seasonalTheme,
       ),
       themeMode: ThemeMode.system,
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        return RecztSeasonalScope(
+          season: seasonalTheme,
+          child: seasonalTheme == RecztSeason.standard
+              ? content
+              : _SeasonalAppBackground(
+                  season: seasonalTheme,
+                  child: content,
+                ),
+        );
+      },
       home: const AudioRecorderScreen(),
     );
   }
@@ -3982,6 +6064,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     if (!kIsWeb && Platform.isIOS) {
       _initOfflineUploadBridge();
+      unawaited(_initIOS27Bridge());
     }
 
     unawaited(_loadStartupState());
@@ -4051,6 +6134,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       _siriChannel.setMethodCallHandler(null);
       if (Platform.isIOS) {
         _recztOfflineQueueChannel.setMethodCallHandler(null);
+        _recztIOS27Channel.setMethodCallHandler(null);
       }
     }
     _audioRecorder.dispose();
@@ -4064,6 +6148,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_checkAndStartSiriRecording());
         unawaited(_handleQueuedRecognitionOnResume());
+        unawaited(_importIOS27BackgroundResults());
       });
     }
   }
@@ -4071,6 +6156,118 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   Future<void> _handleQueuedRecognitionOnResume() async {
     await _importServerOfflineResults();
     await _checkPendingOfflineQueue();
+  }
+
+  Future<void> _initIOS27Bridge() async {
+    if (!_RecztIOS27Bridge.isAvailable) return;
+
+    _recztIOS27Channel.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'externalRecognitionCompleted':
+          if (call.arguments is Map) {
+            await _importIOS27Recognition(
+              Map<String, dynamic>.from(call.arguments as Map),
+            );
+          }
+          break;
+        case 'requestForegroundRecognition':
+          if (!_isRecording && !_isLoading && mounted) {
+            unawaited(_startRecording(playDing: true));
+          }
+          break;
+      }
+    });
+
+    await _syncIOS27RecognitionSettings();
+  }
+
+  Future<void> _syncIOS27RecognitionSettings() async {
+    if (!_RecztIOS27Bridge.isAvailable) return;
+    await _RecztIOS27Bridge.syncRecognitionSettings(
+      language: _selectedLanguage,
+      environment: _selectedMode.name,
+      durationSeconds: _selectedMode.duration,
+    );
+  }
+
+  Future<void> _syncExistingHistoryWithIOS27() async {
+    if (!_RecztIOS27Bridge.isAvailable) return;
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList('song_history') ?? <String>[];
+    if (history.isEmpty) return;
+    await _RecztIOS27Bridge.syncSongHistory(history);
+  }
+
+  Future<void> _importIOS27BackgroundResults() async {
+    if (!_RecztIOS27Bridge.isAvailable) return;
+    final pending = await _RecztIOS27Bridge.drainExternalRecognitions();
+    for (final recognition in pending) {
+      await _importIOS27Recognition(recognition);
+    }
+  }
+
+  Future<void> _importIOS27Recognition(Map<String, dynamic> recognition) async {
+    final title = (recognition['title'] ?? '').toString().trim();
+    if (title.isEmpty) return;
+
+    final rawArtist = (recognition['artist'] ?? '').toString().trim();
+    String artist = _sanitizeArtistName(rawArtist);
+    if (artist.isEmpty) artist = _fallbackArtistForTitle(title);
+    if (artist.isEmpty) artist = t('unknown_artist');
+
+    final id = (recognition['id'] ??
+            '${title.toLowerCase()}|${artist.toLowerCase()}|${recognition['recognizedAt'] ?? ''}')
+        .toString();
+    final prefs = await SharedPreferences.getInstance();
+    final imported =
+        prefs.getStringList(_recztIOS27ImportedResultIdsKey) ?? <String>[];
+    if (imported.contains(id)) return;
+
+    final cover = (recognition['albumCover'] ?? recognition['cover'] ?? '')
+        .toString()
+        .trim();
+    final genre = _normalizeGenre(recognition['genre']?.toString());
+    final emotion = _resolveSongEmotion(
+      title: title,
+      artist: artist,
+      backendEmotion: recognition['emotion']?.toString(),
+      genre: genre,
+    );
+    final spotify = (recognition['spotifyUrl'] ?? '').toString().trim();
+    final apple = (recognition['appleMusicUrl'] ?? '').toString().trim();
+
+    await _saveToHistory(
+      '$title - $artist',
+      title: title,
+      artist: artist,
+      albumCover: cover.isEmpty ? null : cover,
+      genre: genre,
+      emotion: emotion,
+      spotifyUrl: spotify.isEmpty ? null : spotify,
+      appleMusicUrl: apple.isEmpty ? null : apple,
+    );
+
+    await recordSessionToAnalytics(
+      songTitle: title,
+      artistName: artist,
+      primaryEmotion: emotion,
+      genre: genre,
+    );
+
+    imported.insert(0, id);
+    await prefs.setStringList(
+      _recztIOS27ImportedResultIdsKey,
+      imported.take(80).toList(),
+    );
+
+    final nativePreview = (recognition['previewUrl'] ?? '').toString().trim();
+    unawaited(
+      _enrichAnalyticsWithMusicUnderstanding(
+        title: title,
+        artist: artist,
+        previewUrl: nativePreview.isEmpty ? null : nativePreview,
+      ),
+    );
   }
 
   void _initOfflineUploadBridge() {
@@ -4121,6 +6318,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   String _preferredMusicApp = 'spotify';
   String _selectedLanguage = 'en';
   Color _themeSeedColor = Colors.deepPurple;
+  RecztSeason _seasonalPreview = RecztSeason.standard;
 
   final Map<String, String> _languages = {
     'en': '🇺🇸 English',
@@ -4330,6 +6528,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   Future<void> _loadStartupState() async {
     await _loadSavedMode();
     await _loadPreferences();
+    await _syncIOS27RecognitionSettings();
+    await _syncExistingHistoryWithIOS27();
+    await _importIOS27BackgroundResults();
     await _showLegalNoticeIfNeeded();
     await _showUserManualIfNeeded();
     if (mounted) {
@@ -4344,12 +6545,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     final savedLang = prefs.getString('preferred_language');
     final int? savedColorValue = prefs.getInt('theme_seed_color');
     final bool? savedAutoPlay = prefs.getBool('auto_play_enabled');
+    final savedSeason = _recztSeasonFromId(prefs.getString('seasonal_theme_preview'));
 
     if (!mounted) return;
     setState(() {
       _preferredMusicApp = savedApp ?? 'spotify';
       _selectedLanguage = savedLang ?? 'en';
       _autoPlayEnabled = savedAutoPlay ?? true;
+      _seasonalPreview = savedSeason;
       if (savedColorValue != null) {
         _themeSeedColor = Color(savedColorValue);
       }
@@ -4362,12 +6565,19 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     }
   }
 
-  Future<void> _savePreferences(String musicApp, String lang, Color seedColor, bool autoPlay) async {
+  Future<void> _savePreferences(
+    String musicApp,
+    String lang,
+    Color seedColor,
+    bool autoPlay,
+    RecztSeason seasonalPreview,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('preferred_music_app', musicApp);
     await prefs.setString('preferred_language', lang);
     await prefs.setInt('theme_seed_color', seedColor.toARGB32());
     await prefs.setBool('auto_play_enabled', autoPlay);
+    await prefs.setString('seasonal_theme_preview', seasonalPreview.storageId);
     if (autoPlay) {
       unawaited(_prepareHandsFreeVoiceChoice());
     }
@@ -4376,14 +6586,21 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       _preferredMusicApp = musicApp;
       _selectedLanguage = lang;
       _themeSeedColor = seedColor;
+      _seasonalPreview = seasonalPreview;
       _autoPlayEnabled = autoPlay;
     });
+
+    unawaited(_syncIOS27RecognitionSettings());
 
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) => MyApp(currentLang: lang, seedColor: seedColor),
+          builder: (context) => MyApp(
+            currentLang: lang,
+            seedColor: seedColor,
+            seasonalTheme: seasonalPreview,
+          ),
         ),
         (route) => false,
       );
@@ -4395,6 +6612,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     String tempLang = _selectedLanguage;
     Color tempColor = _themeSeedColor;
     bool tempAutoPlay = _autoPlayEnabled;
+    RecztSeason tempSeason = _seasonalPreview;
 
     showDialog(
       context: context,
@@ -4473,6 +6691,70 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                         }
                       },
                     ),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Seasonal Theme Lab',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.secondaryContainer,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'TESTING',
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'All seasonal looks are unlocked for preview. Date-based availability will be added after the designs are approved.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButton<RecztSeason>(
+                      isExpanded: true,
+                      value: tempSeason,
+                      items: RecztSeason.values.map((season) {
+                        return DropdownMenuItem<RecztSeason>(
+                          value: season,
+                          child: Text('${season.emoji}  ${season.displayName}'),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setModalState(() => tempSeason = val);
+                        }
+                      },
+                    ),
+                    if (tempSeason != RecztSeason.standard) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _recztSeasonStyle(tempSeason).accent.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _recztSeasonStyle(tempSeason).accent.withValues(alpha: 0.30),
+                          ),
+                        ),
+                        child: Text(
+                          '${tempSeason.emoji} ${tempSeason.editionLabel}\nSave to preview the full animated look throughout Reczt.',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
                     const Divider(),
                     const SizedBox(height: 4),
                     Center(
@@ -4569,7 +6851,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    _savePreferences(tempApp, tempLang, tempColor, tempAutoPlay);
+                    _savePreferences(
+                      tempApp,
+                      tempLang,
+                      tempColor,
+                      tempAutoPlay,
+                      tempSeason,
+                    );
                   },
                   child: Text(t('save')),
                 ),
@@ -4628,6 +6916,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('selected_environment_mode', mode.index);
+    unawaited(_syncIOS27RecognitionSettings());
   }
 
   Future<void> _deleteLocalFile(String? path) async {
@@ -4689,6 +6978,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     history.insert(0, jsonEncode(historyObj));
     await prefs.setStringList('song_history', history);
+    unawaited(_RecztIOS27Bridge.syncSongHistory(history));
   }
 
   Future<void> _playSingleDing() async {
@@ -5255,6 +7545,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           _customStatusText = null;
         });
       }
+      unawaited(
+        _RecztIOS27Bridge.updateRecognitionActivity(phase: 'searching'),
+      );
 
       final path = await _audioRecorder.stop();
 
@@ -5271,6 +7564,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                   : t('connection_failed');
             });
           }
+          unawaited(
+            _RecztIOS27Bridge.endRecognitionActivity(
+              phase: queuedPath != null ? 'queued' : 'error',
+            ),
+          );
           return;
         }
 
@@ -5287,6 +7585,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           });
         }
         unawaited(_playErrorCue());
+        unawaited(
+          _RecztIOS27Bridge.endRecognitionActivity(phase: 'error'),
+        );
       }
     } catch (e) {
       debugPrint('Error stopping recording: $e');
@@ -5297,6 +7598,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         });
       }
       unawaited(_playErrorCue());
+      unawaited(
+        _RecztIOS27Bridge.endRecognitionActivity(phase: 'error'),
+      );
     } finally {
       _isStoppingRecording = false;
     }
@@ -5737,11 +8041,121 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       longitude: _sessionLocation?.longitude,
     );
 
+    unawaited(
+      _RecztIOS27Bridge.showRecognitionResult(
+        title: title,
+        artist: displayArtist,
+        artworkUrl: albumArt,
+      ),
+    );
+
+    unawaited(
+      _enrichAnalyticsWithMusicUnderstanding(
+        title: title,
+        artist: displayArtist,
+        previewUrl: metadata.previewUrl,
+      ),
+    );
+
     await _recordSuccessfulRecognitionAndMaybeRequestReview();
 
     if (isFromOfflineQueue && notifyQueuedMatch) {
       unawaited(showQueuedSongFoundNotification(_selectedLanguage));
     }
+  }
+
+  String _musicAnalysisCacheID(String title, String artist) {
+    return '${_catalogComparable(title)}|${_catalogComparable(artist)}';
+  }
+
+  Future<void> _enrichAnalyticsWithMusicUnderstanding({
+    required String title,
+    required String artist,
+    String? previewUrl,
+  }) async {
+    if (!_RecztIOS27Bridge.isAvailable) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheID = _musicAnalysisCacheID(title, artist);
+    Map<String, dynamic> cache = <String, dynamic>{};
+    final cachedJson = prefs.getString(_analyticsMusicCacheKey);
+    if (cachedJson != null) {
+      try {
+        final decoded = jsonDecode(cachedJson);
+        if (decoded is Map) cache = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+
+    Map<String, dynamic>? summary;
+    final cached = cache[cacheID];
+    if (cached is Map) {
+      summary = Map<String, dynamic>.from(cached);
+    } else {
+      String? resolvedPreview = previewUrl?.trim();
+      if (resolvedPreview == null || resolvedPreview.isEmpty) {
+        final metadata = await fetchSongMetadataForSong(title, artist);
+        resolvedPreview = metadata.previewUrl?.trim();
+      }
+      if (resolvedPreview == null || resolvedPreview.isEmpty) return;
+
+      summary = await _RecztIOS27Bridge.analyzeMusicPreview(
+        previewUrl: resolvedPreview,
+        title: title,
+        artist: artist,
+      );
+      if (summary == null || summary.isEmpty) return;
+
+      cache[cacheID] = summary;
+      while (cache.length > 80) {
+        cache.remove(cache.keys.first);
+      }
+      await prefs.setString(_analyticsMusicCacheKey, jsonEncode(cache));
+    }
+
+    await _recordMusicUnderstandingSummary(summary);
+  }
+
+  Future<void> _recordMusicUnderstandingSummary(
+    Map<String, dynamic> summary,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final count = (prefs.getInt(_analyticsMusicCountKey) ?? 0) + 1;
+    await prefs.setInt(_analyticsMusicCountKey, count);
+
+    Future<void> addToSum(String key, dynamic raw) async {
+      if (raw is! num) return;
+      final current = prefs.getDouble(key) ?? 0.0;
+      await prefs.setDouble(key, current + raw.toDouble());
+    }
+
+    await addToSum(_analyticsMusicBpmSumKey, summary['bpm']);
+    await addToSum(_analyticsMusicPaceSumKey, summary['pace']);
+    await addToSum(_analyticsMusicLoudnessSumKey, summary['loudness']);
+
+    Future<void> incrementJsonCount(String key, String value) async {
+      final cleaned = value.trim();
+      if (cleaned.isEmpty) return;
+      Map<String, dynamic> map = <String, dynamic>{};
+      final raw = prefs.getString(key);
+      if (raw != null) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map) map = Map<String, dynamic>.from(decoded);
+        } catch (_) {}
+      }
+      map[cleaned] = ((map[cleaned] ?? 0) as num).toInt() + 1;
+      await prefs.setString(key, jsonEncode(map));
+    }
+
+    await incrementJsonCount(
+      _analyticsMusicKeyCountsKey,
+      (summary['key'] ?? '').toString(),
+    );
+    await incrementJsonCount(
+      _analyticsMusicInstrumentCountsKey,
+      (summary['dominantInstrument'] ?? '').toString(),
+    );
+    await prefs.setString(_analyticsMusicLatestKey, jsonEncode(summary));
   }
 
   Future<void> recordSessionToAnalytics({
@@ -5954,6 +8368,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         _customStatusText = null;
       });
 
+      unawaited(
+        _RecztIOS27Bridge.startRecognitionActivity(
+          durationSeconds: _selectedMode.duration,
+          environment: _selectedMode.name,
+          source: 'app',
+        ),
+      );
       unawaited(_beginLiveSingingTracking());
       _startAmplitudeMonitoring();
       _startSmartCountdown();
@@ -5966,6 +8387,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         });
       }
       await _deleteLocalFile(filePath);
+      unawaited(
+        _RecztIOS27Bridge.endRecognitionActivity(phase: 'error'),
+      );
     }
   }
 
@@ -6067,12 +8491,36 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
-    final isDarkMode = theme.brightness == Brightness.dark;
+final primaryColor = theme.colorScheme.primary;
+final isDarkMode = theme.brightness == Brightness.dark;
+final seasonalTheme = RecztSeasonalScope.of(context);
+final illustratedNight = seasonalTheme == RecztSeason.halloween ||
+    seasonalTheme == RecztSeason.christmas;
+
+final isChristmas =
+    seasonalTheme == RecztSeason.christmas;
+
+final homePrimaryColor = isChristmas
+    ? const Color(0xFFEAF7FF)
+    : primaryColor;
+
+final homeTextColor = isChristmas
+    ? const Color(0xFFF8FCFF)
+    : theme.colorScheme.onSurface;
+
+final christmasTextShadow = isChristmas
+    ? const [
+        Shadow(
+          color: Color(0xCC041727),
+          blurRadius: 6,
+          offset: Offset(0, 2),
+        ),
+      ]
+    : <Shadow>[];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reczt'),
+        title: const _SeasonalAppTitle('Reczt'),
         centerTitle: true,
       ),
       body: Stack(
@@ -6086,12 +8534,19 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                   Text(
                     t('app_title'),
                     style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+  fontSize: 26,
+  fontWeight: isChristmas
+      ? FontWeight.w800
+      : FontWeight.bold,
+  color: homePrimaryColor,
+  shadows: christmasTextShadow,
+),
                     textAlign: TextAlign.center,
                   ),
+                  if (seasonalTheme != RecztSeason.standard) ...[
+                    const SizedBox(height: 9),
+                    _SeasonalEditionBadge(season: seasonalTheme),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -6141,10 +8596,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                   Text(
                     t('where_are_you'),
                     style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+  fontSize: 22,
+  fontWeight: isChristmas
+      ? FontWeight.w800
+      : FontWeight.bold,
+  color: homePrimaryColor,
+  shadows: christmasTextShadow,
+),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
                   Column(
@@ -6164,9 +8623,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                                 horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? primaryColor.withValues(alpha: 0.12)
+                                  ? illustratedNight
+                                      ? Color.alphaBlend(
+                                          primaryColor.withValues(alpha: 0.20),
+                                          theme.colorScheme.surface.withValues(alpha: 0.90),
+                                        )
+                                      : primaryColor.withValues(alpha: 0.12)
                                   : theme.colorScheme.surfaceContainerHighest
-                                      .withValues(alpha: isDarkMode ? 0.45 : 0.65),
+                                      .withValues(alpha: illustratedNight ? 0.78 : isDarkMode ? 0.45 : 0.65),
                               border: Border.all(
                                 color: isSelected
                                     ? primaryColor
@@ -6213,7 +8677,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                       color: isSelected
-                                          ? Colors.white
+                                          ? theme.colorScheme.onPrimary
                                           : theme.colorScheme.onSurface,
                                     ),
                                   ),
@@ -6225,15 +8689,40 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 32),
-                  Text(
-                    _getDisplayStatusText(),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  // Leave a clear strip of pond for the skating character.
+                  SizedBox(height: isChristmas ? 96 : 32),
+                  Container(
+  padding: isChristmas
+      ? const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 8,
+        )
+      : EdgeInsets.zero,
+  decoration: isChristmas
+      ? BoxDecoration(
+          color: const Color(0xFF061A2B)
+              .withValues(alpha: 0.58),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.18),
+          ),
+        )
+      : null,
+  child: Text(
+    _getDisplayStatusText(),
+    textAlign: TextAlign.center,
+    style: TextStyle(
+      fontSize: 16,
+      fontWeight: isChristmas
+          ? FontWeight.w700
+          : FontWeight.w500,
+      color: isChristmas
+          ? Colors.white
+          : null,
+      shadows: christmasTextShadow,
+    ),
+  ),
+),
                   if (_isRecording) ...[
                     const SizedBox(height: 10),
                     _buildVoiceVisualizer(primaryColor),
@@ -6253,36 +8742,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                             unawaited(_startRecording(playDing: true));
                           }
                         },
-                        child: SizedBox(
-                          width: 128,
-                          height: 128,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 140),
-                                width: 106 + (_isRecording ? _micLevel * 20 : 0),
-                                height: 106 + (_isRecording ? _micLevel * 20 : 0),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: (_isRecording ? Colors.red : primaryColor)
-                                      .withValues(alpha: _isRecording
-                                          ? 0.10 + (_micLevel * 0.12)
-                                          : 0.10),
-                                ),
-                              ),
-                              CircleAvatar(
-                                radius: 50,
-                                backgroundColor:
-                                    _isRecording ? Colors.red : primaryColor,
-                                child: Icon(
-                                  _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                                  size: 50,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: _SeasonalMicVisual(
+                          season: seasonalTheme,
+                          primaryColor: primaryColor,
+                          isRecording: _isRecording,
+                          level: _micLevel,
                         ),
                       ),
                     ),
@@ -6648,6 +9112,13 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   String _countdownText = "";
   String _preferredApp = 'spotify';
 
+  int _musicAnalyzedCount = 0;
+  double? _averageBpm;
+  double? _averagePace;
+  double? _averageLoudness;
+  String _dominantMusicalKey = '';
+  String _dominantInstrument = '';
+
   String get preferredPlatform =>
       _preferredApp == 'apple_music' ? 'Apple Music' : 'Spotify';
 
@@ -6803,6 +9274,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           await prefs.remove(key);
         }
         await prefs.setBool(_acousticUsageMigratedKey, true);
+        break;
+
+      case 'music_intelligence':
+        for (final key in prefs.getKeys().where(
+              (key) => key.startsWith('analytics_mu_'),
+            )) {
+          await prefs.remove(key);
+        }
         break;
 
       case 'genres':
@@ -7324,6 +9803,45 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       }
     }
 
+    final int musicAnalyzedCount =
+        prefs.getInt(_analyticsMusicCountKey) ?? 0;
+    final double? averageBpm = musicAnalyzedCount > 0
+        ? (prefs.getDouble(_analyticsMusicBpmSumKey) ?? 0.0) /
+            musicAnalyzedCount
+        : null;
+    final double? averagePace = musicAnalyzedCount > 0
+        ? (prefs.getDouble(_analyticsMusicPaceSumKey) ?? 0.0) /
+            musicAnalyzedCount
+        : null;
+    final double? averageLoudness = musicAnalyzedCount > 0
+        ? (prefs.getDouble(_analyticsMusicLoudnessSumKey) ?? 0.0) /
+            musicAnalyzedCount
+        : null;
+
+    String dominantFromJson(String key) {
+      final raw = prefs.getString(key);
+      if (raw == null) return '';
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map) return '';
+        final entries = decoded.entries
+            .where((entry) => entry.value is num)
+            .toList()
+          ..sort(
+            (a, b) =>
+                (b.value as num).toInt().compareTo((a.value as num).toInt()),
+          );
+        return entries.isEmpty ? '' : entries.first.key.toString();
+      } catch (_) {
+        return '';
+      }
+    }
+
+    final dominantMusicalKey =
+        dominantFromJson(_analyticsMusicKeyCountsKey);
+    final dominantInstrument =
+        dominantFromJson(_analyticsMusicInstrumentCountsKey);
+
     final rawSessionDates =
         prefs.getStringList('analytics_session_dates') ?? <String>[];
     final sessionDates = rawSessionDates
@@ -7342,6 +9860,12 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       _livePinLocations = calculatedLiveOffsets;
       _memoryPinLocations = calculatedMemoryOffsets;
       _majorityEmotion = calculatedMajority;
+      _musicAnalyzedCount = musicAnalyzedCount;
+      _averageBpm = averageBpm;
+      _averagePace = averagePace;
+      _averageLoudness = averageLoudness;
+      _dominantMusicalKey = dominantMusicalKey;
+      _dominantInstrument = dominantInstrument;
     });
 
     final bool playlistWasManuallyCleared =
@@ -8473,6 +10997,44 @@ void _showShareCardModal(BuildContext context) {
     },
   );
 }
+  Widget _buildMusicIntelligenceStat({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+  }) {
+    return SizedBox(
+      width: 118,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 10,
+              color: Colors.grey,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeColor = Theme.of(context).colorScheme.primary;
@@ -8743,6 +11305,107 @@ void _showShareCardModal(BuildContext context) {
                         ),
                       ],
                     ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // iOS 27 MUSIC UNDERSTANDING: enriches the existing
+                // Analytics page; it intentionally does not create a new page.
+                _buildClearableAnalyticsCard(
+                  sectionKey: 'music_intelligence',
+                  sectionLabel: 'Music Intelligence',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.graphic_eq, size: 18, color: themeColor),
+                          const SizedBox(width: 7),
+                          Text(
+                            'MUSIC INTELLIGENCE',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: themeColor,
+                            ),
+                          ),
+                          const Spacer(),
+                          Flexible(
+                            child: Text(
+                              _musicAnalyzedCount == 0
+                                  ? 'Builds as you identify songs'
+                                  : '$_musicAnalyzedCount songs analyzed',
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      if (_musicAnalyzedCount == 0)
+                        const Text(
+                          'On iOS 27, Reczt can privately analyze catalog previews on device for tempo, key, pace, instruments, and loudness.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.35,
+                            color: Colors.grey,
+                          ),
+                        )
+                      else
+                        Wrap(
+                          alignment: WrapAlignment.spaceEvenly,
+                          runAlignment: WrapAlignment.center,
+                          spacing: 10,
+                          runSpacing: 12,
+                          children: [
+                            _buildMusicIntelligenceStat(
+                              icon: Icons.speed,
+                              value: _averageBpm == null
+                                  ? '—'
+                                  : _averageBpm!.toStringAsFixed(0),
+                              label: 'Avg BPM',
+                              color: themeColor,
+                            ),
+                            _buildMusicIntelligenceStat(
+                              icon: Icons.music_note,
+                              value: _dominantMusicalKey.isEmpty
+                                  ? '—'
+                                  : _dominantMusicalKey,
+                              label: 'Top key',
+                              color: themeColor,
+                            ),
+                            _buildMusicIntelligenceStat(
+                              icon: Icons.multitrack_audio,
+                              value: _dominantInstrument.isEmpty
+                                  ? '—'
+                                  : _dominantInstrument,
+                              label: 'Dominant sound',
+                              color: themeColor,
+                            ),
+                            _buildMusicIntelligenceStat(
+                              icon: Icons.bolt,
+                              value: _averagePace == null
+                                  ? '—'
+                                  : _averagePace!.toStringAsFixed(0),
+                              label: 'Avg pace',
+                              color: themeColor,
+                            ),
+                          ],
+                        ),
+                      if (_musicAnalyzedCount > 0 && _averageLoudness != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          'Average loudness ${_averageLoudness!.toStringAsFixed(1)} LUFS',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),

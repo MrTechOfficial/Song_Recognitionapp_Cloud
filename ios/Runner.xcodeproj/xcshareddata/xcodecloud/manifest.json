@@ -1,0 +1,9 @@
+{
+  "id" : "4d466917-643a-46ad-9bbe-ee5a986879cd",
+  "targets" : [
+    {
+      "id" : "739CD103-17F6-4F52-9C8A-21CF2A568C1A",
+      "name" : "song_recognition_app"
+    }
+  ]
+}

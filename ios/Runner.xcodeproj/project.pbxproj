@@ -8,6 +8,22 @@
 
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		1E76D36F307F1BE600C368E6 /* RecztRecognitionAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36A307F1BE600C368E6 /* RecztRecognitionAttributes.swift */; };
+		1E76D370307F1BE600C368E6 /* RecztSongEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36E307F1BE600C368E6 /* RecztSongEntities.swift */; };
+		1E76D371307F1BE600C368E6 /* RecztRecognitionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36B307F1BE600C368E6 /* RecztRecognitionCoordinator.swift */; };
+		1E76D372307F1BE600C368E6 /* RecztSharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36D307F1BE600C368E6 /* RecztSharedStore.swift */; };
+		1E76D373307F1BE600C368E6 /* RecztLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D369307F1BE600C368E6 /* RecztLiveActivityManager.swift */; };
+		1E76D374307F1BE600C368E6 /* RecztRecognizeAudioIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36C307F1BE600C368E6 /* RecztRecognizeAudioIntent.swift */; };
+		1E76D375307F1C4A00C368E6 /* RecztRecognizeAudioIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36C307F1BE600C368E6 /* RecztRecognizeAudioIntent.swift */; };
+		1E76D376307F1C4A00C368E6 /* RecztSongEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36E307F1BE600C368E6 /* RecztSongEntities.swift */; };
+		1E76D377307F1C4A00C368E6 /* RecztRecognitionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36B307F1BE600C368E6 /* RecztRecognitionCoordinator.swift */; };
+		1E76D378307F1C4A00C368E6 /* RecztLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D369307F1BE600C368E6 /* RecztLiveActivityManager.swift */; };
+		1E76D379307F1C4A00C368E6 /* RecztSharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36D307F1BE600C368E6 /* RecztSharedStore.swift */; };
+		1E76D37A307F1C4A00C368E6 /* RecztRecognitionAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D36A307F1BE600C368E6 /* RecztRecognitionAttributes.swift */; };
+		1E76D3803080540600C368E6 /* RecztIOS27Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D37E3080540600C368E6 /* RecztIOS27Bridge.swift */; };
+		1E76D3823080540600C368E6 /* RecztMusicUnderstandingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D37F3080540600C368E6 /* RecztMusicUnderstandingService.swift */; };
+		1E76D383308055D100C368E6 /* RecztAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D37D3080540600C368E6 /* RecztAppShortcuts.swift */; };
+		1E76D38B30805C5D00C368E6 /* RecztAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E76D37D3080540600C368E6 /* RecztAppShortcuts.swift */; };
 		1EB4EEAD30565CF7004048DB /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EB4EEAC30565CF7004048DB /* WidgetKit.framework */; };
 		1EB4EEAF30565CF7004048DB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EB4EEAE30565CF7004048DB /* SwiftUI.framework */; };
 		1EB4EEBC30565CF8004048DB /* RecztControlExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1EB4EEAB30565CF7004048DB /* RecztControlExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -67,6 +83,17 @@
 /* Begin PBXFileReference section */
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		1E76D369307F1BE600C368E6 /* RecztLiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztLiveActivityManager.swift; sourceTree = "<group>"; };
+		1E76D36A307F1BE600C368E6 /* RecztRecognitionAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztRecognitionAttributes.swift; sourceTree = "<group>"; };
+		1E76D36B307F1BE600C368E6 /* RecztRecognitionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztRecognitionCoordinator.swift; sourceTree = "<group>"; };
+		1E76D36C307F1BE600C368E6 /* RecztRecognizeAudioIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztRecognizeAudioIntent.swift; sourceTree = "<group>"; };
+		1E76D36D307F1BE600C368E6 /* RecztSharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztSharedStore.swift; sourceTree = "<group>"; };
+		1E76D36E307F1BE600C368E6 /* RecztSongEntities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztSongEntities.swift; sourceTree = "<group>"; };
+		1E76D37B307F1C8D00C368E6 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		1E76D37C307FB7D700C368E6 /* RecztControlExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RecztControlExtension.entitlements; sourceTree = "<group>"; };
+		1E76D37D3080540600C368E6 /* RecztAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztAppShortcuts.swift; sourceTree = "<group>"; };
+		1E76D37E3080540600C368E6 /* RecztIOS27Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztIOS27Bridge.swift; sourceTree = "<group>"; };
+		1E76D37F3080540600C368E6 /* RecztMusicUnderstandingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecztMusicUnderstandingService.swift; sourceTree = "<group>"; };
 		1EB4EEAB30565CF7004048DB /* RecztControlExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RecztControlExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1EB4EEAC30565CF7004048DB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1EB4EEAE30565CF7004048DB /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -107,14 +134,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		1EB4EEC130565CF8004048DB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		1EB4EEC130565CF8004048DB /* Exceptions for "RecztControl" folder in "RecztControlExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 1EB4EEAA30565CF7004048DB /* RecztControlExtension */;
 		};
-		1EB4EEC63056F867004048DB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		1EB4EEC63056F867004048DB /* Exceptions for "RecztControl" folder in "Runner" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				RecztOpenIntent.swift,
@@ -124,7 +151,19 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1EB4EEB030565CF7004048DB /* RecztControl */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (1EB4EEC63056F867004048DB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 1EB4EEC130565CF8004048DB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = RecztControl; sourceTree = "<group>"; };
+		1EB4EEB030565CF7004048DB /* RecztControl */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1EB4EEC63056F867004048DB /* Exceptions for "RecztControl" folder in "Runner" target */,
+				1EB4EEC130565CF8004048DB /* Exceptions for "RecztControl" folder in "RecztControlExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = RecztControl;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -157,6 +196,22 @@
 				1EB4EEAE30565CF7004048DB /* SwiftUI.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		1E76D368307F1BC600C368E6 /* iOS 27 System Integration */ = {
+			isa = PBXGroup;
+			children = (
+				1E76D369307F1BE600C368E6 /* RecztLiveActivityManager.swift */,
+				1E76D36A307F1BE600C368E6 /* RecztRecognitionAttributes.swift */,
+				1E76D36B307F1BE600C368E6 /* RecztRecognitionCoordinator.swift */,
+				1E76D36C307F1BE600C368E6 /* RecztRecognizeAudioIntent.swift */,
+				1E76D36D307F1BE600C368E6 /* RecztSharedStore.swift */,
+				1E76D36E307F1BE600C368E6 /* RecztSongEntities.swift */,
+				1E76D37D3080540600C368E6 /* RecztAppShortcuts.swift */,
+				1E76D37E3080540600C368E6 /* RecztIOS27Bridge.swift */,
+				1E76D37F3080540600C368E6 /* RecztMusicUnderstandingService.swift */,
+			);
+			path = "iOS 27 System Integration";
 			sourceTree = "<group>";
 		};
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
@@ -192,6 +247,7 @@
 		97C146E51CF9000F007C117D = {
 			isa = PBXGroup;
 			children = (
+				1E76D37C307FB7D700C368E6 /* RecztControlExtension.entitlements */,
 				9740EEB11CF90186004384FC /* Flutter */,
 				97C146F01CF9000F007C117D /* Runner */,
 				1EB4EEB030565CF7004048DB /* RecztControl */,
@@ -215,6 +271,8 @@
 		97C146F01CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				1E76D37B307F1C8D00C368E6 /* Runner.entitlements */,
+				1E76D368307F1BC600C368E6 /* iOS 27 System Integration */,
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
@@ -248,8 +306,6 @@
 				1EB4EEB030565CF7004048DB /* RecztControl */,
 			);
 			name = RecztControlExtension;
-			packageProductDependencies = (
-			);
 			productName = RecztControlExtension;
 			productReference = 1EB4EEAB30565CF7004048DB /* RecztControlExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -347,7 +403,7 @@
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
-				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -398,13 +454,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -472,13 +524,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -492,6 +540,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1E76D375307F1C4A00C368E6 /* RecztRecognizeAudioIntent.swift in Sources */,
+				1E76D376307F1C4A00C368E6 /* RecztSongEntities.swift in Sources */,
+				1E76D377307F1C4A00C368E6 /* RecztRecognitionCoordinator.swift in Sources */,
+				1E76D378307F1C4A00C368E6 /* RecztLiveActivityManager.swift in Sources */,
+				1E76D38B30805C5D00C368E6 /* RecztAppShortcuts.swift in Sources */,
+				1E76D379307F1C4A00C368E6 /* RecztSharedStore.swift in Sources */,
+				1E76D37A307F1C4A00C368E6 /* RecztRecognitionAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -507,7 +562,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1E76D383308055D100C368E6 /* RecztAppShortcuts.swift in Sources */,
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
+				1E76D36F307F1BE600C368E6 /* RecztRecognitionAttributes.swift in Sources */,
+				1E76D370307F1BE600C368E6 /* RecztSongEntities.swift in Sources */,
+				1E76D371307F1BE600C368E6 /* RecztRecognitionCoordinator.swift in Sources */,
+				1E76D372307F1BE600C368E6 /* RecztSharedStore.swift in Sources */,
+				1E76D373307F1BE600C368E6 /* RecztLiveActivityManager.swift in Sources */,
+				1E76D3803080540600C368E6 /* RecztIOS27Bridge.swift in Sources */,
+				1E76D3823080540600C368E6 /* RecztMusicUnderstandingService.swift in Sources */,
+				1E76D374307F1BE600C368E6 /* RecztRecognizeAudioIntent.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 			);
@@ -582,6 +646,7 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = RecztControlExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = L2L9A6W59G;
@@ -591,7 +656,7 @@
 				INFOPLIST_FILE = RecztControl/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RecztControl;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -603,6 +668,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lesliekanebazos.reczt.RecztControl;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -631,6 +697,7 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = RecztControlExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = L2L9A6W59G;
@@ -640,7 +707,7 @@
 				INFOPLIST_FILE = RecztControl/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RecztControl;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -651,6 +718,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lesliekanebazos.reczt.RecztControl;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -677,6 +745,7 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = RecztControlExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = L2L9A6W59G;
@@ -686,7 +755,7 @@
 				INFOPLIST_FILE = RecztControl/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RecztControl;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -697,6 +766,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lesliekanebazos.reczt.RecztControl;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -754,7 +824,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = iphoneos;
@@ -769,10 +839,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = L2L9A6W59G;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -780,6 +852,7 @@
 				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lesliekanebazos.reczt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -887,7 +960,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -938,7 +1011,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = iphoneos;
@@ -955,10 +1028,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = L2L9A6W59G;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -966,6 +1041,7 @@
 				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lesliekanebazos.reczt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -984,10 +1060,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = L2L9A6W59G;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -995,6 +1073,7 @@
 				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lesliekanebazos.reczt;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -1052,7 +1131,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */ = {
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
 		};
