@@ -8596,9 +8596,7 @@ final christmasTextShadow = isChristmas
                   const SizedBox(height: 20),
                   const Divider(),
                   const SizedBox(height: 20),
-                  ChristmasSceneRegion(
-                    id: ChristmasSceneRegionId.heading,
-                    child: Text(
+                  Text(
                     t('where_are_you'),
                     style: TextStyle(
   fontSize: 22,
@@ -8609,15 +8607,13 @@ final christmasTextShadow = isChristmas
   shadows: christmasTextShadow,
 ),
                     textAlign: TextAlign.center,
-                  )),
+                  ),
                   const SizedBox(height: 16),
-                  ChristmasSceneRegion(
-                    id: ChristmasSceneRegionId.cards,
-                    child: Column(
+                  Column(
                     children: EnvironmentMode.values.map((mode) {
                       final isSelected = _selectedMode == mode;
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        padding: EdgeInsets.symmetric(vertical: isChristmas ? 4.0 : 6.0),
                         child: InkWell(
                           onTap: _isRecording || _isLoading
                               ? null
@@ -8695,12 +8691,9 @@ final christmasTextShadow = isChristmas
                         ),
                       );
                     }).toList(),
-                  )),
-                  // Leave a clear strip of pond for the skating character.
-                  SizedBox(height: isChristmas ? 96 : 32),
-                  ChristmasSceneRegion(
-                    id: ChristmasSceneRegionId.instructions,
-                    child: Container(
+                  ),
+                  SizedBox(height: isChristmas ? 20 : 32),
+                  Container(
   padding: isChristmas
       ? const EdgeInsets.symmetric(
           horizontal: 14,
@@ -8731,7 +8724,7 @@ final christmasTextShadow = isChristmas
       shadows: christmasTextShadow,
     ),
   ),
-)),
+),
                   if (_isRecording) ...[
                     const SizedBox(height: 10),
                     _buildVoiceVisualizer(primaryColor),

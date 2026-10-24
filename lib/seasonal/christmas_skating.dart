@@ -24,27 +24,12 @@ class SnowmanSkatingPose {
       ChristmasSkatingRoute(visible).sample(seconds);
 }
 
-/// A closed, time-parameterized Hermite spline. Shared endpoint velocities
-/// prevent a visible stop, teleport, or speed jump at the joins.
+/// A closed artwork-space route. Only viewport cropping can change its bounds.
 class ChristmasSkatingRoute {
-  ChristmasSkatingRoute(this.visible, {this.cards, this.instructions}) {
-    final top = math.max(790.0, visible.top + 105);
-    final bottom = math.min(1320.0, visible.bottom - 45);
-    var far = top;
-    var near = bottom;
-    if (cards != null && cards!.top > top) {
-      far = (cards!.top - 12).clamp(top, top + 55);
-    }
-    if (cards != null && instructions != null) {
-      final gapTop = math.max(cards!.bottom, top);
-      final gapBottom = math.min(instructions!.top, bottom + 25);
-      // A whole small character + reflection must fit, not just its center.
-      if (gapBottom - gapTop >= 135) {
-        near = math.min(bottom, gapBottom - 28);
-        near = math.max(near, math.min(bottom, gapTop + 128));
-      }
-    }
-    near = math.max(far + 70, near);
+  ChristmasSkatingRoute(this.visible) {
+    // Authored lake coordinates, independent of scrolling foreground controls.
+    final far = math.max(790.0, visible.top + 105);
+    final near = math.max(far + 70, math.min(1360.0, visible.bottom - 50));
     final left = math.max(visible.left + 70, 100.0);
     final right = math.min(visible.right - 70, 840.0);
     final span = math.max(1.0, right - left);
@@ -55,8 +40,8 @@ class ChristmasSkatingRoute {
       p(.48, 0),
       p(.91, .14),
       p(.88, .53),
-      p(.70, 1),
-      p(.29, .98),
+      p(.84, 1),
+      p(.12, .98),
       p(.08, .65),
       p(.35, .36)
     ];
@@ -84,7 +69,6 @@ class ChristmasSkatingRoute {
   static const _samples = 768;
   static const _durations = [18.0, 20.0, 10.0, 8.0, 10.0, 10.0, 10.0, 10.0];
   final Rect visible;
-  final Rect? cards, instructions;
   late final List<Offset> _points;
   late final List<double> _starts;
   late final List<double> _stride;
@@ -134,7 +118,7 @@ class ChristmasSkatingRoute {
     final forwardLean = velocity.dx.sign * .018 * (speed / 32).clamp(0, 1);
     return SnowmanSkatingPose(
       feet: feet,
-      width: 54 + 68 * Curves.easeInOutSine.transform(depth),
+      width: 64 + 80 * Curves.easeInOutSine.transform(depth),
       lean: (blend - .5) * (.018 + depth * .038) + forwardLean * push,
       facing: facing,
       strideBlend: blend,

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:song_recognition_app/seasonal/christmas_scene.dart';
+import 'package:song_recognition_app/seasonal/christmas_weather.dart';
 import 'package:song_recognition_app/seasonal/halloween_scene_v2.dart';
 import 'package:song_recognition_app/seasonal/seasonal_scene_support.dart';
 import 'package:song_recognition_app/seasonal_preview.dart';
@@ -29,8 +30,8 @@ void main() {
       final route = ChristmasSkatingRoute(visible);
       final poses = List.generate(960, (i) => route.sample(i / 10));
       for (final pose in poses) {
-        expect(pose.feet.dy, inInclusiveRange(760, 1370));
-        expect(pose.width, inInclusiveRange(53, 124));
+        expect(pose.feet.dy, inInclusiveRange(760, 1410));
+        expect(pose.width, inInclusiveRange(63, 146));
         expect(pose.feet.dx - pose.width * .52,
             greaterThanOrEqualTo(visible.left));
         expect(
@@ -82,25 +83,52 @@ void main() {
         greaterThan(poses.length ~/ 2));
   });
 
-  test('measured controls leave intermittent unobstructed near passes', () {
-    const visible = Rect.fromLTWH(84, 0, 773, 1672);
-    const cards = Rect.fromLTWH(120, 810, 700, 378);
-    const instructions = Rect.fromLTWH(120, 1380, 700, 130);
-    final route = ChristmasSkatingRoute(visible,
-        cards: cards, instructions: instructions);
-    var clearNear = 0, behindCards = 0;
+  test('twinkles begin promptly, brighten individually, and loop smoothly', () {
+    var strongest = 0.0;
     for (var i = 0; i < 960; i++) {
-      final p = route.sample(i / 10);
-      final body = Rect.fromLTWH(p.feet.dx - p.width * .52,
-          p.feet.dy - p.width * .95, p.width, p.width * 1.23);
-      if (body.top > cards.bottom && body.bottom < instructions.top) {
-        clearNear++;
-      }
-      if (body.overlaps(cards)) behindCards++;
+      final t = i / 20;
+      final levels =
+          List.generate(7, (j) => ChristmasWeather.lightIntensity(t, j));
+      expect(levels.where((v) => v > .01).length, lessThanOrEqualTo(1));
+      expect(levels.every((v) => v >= 0 && v <= 1), isTrue);
+      if (t < 4) strongest = math.max(strongest, levels.reduce(math.max));
     }
-    expect(clearNear, greaterThan(90));
-    expect(clearNear, lessThan(450));
-    expect(behindCards, greaterThan(150));
+    expect(strongest, greaterThan(.95));
+    for (var i = 0; i < 7; i++) {
+      expect(ChristmasWeather.lightIntensity(1.5, i),
+          ChristmasWeather.lightIntensity(193.5, i));
+    }
+  });
+
+  test(
+      'roof snow slides off the eave, accelerates downward, and disperses on the bank',
+      () {
+    expect(ChristmasWeather.roofSnowAt(0).visible, isFalse);
+    final slide = ChristmasWeather.roofSnowAt(10.5);
+    final falling = ChristmasWeather.roofSnowAt(11.6);
+    final fallingLater = ChristmasWeather.roofSnowAt(11.9);
+    final landed = ChristmasWeather.roofSnowAt(12.4);
+    expect(slide.visible, isTrue);
+    expect(slide.position.dx, greaterThan(falling.position.dx));
+    expect(slide.position.dy, lessThan(falling.position.dy));
+    final earlyDrop =
+        ChristmasWeather.roofSnowAt(11.7).position.dy - falling.position.dy;
+    final lateDrop = ChristmasWeather.roofSnowAt(12.0).position.dy -
+        fallingLater.position.dy;
+    expect(lateDrop, greaterThan(earlyDrop));
+    expect(landed.position, const Offset(722, 724));
+    expect(landed.landed, isTrue);
+    expect(ChristmasWeather.roofSnowAt(14).visible, isFalse);
+    for (final join in [11.3, 12.2]) {
+      expect(
+          (ChristmasWeather.roofSnowAt(join - .0001).position -
+                  ChristmasWeather.roofSnowAt(join + .0001).position)
+              .distance,
+          lessThan(.05));
+    }
+    expect(ChristmasWeather.roofSnowAt(10.5).position,
+        ChristmasWeather.roofSnowAt(74.5).position);
+    expect(ChristmasWeather.wind(0), closeTo(ChristmasWeather.wind(192), .001));
   });
 
   testWidgets('decorative scenes leave foreground controls tappable',
@@ -193,39 +221,46 @@ void main() {
   });
 
   testWidgets(
-      'Christmas host measures controls without moving them or capturing taps',
+      'scrolling foreground UI never retargets or teleports the snowman',
       (tester) async {
-    var taps = 0;
+    tester.view.physicalSize = const Size(780, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final scroll = ScrollController();
+    addTearDown(scroll.dispose);
     await tester.pumpWidget(MaterialApp(
-        home: ChristmasSceneHost(
-            child: Stack(children: [
-      Positioned(
-          left: 40,
-          top: 220,
-          width: 300,
-          height: 150,
-          child: ChristmasSceneRegion(
-              id: ChristmasSceneRegionId.cards,
-              child: TextButton(
-                  onPressed: () => taps++, child: const Text('Environment')))),
-      const Positioned(
-          left: 40,
-          top: 510,
-          width: 300,
-          height: 60,
-          child: ChristmasSceneRegion(
-              id: ChristmasSceneRegionId.instructions,
-              child: Text('Instruction panel'))),
-    ]))));
+        home: Row(children: [
+      Expanded(
+          child: ChristmasSceneHost(
+              key: const ValueKey('control-world'),
+              child: SingleChildScrollView(
+                  child: SizedBox(height: 1800, child: Text('Control UI'))))),
+      Expanded(
+          child: ChristmasSceneHost(
+              key: const ValueKey('scroll-world'),
+              child: SingleChildScrollView(
+                  key: const ValueKey('scroll-ui'),
+                  controller: scroll,
+                  child: SizedBox(height: 1800, child: Text('Scrolling UI'))))),
+    ])));
     await tester.pump();
-    await tester.pump();
-    final rect = tester.getRect(find.text('Instruction panel'));
-    await tester.pump(const Duration(seconds: 25));
-    expect(tester.getRect(find.text('Instruction panel')), rect);
-    await tester.tap(find.text('Environment'));
-    expect(taps, 1);
+    await tester.pump(const Duration(seconds: 20));
+    Positioned snowman(String world) =>
+        tester.widget<Positioned>(find.descendant(
+            of: find.byKey(ValueKey(world)),
+            matching: find.byKey(const ValueKey('christmas-snowman'))));
+    await tester.drag(
+        find.byKey(const ValueKey('scroll-ui')), const Offset(0, -420));
+    for (final delay in [17, 300, 1800]) {
+      await tester.pump(Duration(milliseconds: delay));
+      final a = snowman('control-world'), b = snowman('scroll-world');
+      expect(b.left, closeTo(a.left!, .001));
+      expect(b.top, closeTo(a.top!, .001));
+      expect(b.width, closeTo(a.width!, .001));
+    }
+    expect(scroll.offset, greaterThan(200));
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
     expect(tester.takeException(), isNull);
   });
 

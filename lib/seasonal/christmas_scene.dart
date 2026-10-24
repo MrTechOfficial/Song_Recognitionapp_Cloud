@@ -1,47 +1,24 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'christmas_scene_layout.dart';
 import 'christmas_skating.dart';
+import 'christmas_weather.dart';
 import 'seasonal_scene_support.dart';
-export 'christmas_scene_layout.dart'
-    show ChristmasSceneRegion, ChristmasSceneRegionId;
 export 'christmas_skating.dart' show SnowmanSkatingPose, ChristmasSkatingRoute;
 
-/// This host measures the actual interface; it never moves or restyles it.
-class ChristmasSceneHost extends StatefulWidget {
+/// The world is fixed behind the interface. Scrolling the child never changes
+/// the snowman's route, position, scale, or animation clock.
+class ChristmasSceneHost extends StatelessWidget {
   const ChristmasSceneHost({super.key, required this.child});
   final Widget child;
   @override
-  State<ChristmasSceneHost> createState() => _ChristmasSceneHostState();
-}
-
-class _ChristmasSceneHostState extends State<ChristmasSceneHost> {
-  final _rootKey = GlobalKey();
-  late final _regions = ChristmasSceneRegions(_rootKey);
-  @override
-  void dispose() {
-    _regions.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      Stack(key: _rootKey, fit: StackFit.expand, children: [
-        ChristmasScene(regions: _regions),
-        ChristmasSceneLayout(
-            regions: _regions,
-            child: NotificationListener<ScrollNotification>(
-                onNotification: (_) {
-                  _regions.scheduleMeasurement();
-                  return false;
-                },
-                child: widget.child)),
+  Widget build(BuildContext context) => Stack(fit: StackFit.expand, children: [
+        const ChristmasScene(),
+        child,
       ]);
 }
 
 class ChristmasScene extends StatefulWidget {
-  const ChristmasScene({super.key, this.regions});
-  final ChristmasSceneRegions? regions;
+  const ChristmasScene({super.key});
   @override
   State<ChristmasScene> createState() => _ChristmasSceneState();
 }
@@ -50,9 +27,8 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   static const _root = 'assets/seasonal/christmas';
   late final AnimationController _clock;
   late final List<_Snowflake> _flakes;
-  ChristmasSkatingRoute? _route, _previousRoute;
-  Rect? _visible, _cards, _instructions;
-  double _routeChangedAt = -10;
+  ChristmasSkatingRoute? _route;
+  Rect? _visible;
   @override
   void initState() {
     super.initState();
@@ -93,49 +69,13 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   }
 
   SnowmanSkatingPose _pose(double seconds, Rect visible) {
-    Rect? sourceRect(ChristmasSceneRegionId id) {
-      final rect = widget.regions?.rects[id];
-      if (rect == null) return null;
-      final viewport = context.findRenderObject();
-      if (viewport is! RenderBox || !viewport.hasSize) return null;
-      final scale =
-          SeasonalSceneGeometry(const Size(941, 1672), viewport.size).scale;
-      return Rect.fromLTWH(
-          visible.left + rect.left / scale,
-          visible.top + rect.top / scale,
-          rect.width / scale,
-          rect.height / scale);
-    }
-
-    final cards = sourceRect(ChristmasSceneRegionId.cards);
-    final instructions = sourceRect(ChristmasSceneRegionId.instructions);
-    if (_route == null ||
-        visible != _visible ||
-        cards != _cards ||
-        instructions != _instructions) {
-      _previousRoute = _route;
-      _route = ChristmasSkatingRoute(visible,
-          cards: cards, instructions: instructions);
+    // Only a real viewport/crop change (e.g. rotation) can alter the lake bounds.
+    // Never inspect positions of scrolling widgets here.
+    if (_route == null || visible != _visible) {
+      _route = ChristmasSkatingRoute(visible);
       _visible = visible;
-      _cards = cards;
-      _instructions = instructions;
-      _routeChangedAt = seconds;
     }
-    final pose = _route!.sample(seconds);
-    final age = (seconds - _routeChangedAt + 192) % 192;
-    if (_previousRoute == null || age >= 1.4) return pose;
-    final old = _previousRoute!.sample(seconds);
-    final mix = Curves.easeInOut.transform((age / 1.4).clamp(0, 1));
-    double lerp(double a, double b) => a + (b - a) * mix;
-    return SnowmanSkatingPose(
-        feet: Offset.lerp(old.feet, pose.feet, mix)!,
-        width: lerp(old.width, pose.width),
-        lean: lerp(old.lean, pose.lean),
-        facing: lerp(old.facing, pose.facing),
-        strideBlend: lerp(old.strideBlend, pose.strideBlend),
-        lift: lerp(old.lift, pose.lift),
-        depth: lerp(old.depth, pose.depth),
-        speed: lerp(old.speed, pose.speed));
+    return _route!.sample(seconds);
   }
 
   @override
@@ -148,8 +88,7 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
                   fit: BoxFit.fill,
                   filterQuality: FilterQuality.high)),
           AnimatedBuilder(
-              animation: Listenable.merge(
-                  [_clock, if (widget.regions != null) widget.regions!]),
+              animation: _clock,
               builder: (context, _) {
                 final seconds = _clock.value * 192;
                 final pose = _pose(seconds, visible);
@@ -316,6 +255,7 @@ class _WinterAtmosphere extends CustomPainter {
       _clouds(canvas);
       _smoke(canvas);
       _lights(canvas, size);
+      _roofSnow(canvas);
     }
     for (final flake in flakes) {
       if ((flake.layer == 2) != foreground) continue;
@@ -323,7 +263,10 @@ class _WinterAtmosphere extends CustomPainter {
       final y = (flake.y + seconds / 192 * 1.08 * cycles) % 1.08 - .04;
       final x = flake.x +
           math.sin(seconds * math.pi * 2 / 96 + flake.phase) *
-              (.008 + flake.layer * .006);
+              (.008 + flake.layer * .006) +
+          ChristmasWeather.wind(seconds) /
+              size.width *
+              (.3 + flake.layer * .35);
       final alpha = [.23, .37, .56][flake.layer];
       canvas.drawCircle(
           Offset(x * size.width, y * size.height),
@@ -335,7 +278,7 @@ class _WinterAtmosphere extends CustomPainter {
 
   void _clouds(Canvas canvas) {
     for (var i = 0; i < 2; i++) {
-      final drift = math.sin(seconds * math.pi * 2 / 192 + i * 1.3) * 18;
+      final drift = math.sin(seconds * math.pi * 2 / 96 + i * 1.3) * 55;
       canvas.save();
       canvas.translate(660 + i * 120 + drift, 360 + i * 68.0);
       final path = Path()
@@ -346,7 +289,7 @@ class _WinterAtmosphere extends CustomPainter {
         ..cubicTo(61, 3, 80, 12, 83, 19)
         ..close();
       canvas.drawPath(path,
-          Paint()..color = const Color(0xFF88ACC8).withValues(alpha: .09));
+          Paint()..color = const Color(0xFF88ACC8).withValues(alpha: .17));
       canvas.restore();
     }
   }
@@ -369,37 +312,85 @@ class _WinterAtmosphere extends CustomPainter {
   }
 
   void _lights(Canvas canvas, Size size) {
-    const bulbs = [
-      Offset(.17, .102),
-      Offset(.306, .087),
-      Offset(.426, .07),
-      Offset(.535, .038),
-      Offset(.635, .071),
-      Offset(.763, .09),
-      Offset(.954, .08)
-    ];
     const colors = [Color(0xFFFF6855), Color(0xFF9AE379), Color(0xFFFFD779)];
-    const events = [9.0, 31.0, 58.0, 92.0, 123.0, 151.0, 178.0];
-    for (var i = 0; i < bulbs.length; i++) {
-      final age = seconds - events[i];
-      if (age < 0 || age > 1.8) continue;
-      final pulse = math.pow(math.sin(age / 1.8 * math.pi), 2).toDouble();
-      final center =
-          Offset(bulbs[i].dx * size.width, bulbs[i].dy * size.height);
-      final radius = 28 + pulse * 9;
+    for (var i = 0; i < ChristmasWeather.lightPositions.length; i++) {
+      final pulse = ChristmasWeather.lightIntensity(seconds, i);
+      if (pulse == 0) continue;
+      final bulb = ChristmasWeather.lightPositions[i];
+      final center = Offset(bulb.dx * size.width, bulb.dy * size.height);
+      final radius = 32 + pulse * 13;
       canvas.drawCircle(
           center,
           radius,
           Paint()
             ..shader = RadialGradient(colors: [
-              colors[i % 3].withValues(alpha: .22 * pulse),
+              colors[i % 3].withValues(alpha: .44 * pulse),
               Colors.transparent
             ]).createShader(Rect.fromCircle(center: center, radius: radius)));
-      canvas.drawCircle(
-          center,
-          2,
+      canvas.drawOval(
+          Rect.fromCenter(center: center, width: 4, height: 9),
           Paint()
-            ..color = const Color(0xFFFFF4DC).withValues(alpha: pulse * .4));
+            ..color = const Color(0xFFFFF8DC).withValues(alpha: pulse * .85));
+      if (pulse > .55) {
+        final sparkle = Paint()
+          ..color =
+              const Color(0xFFFFF3D3).withValues(alpha: (pulse - .55) * .7)
+          ..strokeWidth = .9
+          ..strokeCap = StrokeCap.round;
+        canvas.drawLine(
+            center + const Offset(-7, 0), center + const Offset(7, 0), sparkle);
+        canvas.drawLine(center + const Offset(0, -10),
+            center + const Offset(0, 10), sparkle);
+      }
+    }
+  }
+
+  void _roofSnow(Canvas canvas) {
+    final snow = ChristmasWeather.roofSnowAt(seconds);
+    if (!snow.visible) return;
+    if (!snow.landed) {
+      canvas.save();
+      canvas.translate(snow.position.dx, snow.position.dy);
+      canvas.rotate(snow.rotation);
+      final chunk = Path()
+        ..moveTo(-10, 2)
+        ..quadraticBezierTo(-12, -2, -7, -4)
+        ..quadraticBezierTo(-3, -8, 1, -4)
+        ..quadraticBezierTo(9, -7, 11, -1)
+        ..lineTo(8, 4)
+        ..lineTo(-6, 5)
+        ..close();
+      canvas.drawPath(
+          chunk,
+          Paint()
+            ..color = const Color(0xFFBCD6E8).withValues(alpha: snow.opacity));
+      canvas.drawPath(
+          chunk.shift(const Offset(0, -1)),
+          Paint()
+            ..color = const Color(0xFFF1F7FF).withValues(alpha: snow.opacity));
+      for (var i = 0; i < 3; i++) {
+        canvas.drawCircle(
+            Offset(-13 - i * 3.0, 3 + i * 2.0),
+            1.2,
+            Paint()
+              ..color =
+                  const Color(0xFFE6F2FC).withValues(alpha: snow.opacity * .5));
+      }
+      canvas.restore();
+    } else {
+      final t = snow.scatter;
+      for (var i = 0; i < 7; i++) {
+        final side = (i - 3) / 3;
+        final point = snow.position +
+            Offset(side * (5 + 17 * t),
+                -math.sin(t * math.pi) * (4 + (i % 3) * 4));
+        canvas.drawCircle(
+            point,
+            (1.1 + i % 2) * (1 - .4 * t),
+            Paint()
+              ..color =
+                  const Color(0xFFEEF7FF).withValues(alpha: snow.opacity * .8));
+      }
     }
   }
 
