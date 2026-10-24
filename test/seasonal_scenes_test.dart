@@ -16,9 +16,7 @@ Widget host(Widget child, {bool reduceMotion = false, bool ticker = true}) =>
     );
 
 void main() {
-  test(
-      'cover geometry and skating path stay on the visible ice at phone and tablet sizes',
-      () {
+  test('lake route uses depth and stays within the visible ice', () {
     for (final size in [
       const Size(320, 568),
       const Size(390, 844),
@@ -28,34 +26,81 @@ void main() {
     ]) {
       final geometry = SeasonalSceneGeometry(const Size(941, 1672), size);
       final visible = geometry.visibleSourceRect;
-      expect(visible.width * geometry.scale, closeTo(size.width, .001));
-      expect(visible.height * geometry.scale, closeTo(size.height, .001));
-      for (var i = 0; i <= 720; i++) {
-        final pose = SnowmanSkatingPose.at(i / 20, visible);
-        expect(pose.feet.dy, inInclusiveRange(850, 1200));
+      final route = ChristmasSkatingRoute(visible);
+      final poses = List.generate(960, (i) => route.sample(i / 10));
+      for (final pose in poses) {
+        expect(pose.feet.dy, inInclusiveRange(760, 1370));
+        expect(pose.width, inInclusiveRange(53, 124));
         expect(pose.feet.dx - pose.width * .52,
             greaterThanOrEqualTo(visible.left));
         expect(
             pose.feet.dx + pose.width * .48, lessThanOrEqualTo(visible.right));
-        expect(pose.feet.dy - pose.width * .95, greaterThan(750));
+        expect(pose.feet.dy + pose.width * .28, lessThan(visible.bottom));
+        expect(pose.strideBlend, inInclusiveRange(0, 1));
+        expect(pose.lift, inInclusiveRange(0, .81));
       }
+      final xs = poses.map((p) => p.feet.dx);
+      final ys = poses.map((p) => p.feet.dy);
+      expect(xs.reduce(math.max) - xs.reduce(math.min),
+          greaterThan(visible.width * .5));
+      expect(ys.reduce(math.max) - ys.reduce(math.min), greaterThan(170));
+    }
+  });
+
+  test('route joins and stride remain continuous across the entire loop', () {
+    final route = ChristmasSkatingRoute(const Rect.fromLTWH(0, 0, 941, 1672));
+    for (final join in [0.0, 18.0, 38.0, 48.0, 56.0, 66.0, 76.0, 86.0, 96.0]) {
+      final t = join - 30;
+      final a = route.sample(t - .001), b = route.sample(t + .001);
+      expect((a.feet - b.feet).distance, lessThan(.15));
+      expect((a.width - b.width).abs(), lessThan(.02));
+      expect((a.strideBlend - b.strideBlend).abs(), lessThan(.04));
+      final before = (a.feet - route.sample(t - .002).feet) / .001;
+      final after = (route.sample(t + .002).feet - b.feet) / .001;
+      expect((before - after).distance, lessThan(.1));
     }
   });
 
   test(
-      'skating pauses, turns and returns without teleporting at loop boundaries',
+      'near passes have stronger depth cues and the two pushes include long glides',
       () {
-    const visible = Rect.fromLTWH(0, 0, 941, 1672);
-    expect(SnowmanSkatingPose.at(14, visible).moving, isFalse);
-    expect(SnowmanSkatingPose.at(20, visible).moving, isTrue);
-    expect(SnowmanSkatingPose.at(17, visible).yaw, closeTo(math.pi, .001));
-    expect(SnowmanSkatingPose.at(35, visible).yaw, closeTo(0, .001));
-    for (final boundary in [13.0, 18.0, 31.0, 36.0, 72.0]) {
-      final a = SnowmanSkatingPose.at(boundary - .001, visible);
-      final b = SnowmanSkatingPose.at(boundary + .001, visible);
-      expect((a.feet - b.feet).distance, lessThan(.02));
-      expect((a.yaw - b.yaw).abs(), lessThan(.01));
+    final route = ChristmasSkatingRoute(const Rect.fromLTWH(0, 0, 941, 1672));
+    final poses = List.generate(1920, (i) => route.sample(i / 20));
+    final near = poses.where((p) => p.depth > .8).toList();
+    final far = poses.where((p) => p.depth < .12).toList();
+    expect(near, isNotEmpty);
+    expect(far, isNotEmpty);
+    expect(near.first.width, greaterThan(far.first.width * 1.7));
+    expect(near.first.shadowWidth, greaterThan(far.first.shadowWidth * 2));
+    expect(near.first.reflectionOpacity,
+        greaterThan(far.first.reflectionOpacity * 2));
+    expect(near.map((p) => p.speed).reduce(math.max),
+        greaterThan(far.map((p) => p.speed).reduce(math.max)));
+    expect(poses.where((p) => p.strideBlend > .99).length, greaterThan(200));
+    expect(poses.where((p) => p.strideBlend < .01).length, greaterThan(200));
+    expect(poses.where((p) => p.lift < .001).length,
+        greaterThan(poses.length ~/ 2));
+  });
+
+  test('measured controls leave intermittent unobstructed near passes', () {
+    const visible = Rect.fromLTWH(84, 0, 773, 1672);
+    const cards = Rect.fromLTWH(120, 810, 700, 378);
+    const instructions = Rect.fromLTWH(120, 1380, 700, 130);
+    final route = ChristmasSkatingRoute(visible,
+        cards: cards, instructions: instructions);
+    var clearNear = 0, behindCards = 0;
+    for (var i = 0; i < 960; i++) {
+      final p = route.sample(i / 10);
+      final body = Rect.fromLTWH(p.feet.dx - p.width * .52,
+          p.feet.dy - p.width * .95, p.width, p.width * 1.23);
+      if (body.top > cards.bottom && body.bottom < instructions.top) {
+        clearNear++;
+      }
+      if (body.overlaps(cards)) behindCards++;
     }
+    expect(clearNear, greaterThan(90));
+    expect(clearNear, lessThan(450));
+    expect(behindCards, greaterThan(150));
   });
 
   testWidgets('decorative scenes leave foreground controls tappable',
@@ -145,6 +190,43 @@ void main() {
         0);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets(
+      'Christmas host measures controls without moving them or capturing taps',
+      (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: ChristmasSceneHost(
+            child: Stack(children: [
+      Positioned(
+          left: 40,
+          top: 220,
+          width: 300,
+          height: 150,
+          child: ChristmasSceneRegion(
+              id: ChristmasSceneRegionId.cards,
+              child: TextButton(
+                  onPressed: () => taps++, child: const Text('Environment')))),
+      const Positioned(
+          left: 40,
+          top: 510,
+          width: 300,
+          height: 60,
+          child: ChristmasSceneRegion(
+              id: ChristmasSceneRegionId.instructions,
+              child: Text('Instruction panel'))),
+    ]))));
+    await tester.pump();
+    await tester.pump();
+    final rect = tester.getRect(find.text('Instruction panel'));
+    await tester.pump(const Duration(seconds: 25));
+    expect(tester.getRect(find.text('Instruction panel')), rect);
+    await tester.tap(find.text('Environment'));
+    expect(taps, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('app lifecycle freezes and resumes the snowman', (tester) async {

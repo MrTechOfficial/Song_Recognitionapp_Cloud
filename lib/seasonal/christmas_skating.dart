@@ -1,0 +1,146 @@
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+
+@immutable
+class SnowmanSkatingPose {
+  const SnowmanSkatingPose(
+      {required this.feet,
+      required this.width,
+      required this.lean,
+      required this.facing,
+      required this.strideBlend,
+      required this.lift,
+      required this.depth,
+      required this.speed});
+  final Offset feet;
+  final double width, lean, facing, strideBlend, lift, depth, speed;
+  bool get moving => speed > .1;
+  // Kept for callers inspecting orientation; the renderer never flattens the PNG edge-on.
+  double get yaw => facing < 0 ? math.pi : 0;
+  double get shadowOpacity => .055 + .12 * depth;
+  double get reflectionOpacity => .025 + .105 * depth;
+  double get shadowWidth => width * (.24 + .20 * depth);
+  factory SnowmanSkatingPose.at(double seconds, Rect visible) =>
+      ChristmasSkatingRoute(visible).sample(seconds);
+}
+
+/// A closed, time-parameterized Hermite spline. Shared endpoint velocities
+/// prevent a visible stop, teleport, or speed jump at the joins.
+class ChristmasSkatingRoute {
+  ChristmasSkatingRoute(this.visible, {this.cards, this.instructions}) {
+    final top = math.max(790.0, visible.top + 105);
+    final bottom = math.min(1320.0, visible.bottom - 45);
+    var far = top;
+    var near = bottom;
+    if (cards != null && cards!.top > top) {
+      far = (cards!.top - 12).clamp(top, top + 55);
+    }
+    if (cards != null && instructions != null) {
+      final gapTop = math.max(cards!.bottom, top);
+      final gapBottom = math.min(instructions!.top, bottom + 25);
+      // A whole small character + reflection must fit, not just its center.
+      if (gapBottom - gapTop >= 135) {
+        near = math.min(bottom, gapBottom - 28);
+        near = math.max(near, math.min(bottom, gapTop + 128));
+      }
+    }
+    near = math.max(far + 70, near);
+    final left = math.max(visible.left + 70, 100.0);
+    final right = math.min(visible.right - 70, 840.0);
+    final span = math.max(1.0, right - left);
+    Offset p(double x, double y) =>
+        Offset(left + span * x, far + (near - far) * y);
+    _points = [
+      p(.08, .08),
+      p(.48, 0),
+      p(.91, .14),
+      p(.88, .53),
+      p(.70, 1),
+      p(.29, .98),
+      p(.08, .65),
+      p(.35, .36)
+    ];
+    _starts = [0];
+    for (final duration in _durations) {
+      _starts.add(_starts.last + duration);
+    }
+    // Integrate depth-dependent cadence, including occasional longer coasts.
+    _stride = [0];
+    for (var i = 1; i <= _samples; i++) {
+      final t = (i - .5) * period / _samples;
+      final depth = _depth(_position(t).dy);
+      final coast =
+          math.pow(math.max(0, math.cos(t * math.pi * 2 / 24)), 10).toDouble();
+      final rate = (.27 + .26 * depth) * (1 - .58 * coast);
+      _stride.add(_stride.last + rate * period / _samples);
+    }
+    // Even count: both the pose and its cadence join at the clock seam.
+    final factor = 36 / _stride.last;
+    for (var i = 0; i < _stride.length; i++) {
+      _stride[i] *= factor;
+    }
+  }
+  static const double period = 96;
+  static const _samples = 768;
+  static const _durations = [18.0, 20.0, 10.0, 8.0, 10.0, 10.0, 10.0, 10.0];
+  final Rect visible;
+  final Rect? cards, instructions;
+  late final List<Offset> _points;
+  late final List<double> _starts;
+  late final List<double> _stride;
+
+  static double _smooth(double x) {
+    x = x.clamp(0, 1);
+    return x * x * (3 - 2 * x);
+  }
+
+  double _depth(double y) => ((y - 780) / 550).clamp(0, 1);
+  Offset _velocityAtNode(int i) {
+    final previous = (i + 7) % 8, next = (i + 1) % 8;
+    return (_points[next] - _points[previous]) /
+        (_durations[previous] + _durations[i]);
+  }
+
+  Offset _position(double seconds) {
+    final t = (seconds % period + period) % period;
+    var i = 0;
+    while (i < 7 && t >= _starts[i + 1]) {
+      i++;
+    }
+    final u = (t - _starts[i]) / _durations[i];
+    final u2 = u * u, u3 = u2 * u;
+    final next = (i + 1) % 8;
+    return _points[i] * (2 * u3 - 3 * u2 + 1) +
+        _velocityAtNode(i) * _durations[i] * (u3 - 2 * u2 + u) +
+        _points[next] * (-2 * u3 + 3 * u2) +
+        _velocityAtNode(next) * _durations[i] * (u3 - u2);
+  }
+
+  SnowmanSkatingPose sample(double elapsed) {
+    final t = ((elapsed + 30) % period + period) % period;
+    final feet = _position(t);
+    final velocity = (_position(t + .015) - _position(t - .015)) / .03;
+    final depth = _depth(feet.dy);
+    final index = t / period * _samples;
+    final low = index.floor().clamp(0, _samples - 1);
+    final cycle =
+        _stride[low] + (_stride[low + 1] - _stride[low]) * (index - low);
+    final phase = cycle % 1;
+    final push = math.sin(math.pi * (phase / .27).clamp(0, 1));
+    final switchAmount = _smooth(phase / .22);
+    final blend = cycle.floor().isEven ? 1 - switchAmount : switchAmount;
+    final facing = velocity.dx / math.max(velocity.distance, .01);
+    final speed = velocity.distance;
+    final forwardLean = velocity.dx.sign * .018 * (speed / 32).clamp(0, 1);
+    return SnowmanSkatingPose(
+      feet: feet,
+      width: 54 + 68 * Curves.easeInOutSine.transform(depth),
+      lean: (blend - .5) * (.018 + depth * .038) + forwardLean * push,
+      facing: facing,
+      strideBlend: blend,
+      lift: push * (.15 + .65 * depth),
+      depth: depth,
+      speed: speed,
+    );
+  }
+}

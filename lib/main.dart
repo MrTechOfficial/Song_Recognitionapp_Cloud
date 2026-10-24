@@ -3920,6 +3920,9 @@ class _SeasonalAppBackgroundState extends SeasonalSceneState<_SeasonalAppBackgro
   @override
   Widget build(BuildContext context) {
     if (widget.season == RecztSeason.standard) return widget.child;
+    if (widget.season == RecztSeason.christmas) {
+      return ChristmasSceneHost(child: widget.child);
+    }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final style = _recztSeasonStyle(widget.season);
@@ -8593,7 +8596,9 @@ final christmasTextShadow = isChristmas
                   const SizedBox(height: 20),
                   const Divider(),
                   const SizedBox(height: 20),
-                  Text(
+                  ChristmasSceneRegion(
+                    id: ChristmasSceneRegionId.heading,
+                    child: Text(
                     t('where_are_you'),
                     style: TextStyle(
   fontSize: 22,
@@ -8604,9 +8609,11 @@ final christmasTextShadow = isChristmas
   shadows: christmasTextShadow,
 ),
                     textAlign: TextAlign.center,
-                  ),
+                  )),
                   const SizedBox(height: 16),
-                  Column(
+                  ChristmasSceneRegion(
+                    id: ChristmasSceneRegionId.cards,
+                    child: Column(
                     children: EnvironmentMode.values.map((mode) {
                       final isSelected = _selectedMode == mode;
                       return Padding(
@@ -8688,10 +8695,12 @@ final christmasTextShadow = isChristmas
                         ),
                       );
                     }).toList(),
-                  ),
+                  )),
                   // Leave a clear strip of pond for the skating character.
                   SizedBox(height: isChristmas ? 96 : 32),
-                  Container(
+                  ChristmasSceneRegion(
+                    id: ChristmasSceneRegionId.instructions,
+                    child: Container(
   padding: isChristmas
       ? const EdgeInsets.symmetric(
           horizontal: 14,
@@ -8722,7 +8731,7 @@ final christmasTextShadow = isChristmas
       shadows: christmasTextShadow,
     ),
   ),
-),
+)),
                   if (_isRecording) ...[
                     const SizedBox(height: 10),
                     _buildVoiceVisualizer(primaryColor),
