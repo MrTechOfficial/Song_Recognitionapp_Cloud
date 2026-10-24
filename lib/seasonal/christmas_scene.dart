@@ -36,7 +36,7 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
         vsync: this, duration: const Duration(seconds: 192));
     final random = math.Random(19);
     _flakes = List.generate(
-        78,
+        112,
         (i) => _Snowflake(
             random.nextDouble(),
             random.nextDouble(),
@@ -254,42 +254,78 @@ class _WinterAtmosphere extends CustomPainter {
     if (!foreground) {
       _clouds(canvas);
       _smoke(canvas);
-      _lights(canvas, size);
+      _lights(canvas);
       _roofSnow(canvas);
     }
     for (final flake in flakes) {
       if ((flake.layer == 2) != foreground) continue;
-      final cycles = 2 + flake.layer * 2;
+      final cycles = 3 + flake.layer * 2;
       final y = (flake.y + seconds / 192 * 1.08 * cycles) % 1.08 - .04;
-      final x = flake.x +
-          math.sin(seconds * math.pi * 2 / 96 + flake.phase) *
-              (.008 + flake.layer * .006) +
-          ChristmasWeather.wind(seconds) /
-              size.width *
-              (.3 + flake.layer * .35);
-      final alpha = [.23, .37, .56][flake.layer];
+      final x = (flake.x +
+                  seconds / 192 * 1.08 * (1 + flake.layer) +
+                  math.sin(seconds * math.pi * 2 / 24 + flake.phase) *
+                      (.012 + flake.layer * .008) +
+                  ChristmasWeather.wind(seconds) /
+                      size.width *
+                      (.4 + flake.layer * .4)) %
+              1.08 -
+          .04;
+      final alpha = [.35, .60, .80][flake.layer];
       canvas.drawCircle(
           Offset(x * size.width, y * size.height),
-          .9 + flake.layer * .65 + flake.depth * .5,
+          1.3 + flake.layer * .9 + flake.depth * .7,
           Paint()..color = const Color(0xFFEAF5FF).withValues(alpha: alpha));
     }
-    if (foreground) _twig(canvas, size);
+    if (foreground) {
+      _blowingSnow(canvas);
+      _twig(canvas, size);
+    }
   }
 
   void _clouds(Canvas canvas) {
-    for (var i = 0; i < 2; i++) {
-      final drift = math.sin(seconds * math.pi * 2 / 96 + i * 1.3) * 55;
+    const heights = [342.0, 428.0, 520.0];
+    const scales = [1.5, 1.25, 1.05];
+    for (var i = 0; i < 3; i++) {
       canvas.save();
-      canvas.translate(660 + i * 120 + drift, 360 + i * 68.0);
+      canvas.translate(ChristmasWeather.cloudX(seconds, i), heights[i]);
+      canvas.scale(scales[i]);
       final path = Path()
         ..moveTo(-80, 18)
         ..cubicTo(-65, 1, -44, 5, -35, 9)
         ..cubicTo(-34, -8, -9, -12, 4, 2)
         ..cubicTo(18, -7, 35, 2, 38, 10)
         ..cubicTo(61, 3, 80, 12, 83, 19)
+        ..cubicTo(55, 26, 39, 20, 20, 23)
+        ..cubicTo(4, 28, -12, 20, -28, 23)
+        ..cubicTo(-47, 26, -66, 20, -80, 18)
         ..close();
-      canvas.drawPath(path,
-          Paint()..color = const Color(0xFF88ACC8).withValues(alpha: .17));
+      canvas.drawPath(
+          path,
+          Paint()
+            ..shader = LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFFBBD4E9).withValues(alpha: .27),
+                  const Color(0xFF799EBF).withValues(alpha: .40)
+                ]).createShader(const Rect.fromLTWH(-85, -12, 170, 40)));
+      canvas.save();
+      canvas.clipPath(path);
+      // Broken pale contours keep the moving layer close to the drawn art.
+      final wisps = Path()
+        ..moveTo(-65, 14)
+        ..quadraticBezierTo(-51, 6, -39, 13)
+        ..moveTo(-27, 7)
+        ..quadraticBezierTo(-15, -3, -3, 7)
+        ..moveTo(16, 14)
+        ..quadraticBezierTo(28, 7, 40, 15);
+      canvas.drawPath(
+          wisps,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = .9
+            ..color = const Color(0xFFD5E6F2).withValues(alpha: .12));
+      canvas.restore();
       canvas.restore();
     }
   }
@@ -311,36 +347,51 @@ class _WinterAtmosphere extends CustomPainter {
     }
   }
 
-  void _lights(Canvas canvas, Size size) {
+  void _lights(Canvas canvas) {
     const colors = [Color(0xFFFF6855), Color(0xFF9AE379), Color(0xFFFFD779)];
+    const tilts = [-.22, -.16, -.25, -.12, .34, .18, -.26];
     for (var i = 0; i < ChristmasWeather.lightPositions.length; i++) {
       final pulse = ChristmasWeather.lightIntensity(seconds, i);
-      if (pulse == 0) continue;
-      final bulb = ChristmasWeather.lightPositions[i];
-      final center = Offset(bulb.dx * size.width, bulb.dy * size.height);
-      final radius = 32 + pulse * 13;
+      final center = ChristmasWeather.lightPositions[i];
+      final radius = 48 + pulse * 28;
+      // The illustration already contains bright bulbs. Slightly dim their
+      // colored glass between pulses so the bright/dim change is unmistakable.
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(tilts[i]);
+      canvas.drawOval(const Rect.fromLTWH(-9, -20, 18, 40),
+          Paint()..color = Colors.black.withValues(alpha: .35 * (1 - pulse)));
+      canvas.restore();
       canvas.drawCircle(
           center,
           radius,
           Paint()
             ..shader = RadialGradient(colors: [
-              colors[i % 3].withValues(alpha: .44 * pulse),
+              colors[i % 3].withValues(alpha: .10 + .70 * pulse),
               Colors.transparent
             ]).createShader(Rect.fromCircle(center: center, radius: radius)));
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(tilts[i]);
       canvas.drawOval(
-          Rect.fromCenter(center: center, width: 4, height: 9),
+          Rect.fromCenter(
+              center: Offset.zero,
+              width: 8 + 5 * pulse,
+              height: 18 + 8 * pulse),
           Paint()
-            ..color = const Color(0xFFFFF8DC).withValues(alpha: pulse * .85));
-      if (pulse > .55) {
+            ..color =
+                const Color(0xFFFFF8DC).withValues(alpha: .1 + pulse * .9));
+      canvas.restore();
+      if (pulse > .5) {
         final sparkle = Paint()
           ..color =
-              const Color(0xFFFFF3D3).withValues(alpha: (pulse - .55) * .7)
-          ..strokeWidth = .9
+              const Color(0xFFFFF3D3).withValues(alpha: (pulse - .5) * 1.6)
+          ..strokeWidth = 1.8
           ..strokeCap = StrokeCap.round;
-        canvas.drawLine(
-            center + const Offset(-7, 0), center + const Offset(7, 0), sparkle);
-        canvas.drawLine(center + const Offset(0, -10),
-            center + const Offset(0, 10), sparkle);
+        canvas.drawLine(center + const Offset(-18, 0),
+            center + const Offset(18, 0), sparkle);
+        canvas.drawLine(center + const Offset(0, -26),
+            center + const Offset(0, 26), sparkle);
       }
     }
   }
@@ -353,40 +404,53 @@ class _WinterAtmosphere extends CustomPainter {
       canvas.translate(snow.position.dx, snow.position.dy);
       canvas.rotate(snow.rotation);
       final chunk = Path()
-        ..moveTo(-10, 2)
-        ..quadraticBezierTo(-12, -2, -7, -4)
-        ..quadraticBezierTo(-3, -8, 1, -4)
-        ..quadraticBezierTo(9, -7, 11, -1)
-        ..lineTo(8, 4)
-        ..lineTo(-6, 5)
+        ..moveTo(-27, 3)
+        ..quadraticBezierTo(-29, -6, -19, -9)
+        ..quadraticBezierTo(-12, -17, -3, -10)
+        ..quadraticBezierTo(6, -17, 14, -10)
+        ..quadraticBezierTo(29, -13, 29, -1)
+        ..lineTo(22, 9)
+        ..lineTo(-19, 11)
         ..close();
       canvas.drawPath(
           chunk,
           Paint()
-            ..color = const Color(0xFFBCD6E8).withValues(alpha: snow.opacity));
+            ..color = const Color(0xFF86ADC9).withValues(alpha: snow.opacity));
       canvas.drawPath(
-          chunk.shift(const Offset(0, -1)),
+          chunk.shift(const Offset(0, -3)),
           Paint()
             ..color = const Color(0xFFF1F7FF).withValues(alpha: snow.opacity));
-      for (var i = 0; i < 3; i++) {
+      final folds = Path()
+        ..moveTo(-18, 1)
+        ..quadraticBezierTo(-11, -4, -5, 0)
+        ..moveTo(3, 2)
+        ..quadraticBezierTo(12, -4, 22, -1);
+      canvas.drawPath(
+          folds,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5
+            ..color =
+                const Color(0xFFB5CFDF).withValues(alpha: snow.opacity * .65));
+      for (var i = 0; i < 6; i++) {
         canvas.drawCircle(
-            Offset(-13 - i * 3.0, 3 + i * 2.0),
-            1.2,
+            Offset(31 + i * 5.0, -4 + math.sin(i * 2.0) * 9),
+            2.0 + i % 2,
             Paint()
               ..color =
-                  const Color(0xFFE6F2FC).withValues(alpha: snow.opacity * .5));
+                  const Color(0xFFE6F2FC).withValues(alpha: snow.opacity * .8));
       }
       canvas.restore();
     } else {
       final t = snow.scatter;
-      for (var i = 0; i < 7; i++) {
-        final side = (i - 3) / 3;
+      for (var i = 0; i < 13; i++) {
+        final side = (i - 6) / 6;
         final point = snow.position +
-            Offset(side * (5 + 17 * t),
-                -math.sin(t * math.pi) * (4 + (i % 3) * 4));
+            Offset(side * (12 + 48 * t),
+                -math.sin(t * math.pi) * (12 + (i % 3) * 9));
         canvas.drawCircle(
             point,
-            (1.1 + i % 2) * (1 - .4 * t),
+            (2.2 + i % 3) * (1 - .4 * t),
             Paint()
               ..color =
                   const Color(0xFFEEF7FF).withValues(alpha: snow.opacity * .8));
@@ -394,14 +458,49 @@ class _WinterAtmosphere extends CustomPainter {
     }
   }
 
+  void _blowingSnow(Canvas canvas) {
+    final strength = ChristmasWeather.gustStrength(seconds);
+    if (strength <= 0) return;
+    final travel = ((seconds - 1) % 12 + 12) % 12 / 6;
+    for (var band = 0; band < 2; band++) {
+      canvas.save();
+      canvas.translate(
+          visible.left - 110 + travel * (visible.width + 220) + band * 65,
+          visible.bottom -
+              (band == 0 ? 330 : 115) +
+              math.sin(travel * math.pi * 2 + band) * 12);
+      final curl = Path()
+        ..moveTo(-85, 8)
+        ..cubicTo(-50, -6, -15, 11, 25, -1)
+        ..cubicTo(48, -9, 57, -22, 43, -23)
+        ..cubicTo(34, -24, 29, -17, 38, -15);
+      canvas.drawPath(
+          curl,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 2.2
+            ..color =
+                const Color(0xFFDAF0FF).withValues(alpha: .48 * strength));
+      for (var i = 0; i < 12; i++) {
+        canvas.drawCircle(
+            Offset(
+                -100 + i * 12.0, math.sin(i * 2.3 + seconds) * (8 + i % 3 * 4)),
+            1.6 + i % 3 * .6,
+            Paint()
+              ..color =
+                  const Color(0xFFF2FAFF).withValues(alpha: .85 * strength));
+      }
+      canvas.restore();
+    }
+  }
+
   void _twig(Canvas canvas, Size size) {
     // A small new foreground sprig, not a rotating rectangular patch of scenery.
-    final age = seconds % 96;
-    final breeze =
-        age > 64 && age < 70 ? math.sin((age - 64) / 6 * math.pi) : 0.0;
+    final breeze = ChristmasWeather.wind(seconds) / 67;
     canvas.save();
     canvas.translate(visible.right - 16, size.height - 58);
-    canvas.rotate(breeze * .022);
+    canvas.rotate(breeze * .10);
     final twig = Path()
       ..moveTo(0, 0)
       ..quadraticBezierTo(-2, -24, -13, -43)

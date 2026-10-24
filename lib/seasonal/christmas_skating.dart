@@ -29,9 +29,10 @@ class ChristmasSkatingRoute {
   ChristmasSkatingRoute(this.visible) {
     // Authored lake coordinates, independent of scrolling foreground controls.
     final far = math.max(790.0, visible.top + 105);
-    final near = math.max(far + 70, math.min(1360.0, visible.bottom - 50));
-    final left = math.max(visible.left + 70, 100.0);
-    final right = math.min(visible.right - 70, 840.0);
+    final near = math.max(far + 70, math.min(1400.0, visible.bottom - 100));
+    // Leave enough shoreline clearance for the larger near-camera character.
+    final left = math.max(visible.left + 100, 120.0);
+    final right = math.min(visible.right - 100, 820.0);
     final span = math.max(1.0, right - left);
     Offset p(double x, double y) =>
         Offset(left + span * x, far + (near - far) * y);
@@ -66,6 +67,7 @@ class ChristmasSkatingRoute {
     }
   }
   static const double period = 96;
+  static const double startingPhase = 56;
   static const _samples = 768;
   static const _durations = [18.0, 20.0, 10.0, 8.0, 10.0, 10.0, 10.0, 10.0];
   final Rect visible;
@@ -101,7 +103,9 @@ class ChristmasSkatingRoute {
   }
 
   SnowmanSkatingPose sample(double elapsed) {
-    final t = ((elapsed + 30) % period + period) % period;
+    // Open on a larger near-shore pass instead of hiding the first half minute
+    // of skating behind the environment cards. The route remains clock-only.
+    final t = ((elapsed + startingPhase) % period + period) % period;
     final feet = _position(t);
     final velocity = (_position(t + .015) - _position(t - .015)) / .03;
     final depth = _depth(feet.dy);
@@ -118,7 +122,7 @@ class ChristmasSkatingRoute {
     final forwardLean = velocity.dx.sign * .018 * (speed / 32).clamp(0, 1);
     return SnowmanSkatingPose(
       feet: feet,
-      width: 64 + 80 * Curves.easeInOutSine.transform(depth),
+      width: 104 + 124 * Curves.easeInOutSine.transform(depth),
       lean: (blend - .5) * (.018 + depth * .038) + forwardLean * push,
       facing: facing,
       strideBlend: blend,

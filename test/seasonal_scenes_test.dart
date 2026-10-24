@@ -30,8 +30,8 @@ void main() {
       final route = ChristmasSkatingRoute(visible);
       final poses = List.generate(960, (i) => route.sample(i / 10));
       for (final pose in poses) {
-        expect(pose.feet.dy, inInclusiveRange(760, 1410));
-        expect(pose.width, inInclusiveRange(63, 146));
+        expect(pose.feet.dy, inInclusiveRange(760, 1450));
+        expect(pose.width, inInclusiveRange(103, 230));
         expect(pose.feet.dx - pose.width * .52,
             greaterThanOrEqualTo(visible.left));
         expect(
@@ -51,7 +51,7 @@ void main() {
   test('route joins and stride remain continuous across the entire loop', () {
     final route = ChristmasSkatingRoute(const Rect.fromLTWH(0, 0, 941, 1672));
     for (final join in [0.0, 18.0, 38.0, 48.0, 56.0, 66.0, 76.0, 86.0, 96.0]) {
-      final t = join - 30;
+      final t = join - ChristmasSkatingRoute.startingPhase;
       final a = route.sample(t - .001), b = route.sample(t + .001);
       expect((a.feet - b.feet).distance, lessThan(.15));
       expect((a.width - b.width).abs(), lessThan(.02));
@@ -83,51 +83,70 @@ void main() {
         greaterThan(poses.length ~/ 2));
   });
 
-  test('twinkles begin promptly, brighten individually, and loop smoothly', () {
+  test('twinkles stay visible, vary independently, and loop smoothly', () {
     var strongest = 0.0;
     for (var i = 0; i < 960; i++) {
       final t = i / 20;
       final levels =
           List.generate(7, (j) => ChristmasWeather.lightIntensity(t, j));
-      expect(levels.where((v) => v > .01).length, lessThanOrEqualTo(1));
+      expect(levels.where((v) => v > .01).length, inInclusiveRange(1, 4));
       expect(levels.every((v) => v >= 0 && v <= 1), isTrue);
       if (t < 4) strongest = math.max(strongest, levels.reduce(math.max));
     }
     expect(strongest, greaterThan(.95));
     for (var i = 0; i < 7; i++) {
       expect(ChristmasWeather.lightIntensity(1.5, i),
-          ChristmasWeather.lightIntensity(193.5, i));
+          closeTo(ChristmasWeather.lightIntensity(193.5, i), 1e-12));
+      final cycle = List.generate(
+          160, (frame) => ChristmasWeather.lightIntensity(frame / 20, i));
+      expect(cycle.reduce(math.max) - cycle.reduce(math.min), greaterThan(.99));
     }
+  });
+
+  test(
+      'clouds visibly travel and foreground gusts start in the opening seconds',
+      () {
+    for (var layer = 0; layer < 3; layer++) {
+      final travel = (ChristmasWeather.cloudX(4, layer) -
+              ChristmasWeather.cloudX(0, layer))
+          .abs();
+      expect(travel, greaterThan(50));
+      expect(ChristmasWeather.cloudX(192, layer),
+          closeTo(ChristmasWeather.cloudX(0, layer), .001));
+    }
+    expect(ChristmasWeather.gustStrength(4), greaterThan(.95));
+    expect(ChristmasWeather.gustStrength(10), 0);
+    expect(ChristmasWeather.wind(4).abs(), greaterThan(40));
   });
 
   test(
       'roof snow slides off the eave, accelerates downward, and disperses on the bank',
       () {
     expect(ChristmasWeather.roofSnowAt(0).visible, isFalse);
-    final slide = ChristmasWeather.roofSnowAt(10.5);
-    final falling = ChristmasWeather.roofSnowAt(11.6);
-    final fallingLater = ChristmasWeather.roofSnowAt(11.9);
-    final landed = ChristmasWeather.roofSnowAt(12.4);
+    final slide = ChristmasWeather.roofSnowAt(3.5);
+    final falling = ChristmasWeather.roofSnowAt(4.8);
+    final fallingLater = ChristmasWeather.roofSnowAt(5.1);
+    final landed = ChristmasWeather.roofSnowAt(5.9);
     expect(slide.visible, isTrue);
     expect(slide.position.dx, greaterThan(falling.position.dx));
     expect(slide.position.dy, lessThan(falling.position.dy));
     final earlyDrop =
-        ChristmasWeather.roofSnowAt(11.7).position.dy - falling.position.dy;
-    final lateDrop = ChristmasWeather.roofSnowAt(12.0).position.dy -
-        fallingLater.position.dy;
+        ChristmasWeather.roofSnowAt(4.9).position.dy - falling.position.dy;
+    final lateDrop =
+        ChristmasWeather.roofSnowAt(5.2).position.dy - fallingLater.position.dy;
     expect(lateDrop, greaterThan(earlyDrop));
-    expect(landed.position, const Offset(722, 724));
+    expect(landed.position, const Offset(750, 724));
     expect(landed.landed, isTrue);
-    expect(ChristmasWeather.roofSnowAt(14).visible, isFalse);
-    for (final join in [11.3, 12.2]) {
+    expect(ChristmasWeather.roofSnowAt(9).visible, isFalse);
+    for (final join in [4.5, 5.7]) {
       expect(
           (ChristmasWeather.roofSnowAt(join - .0001).position -
                   ChristmasWeather.roofSnowAt(join + .0001).position)
               .distance,
           lessThan(.05));
     }
-    expect(ChristmasWeather.roofSnowAt(10.5).position,
-        ChristmasWeather.roofSnowAt(74.5).position);
+    expect(ChristmasWeather.roofSnowAt(3.5).position,
+        ChristmasWeather.roofSnowAt(27.5).position);
     expect(ChristmasWeather.wind(0), closeTo(ChristmasWeather.wind(192), .001));
   });
 

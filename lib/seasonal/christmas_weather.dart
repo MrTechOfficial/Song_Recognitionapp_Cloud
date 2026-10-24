@@ -17,47 +17,68 @@ class ChristmasRoofSnowState {
 /// All weather uses scene time. Pausing the scene pauses every effect, and no
 /// weather event can change the skating route or depend on scroll position.
 class ChristmasWeather {
+  // Artwork-space centers of the seven bulbs, including the partially cropped
+  // bulbs at the sides. Use the same cover transform as the background.
   static const lightPositions = [
-    Offset(.17, .102),
-    Offset(.306, .087),
-    Offset(.426, .07),
-    Offset(.535, .038),
-    Offset(.635, .071),
-    Offset(.763, .09),
-    Offset(.954, .08),
+    Offset(159, 178),
+    Offset(286, 155),
+    Offset(399, 116),
+    Offset(504, 65),
+    Offset(594, 118),
+    Offset(716, 156),
+    Offset(900, 131),
   ];
-  // Individually staggered, with the first twinkle visible within two seconds.
-  static const _twinkles = [7.6, 35.5, 20.4, 1.0, 42.0, 13.0, 28.0];
+  // Short, staggered pulses: something visibly brightens every second or two.
+  // No frame flashes the entire string, and eight seconds divides scene time.
+  static const _twinkles = [.2, 2.6, 5.1, 1.4, 4.1, .8, 6.2];
   static double lightIntensity(double seconds, int index) {
-    final age = ((seconds - _twinkles[index]) % 48 + 48) % 48;
-    if (age >= 2.8) return 0;
-    final pulse = math.sin(age / 2.8 * math.pi);
+    final age = ((seconds - _twinkles[index]) % 8 + 8) % 8;
+    if (age >= 2.6) return 0;
+    final pulse = math.sin(age / 2.6 * math.pi);
     return pulse * pulse;
   }
 
   static double wind(double seconds) =>
-      math.sin(seconds * math.pi * 2 / 96) * 18 +
-      math.sin(seconds * math.pi * 2 / 24) * 6;
+      math.sin(seconds * math.pi * 2 / 24) * 55 +
+      math.sin(seconds * math.pi * 2 / 8) * 12;
+
+  // Whole clouds travel steadily instead of barely shifting an almost invisible
+  // wisp. Wrap outside the illustration so a cloud never jumps on screen.
+  static double cloudX(double seconds, int layer) {
+    const starts = [710.0, 1020.0, 220.0];
+    const periods = [48.0, 64.0, 96.0];
+    const span = 1341.0;
+    return ((starts[layer] + seconds * span / periods[layer]) % span + span) %
+            span -
+        200;
+  }
+
+  static double gustStrength(double seconds) {
+    final age = ((seconds - 1) % 12 + 12) % 12;
+    return age < 6 ? math.sin(age / 6 * math.pi) : 0;
+  }
 
   static ChristmasRoofSnowState roofSnowAt(double seconds) {
-    final age = ((seconds - 10) % 64 + 64) % 64;
-    const roof = Offset(788, 607),
-        eave = Offset(734, 655),
-        bank = Offset(722, 724);
-    if (age >= 3.6) {
+    // The front gable's visible snow cap, above the foreground cards. A larger
+    // slab starts sliding after three seconds, then drops off its front edge.
+    final age = ((seconds - 3) % 24 + 24) % 24;
+    const roof = Offset(802, 604),
+        eave = Offset(760, 641),
+        bank = Offset(750, 724);
+    if (age >= 5.2) {
       return const ChristmasRoofSnowState(
           position: roof, rotation: -.72, opacity: 0, scatter: 0);
     }
-    if (age < 1.3) {
-      final slide = math.pow(age / 1.3, 1.7).toDouble();
+    if (age < 1.5) {
+      final slide = math.pow(age / 1.5, 1.7).toDouble();
       return ChristmasRoofSnowState(
           position: Offset.lerp(roof, eave, slide)!,
           rotation: -.72 + slide * .30,
           opacity: (age / .15).clamp(0, 1),
           scatter: 0);
     }
-    if (age < 2.2) {
-      final fall = (age - 1.3) / .9;
+    if (age < 2.7) {
+      final fall = (age - 1.5) / 1.2;
       return ChristmasRoofSnowState(
           position: Offset(eave.dx + (bank.dx - eave.dx) * fall,
               eave.dy + (bank.dy - eave.dy) * fall * fall),
@@ -65,7 +86,7 @@ class ChristmasWeather {
           opacity: 1,
           scatter: 0);
     }
-    final scatter = (age - 2.2) / 1.4;
+    final scatter = (age - 2.7) / 2.5;
     return ChristmasRoofSnowState(
         position: bank, rotation: 0, opacity: 1 - scatter, scatter: scatter);
   }
