@@ -14,6 +14,8 @@ struct RecztRecognitionSettings: Codable, Sendable {
     var environment: String = "quiet"
     var durationSeconds: Int = 8
     var backendURL: String = "https://song-recognitionapp-cloud.onrender.com/recognize"
+    // Missing in saved v1 settings; optional decoding preserves those settings.
+    var seasonalTheme: String? = nil
 }
 
 struct RecztHistorySong: Codable, Hashable, Identifiable, Sendable {

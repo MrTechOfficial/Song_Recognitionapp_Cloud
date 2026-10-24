@@ -63,6 +63,7 @@ class _RecztIOS27Bridge {
   static Future<void> startRecognitionActivity({
     required int durationSeconds,
     required String environment,
+    required String seasonalTheme,
     String source = 'app',
   }) async {
     if (!isAvailable) return;
@@ -71,6 +72,7 @@ class _RecztIOS27Bridge {
         'durationSeconds': durationSeconds,
         'environment': environment,
         'source': source,
+        'seasonalTheme': seasonalTheme,
       });
     } catch (e) {
       debugPrint('iOS 27 Live Activity start unavailable: $e');
@@ -126,6 +128,7 @@ class _RecztIOS27Bridge {
     required String language,
     required String environment,
     required int durationSeconds,
+    required String seasonalTheme,
   }) async {
     if (!isAvailable) return;
     try {
@@ -134,6 +137,7 @@ class _RecztIOS27Bridge {
         'environment': environment,
         'durationSeconds': durationSeconds,
         'backendUrl': recztRecognitionBackendUrl,
+        'seasonalTheme': seasonalTheme,
       });
     } catch (e) {
       debugPrint('iOS 27 settings sync unavailable: $e');
@@ -6190,6 +6194,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       language: _selectedLanguage,
       environment: _selectedMode.name,
       durationSeconds: _selectedMode.duration,
+      seasonalTheme: _seasonalPreview.storageId,
     );
   }
 
@@ -8375,6 +8380,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         _RecztIOS27Bridge.startRecognitionActivity(
           durationSeconds: _selectedMode.duration,
           environment: _selectedMode.name,
+          seasonalTheme: _seasonalPreview.storageId,
           source: 'app',
         ),
       );

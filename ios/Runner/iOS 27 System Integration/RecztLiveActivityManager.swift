@@ -10,7 +10,8 @@ actor RecztLiveActivityManager {
     func start(
         durationSeconds: Int,
         environment: String,
-        source: String
+        source: String,
+        seasonalTheme: String? = nil
     ) async throws -> String {
         // Keep one recognition Live Activity at a time.
         for activity in Activity<RecztRecognitionAttributes>.activities {
@@ -31,7 +32,8 @@ actor RecztLiveActivityManager {
         let attributes = RecztRecognitionAttributes(
             sessionID: sessionID,
             startedAt: Date(),
-            environment: environment
+            environment: environment,
+            seasonalTheme: seasonalTheme ?? RecztSharedStore.shared.recognitionSettings().seasonalTheme
         )
         let state = RecztRecognitionAttributes.ContentState.listening(
             secondsRemaining: durationSeconds,

@@ -43,9 +43,28 @@ void main() {
       final xs = poses.map((p) => p.feet.dx);
       final ys = poses.map((p) => p.feet.dy);
       expect(xs.reduce(math.max) - xs.reduce(math.min),
-          greaterThan(visible.width * .5));
-      expect(ys.reduce(math.max) - ys.reduce(math.min), greaterThan(170));
+          greaterThan(visible.width * .4));
+      expect(ys.reduce(math.max) - ys.reduce(math.min),
+          greaterThan(math.min(170, visible.height * .3)));
     }
+  });
+
+  test('large near passes clear the narrowing banks with the whole character',
+      () {
+    final visible =
+        SeasonalSceneGeometry(const Size(941, 1672), const Size(390, 844))
+            .visibleSourceRect;
+    final route = ChristmasSkatingRoute(visible);
+    final near = List.generate(1920, (frame) => route.sample(frame / 20))
+        .where((pose) => pose.depth > .8);
+    expect(near, isNotEmpty);
+    for (final pose in near) {
+      // The foreground banks/trees begin outside this strip in the artwork.
+      expect(pose.feet.dx - pose.width * .52, greaterThan(180));
+      expect(pose.feet.dx + pose.width * .48, lessThan(760));
+      expect(pose.feet.dy, lessThan(1410));
+    }
+    expect(near.map((p) => p.width).reduce(math.max), greaterThan(220));
   });
 
   test('route joins and stride remain continuous across the entire loop', () {
@@ -110,8 +129,8 @@ void main() {
       final travel = (ChristmasWeather.cloudX(4, layer) -
               ChristmasWeather.cloudX(0, layer))
           .abs();
-      expect(travel, greaterThan(50));
-      expect(ChristmasWeather.cloudX(192, layer),
+      expect(travel, inExclusiveRange(25, 60));
+      expect(ChristmasWeather.cloudX(384, layer),
           closeTo(ChristmasWeather.cloudX(0, layer), .001));
     }
     expect(ChristmasWeather.gustStrength(4), greaterThan(.95));
@@ -120,25 +139,25 @@ void main() {
   });
 
   test(
-      'roof snow slides off the eave, accelerates downward, and disperses on the bank',
+      'roof snow falls from the front cap and settles quickly into the bank pile',
       () {
     expect(ChristmasWeather.roofSnowAt(0).visible, isFalse);
     final slide = ChristmasWeather.roofSnowAt(3.5);
-    final falling = ChristmasWeather.roofSnowAt(4.8);
-    final fallingLater = ChristmasWeather.roofSnowAt(5.1);
-    final landed = ChristmasWeather.roofSnowAt(5.9);
+    final falling = ChristmasWeather.roofSnowAt(4.5);
+    final fallingLater = ChristmasWeather.roofSnowAt(4.8);
+    final landed = ChristmasWeather.roofSnowAt(5.4);
     expect(slide.visible, isTrue);
-    expect(slide.position.dx, greaterThan(falling.position.dx));
+    expect(slide.position.dx, lessThan(falling.position.dx));
     expect(slide.position.dy, lessThan(falling.position.dy));
     final earlyDrop =
-        ChristmasWeather.roofSnowAt(4.9).position.dy - falling.position.dy;
+        ChristmasWeather.roofSnowAt(4.6).position.dy - falling.position.dy;
     final lateDrop =
-        ChristmasWeather.roofSnowAt(5.2).position.dy - fallingLater.position.dy;
+        ChristmasWeather.roofSnowAt(4.9).position.dy - fallingLater.position.dy;
     expect(lateDrop, greaterThan(earlyDrop));
-    expect(landed.position, const Offset(750, 724));
+    expect(landed.position, const Offset(826, 725));
     expect(landed.landed, isTrue);
-    expect(ChristmasWeather.roofSnowAt(9).visible, isFalse);
-    for (final join in [4.5, 5.7]) {
+    expect(ChristmasWeather.roofSnowAt(5.9).visible, isFalse);
+    for (final join in [4.35, 5.2]) {
       expect(
           (ChristmasWeather.roofSnowAt(join - .0001).position -
                   ChristmasWeather.roofSnowAt(join + .0001).position)

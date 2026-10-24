@@ -33,7 +33,8 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   void initState() {
     super.initState();
     _clock = AnimationController(
-        vsync: this, duration: const Duration(seconds: 192));
+        vsync: this,
+        duration: const Duration(seconds: ChristmasWeather.loopSeconds));
     final random = math.Random(19);
     _flakes = List.generate(
         112,
@@ -90,7 +91,7 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
           AnimatedBuilder(
               animation: _clock,
               builder: (context, _) {
-                final seconds = _clock.value * 192;
+                final seconds = _clock.value * ChristmasWeather.loopSeconds;
                 final pose = _pose(seconds, visible);
                 return Stack(fit: StackFit.expand, children: [
                   if (motionEnabled)
@@ -398,11 +399,13 @@ class _WinterAtmosphere extends CustomPainter {
 
   void _roofSnow(Canvas canvas) {
     final snow = ChristmasWeather.roofSnowAt(seconds);
+    _roofSnowPile(canvas, snow);
     if (!snow.visible) return;
     if (!snow.landed) {
       canvas.save();
       canvas.translate(snow.position.dx, snow.position.dy);
       canvas.rotate(snow.rotation);
+      canvas.scale(.62);
       final chunk = Path()
         ..moveTo(-27, 3)
         ..quadraticBezierTo(-29, -6, -19, -9)
@@ -415,11 +418,19 @@ class _WinterAtmosphere extends CustomPainter {
       canvas.drawPath(
           chunk,
           Paint()
-            ..color = const Color(0xFF86ADC9).withValues(alpha: snow.opacity));
-      canvas.drawPath(
-          chunk.shift(const Offset(0, -3)),
-          Paint()
-            ..color = const Color(0xFFF1F7FF).withValues(alpha: snow.opacity));
+            ..shader = LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFFEFF0EC).withValues(alpha: snow.opacity),
+                  const Color(0xFFDDE7EF).withValues(alpha: snow.opacity),
+                  const Color(0xFFAAC6DF).withValues(alpha: snow.opacity)
+                ],
+                stops: const [
+                  0,
+                  .6,
+                  1
+                ]).createShader(const Rect.fromLTWH(-30, -15, 60, 27)));
       final folds = Path()
         ..moveTo(-18, 1)
         ..quadraticBezierTo(-11, -4, -5, 0)
@@ -429,10 +440,10 @@ class _WinterAtmosphere extends CustomPainter {
           folds,
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5
+            ..strokeWidth = 1.2
             ..color =
-                const Color(0xFFB5CFDF).withValues(alpha: snow.opacity * .65));
-      for (var i = 0; i < 6; i++) {
+                const Color(0xFF9FB9D0).withValues(alpha: snow.opacity * .28));
+      for (var i = 0; i < 3; i++) {
         canvas.drawCircle(
             Offset(31 + i * 5.0, -4 + math.sin(i * 2.0) * 9),
             2.0 + i % 2,
@@ -443,19 +454,47 @@ class _WinterAtmosphere extends CustomPainter {
       canvas.restore();
     } else {
       final t = snow.scatter;
-      for (var i = 0; i < 13; i++) {
-        final side = (i - 6) / 6;
+      for (var i = 0; i < 5; i++) {
+        final side = (i - 2) / 2;
         final point = snow.position +
-            Offset(side * (12 + 48 * t),
-                -math.sin(t * math.pi) * (12 + (i % 3) * 9));
+            Offset(side * (4 + 14 * t),
+                -math.sin(t * math.pi) * (3 + (i % 3) * 2));
         canvas.drawCircle(
             point,
-            (2.2 + i % 3) * (1 - .4 * t),
+            (1.1 + i % 2) * (1 - .4 * t),
             Paint()
               ..color =
-                  const Color(0xFFEEF7FF).withValues(alpha: snow.opacity * .8));
+                  const Color(0xFFE8EFF5).withValues(alpha: snow.opacity * .5));
       }
     }
+  }
+
+  void _roofSnowPile(Canvas canvas, ChristmasRoofSnowState snow) {
+    // A modest existing drift receives each fall. Keeping the resting mound
+    // avoids either vanishing snow or an abrupt reset at the scene-clock seam.
+    final settle = snow.landed ? math.sin(snow.scatter * math.pi) * 1.8 : 0.0;
+    canvas.save();
+    canvas.translate(
+        ChristmasWeather.roofBank.dx, ChristmasWeather.roofBank.dy);
+    final pile = Path()
+      ..moveTo(-20, 2)
+      ..quadraticBezierTo(-16, -3, -10, -4)
+      ..quadraticBezierTo(-4, -10 - settle, 3, -7 - settle)
+      ..quadraticBezierTo(11, -8, 16, -2)
+      ..quadraticBezierTo(21, -1, 22, 2)
+      ..quadraticBezierTo(3, 6, -20, 2)
+      ..close();
+    canvas.drawOval(const Rect.fromLTWH(-21, 0, 44, 5),
+        Paint()..color = const Color(0xFF91ACC4).withValues(alpha: .3));
+    canvas.drawPath(
+        pile,
+        Paint()
+          ..shader = const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFEEF0EC), Color(0xFFCFDEEB)])
+              .createShader(const Rect.fromLTWH(-21, -11, 44, 17)));
+    canvas.restore();
   }
 
   void _blowingSnow(Canvas canvas) {

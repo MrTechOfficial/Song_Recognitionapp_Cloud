@@ -2,7 +2,8 @@ import ActivityKit
 import Foundation
 
 @available(iOS 17.0, *)
-struct RecztRecognitionAttributes: ActivityAttributes {    struct ContentState: Codable, Hashable {
+struct RecztRecognitionAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable {
         var phase: String
         var title: String
         var artist: String
@@ -23,4 +24,8 @@ struct RecztRecognitionAttributes: ActivityAttributes {    struct ContentState: 
     var sessionID: String
     var startedAt: Date
     var environment: String
+    // Optional so activities created before seasonal styling still decode.
+    var seasonalTheme: String? = nil
+
+    var isChristmas: Bool { seasonalTheme == "christmas" }
 }

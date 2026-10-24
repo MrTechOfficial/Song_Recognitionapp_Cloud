@@ -21,12 +21,14 @@ final class RecztIOS27Bridge {
                 let duration = (args["durationSeconds"] as? NSNumber)?.intValue ?? 8
                 let environment = (args["environment"] as? String) ?? "quiet"
                 let source = (args["source"] as? String) ?? "app"
+                let seasonalTheme = args["seasonalTheme"] as? String
                 Task {
                     do {
                         let id = try await RecztLiveActivityManager.shared.start(
                             durationSeconds: duration,
                             environment: environment,
-                            source: source
+                            source: source,
+                            seasonalTheme: seasonalTheme
                         )
                         await returnToFlutter(result, id)
                     } catch {
@@ -83,6 +85,7 @@ final class RecztIOS27Bridge {
                 var settings = RecztSharedStore.shared.recognitionSettings()
                 if let language = args["language"] as? String { settings.language = language }
                 if let environment = args["environment"] as? String { settings.environment = environment }
+                if let theme = args["seasonalTheme"] as? String { settings.seasonalTheme = theme }
                 if let duration = (args["durationSeconds"] as? NSNumber)?.intValue {
                     settings.durationSeconds = duration
                 }

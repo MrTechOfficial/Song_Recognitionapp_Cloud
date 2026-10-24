@@ -28,23 +28,24 @@ class SnowmanSkatingPose {
 class ChristmasSkatingRoute {
   ChristmasSkatingRoute(this.visible) {
     // Authored lake coordinates, independent of scrolling foreground controls.
-    final far = math.max(790.0, visible.top + 105);
-    final near = math.max(far + 70, math.min(1400.0, visible.bottom - 100));
-    // Leave enough shoreline clearance for the larger near-camera character.
-    final left = math.max(visible.left + 100, 120.0);
-    final right = math.min(visible.right - 100, 820.0);
+    final far = math.max(810.0, visible.top + 105);
+    final near = math.max(far + 70, math.min(1380.0, visible.bottom - 100));
+    // The ice narrows toward the foreground. Inset the whole near turn, not
+    // just the feet, so the larger sprite clears both snowy banks and trees.
+    final left = math.max(visible.left + 145, 145.0);
+    final right = math.min(visible.right - 145, 795.0);
     final span = math.max(1.0, right - left);
     Offset p(double x, double y) =>
         Offset(left + span * x, far + (near - far) * y);
     _points = [
-      p(.08, .08),
+      p(.10, .08),
       p(.48, 0),
-      p(.91, .14),
-      p(.88, .53),
-      p(.84, 1),
-      p(.12, .98),
-      p(.08, .65),
-      p(.35, .36)
+      p(.90, .14),
+      p(.86, .53),
+      p(.82, 1),
+      p(.22, .98),
+      p(.22, .65),
+      p(.40, .36)
     ];
     _starts = [0];
     for (final duration in _durations) {
@@ -122,7 +123,7 @@ class ChristmasSkatingRoute {
     final forwardLean = velocity.dx.sign * .018 * (speed / 32).clamp(0, 1);
     return SnowmanSkatingPose(
       feet: feet,
-      width: 104 + 124 * Curves.easeInOutSine.transform(depth),
+      width: 104 + 124 * (.5 - .5 * math.cos(math.pi * depth)),
       lean: (blend - .5) * (.018 + depth * .038) + forwardLean * push,
       facing: facing,
       strideBlend: blend,
