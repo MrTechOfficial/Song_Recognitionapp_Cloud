@@ -203,10 +203,9 @@ void main() {
       final blink = tester
           .widget<Opacity>(find.byKey(const ValueKey('halloween-blink')))
           .opacity;
-      final head = tester
-          .widget<Transform>(find.byKey(const ValueKey('halloween-head-turn')));
-      final turning = (head.transform.entry(0, 0) - 1).abs() > .00001 ||
-          head.transform.entry(0, 1).abs() > .00001;
+      final head = tester.widget<HalloweenPaintedHead>(
+          find.byKey(const ValueKey('halloween-head-turn')));
+      final turning = head.turn.abs() > .00001;
       if (blink > .01) blinks++;
       if (turning) looks++;
       expect(blink > .01 && turning, isFalse,
