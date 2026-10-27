@@ -118,6 +118,9 @@ New code, tests, tools and documentation:
   Pillow/numpy/OpenCV are developer tools only, not app dependencies.
 - `scripts/install-halloween-update-macos.sh`
 - `scripts/tests/test_halloween_installer.py`
+- `scripts/repair-halloween-support-macos.sh` — standalone repair for the
+  shared dependency omitted by the first installer; adds only the missing file.
+- `scripts/tests/test_halloween_support_repair.py`
 - `docs/halloween-animation.md` — this report.
 - `docs/seasonal-follow-ups.md`
 - `docs/previews/halloween-motion.mp4` — production screen browser recording.
@@ -155,9 +158,12 @@ dependencies and iOS project/signing configuration are unchanged.
   errors remain. Unrelated existing warnings were not blindly changed.
 - Production `lib/main.dart` web release build passes. The existing unrelated
   CupertinoIcons font warning remains in that browser build.
-- Four installer checks pass with Mac utilities substituted on Linux: complete
-  scoped copies/backups, preserved Christmas/native/config files, missing input
-  abort, stale Flutter path abort, and backup failure abort.
+- Eight installer checks pass with Mac utilities substituted on Linux: complete
+  scoped copies/backups, the real installed scene's recursive local-import
+  dependency closure, preserved Christmas/native/config files and existing shared
+  helper, missing input abort, stale Flutter path abort, and backup failure abort.
+- Six standalone repair checks pass: verified helper installation, failed or
+  invalid downloads, existing matching/different helpers, and stale build paths.
 - Browser checks cover the actual production screen, theme selection/round trips,
   and pixel-identical skull/pumpkin/tree/moon patches under Reduce Motion.
 - iOS build: **not run**. This cloud environment is Linux and has no Xcode or
@@ -178,10 +184,28 @@ argument selects another working project. The installer verifies that the
 workspace's generated Flutter configuration actually builds that same folder,
 backs up existing changed files to Desktop, records newly introduced files, and
 copies only the two Halloween runtime files, eight derived assets and four Dart
-test files. Christmas, main.dart, native Swift, Pods, generated configuration,
+test files, plus `lib/seasonal/seasonal_scene_support.dart` if missing. An existing
+identical shared helper stays untouched; a differing helper stops installation
+before any files are changed so local work can be reviewed. Christmas, main.dart,
+native Swift, Pods, generated configuration,
 project files, signing and pubspec are not overwritten. No Pods reinstall or new
 app dependencies are needed. Stop/Run in Xcode rebuilds the existing asset-folder
 bundle with the changed Dart graph.
+
+### Repair the first installer without downloading the ZIP again
+
+The first Halloween installer omitted `seasonal_scene_support.dart`. A project
+without that file cannot resolve `SeasonalSceneState`/`SeasonalSceneCanvas`, which
+also produces cascading errors about `mounted`, `motionEnabled`, `setState`,
+`dispose`, etc. This is a Dart compilation failure, not a Pods error.
+
+Run `scripts/repair-halloween-support-macos.sh` on the Mac. It defaults to the
+same Documents project, checks the configured build path, downloads the original
+unchanged helper from pinned commit `9bc4545bd04de0daaf0b382512c80fc567529274`,
+verifies its SHA-256 and adds it only if absent. It never replaces an existing
+helper and never modifies other files. Stop and Run in Xcode afterward. If the
+expected helper already exists, the script reports that; an ongoing build failure
+then needs the first error at the top of the log, not the cascading errors below.
 
 In Xcode open the working Runner workspace, select your iPhone and Run. In Reczt,
 open **App Preferences → Seasonal Theme Lab → Halloween → Save**. Watch for at

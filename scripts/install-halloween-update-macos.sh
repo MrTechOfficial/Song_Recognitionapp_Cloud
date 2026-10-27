@@ -1,5 +1,5 @@
 #!/bin/bash
-# Apply only Halloween source/assets/tests to the existing working project.
+# Apply Halloween source/assets/tests and any missing shared scene dependency.
 set -euo pipefail
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "Run this installer in Terminal on your Mac."
@@ -53,6 +53,22 @@ if [ ! -d "$reczt_configured" ] ||
   echo "Requested update folder: $reczt_project"
   echo "Use the actual working project path as the first argument. No files have been changed."
   exit 1
+fi
+# Earlier installers omitted this imported base class/canvas. Add it when
+# missing, without replacing an existing helper used by the Christmas scene.
+reczt_support="lib/seasonal/seasonal_scene_support.dart"
+if [ ! -f "$reczt_source/$reczt_support" ]; then
+  echo "Downloaded file missing: $reczt_support. No files have been changed."
+  exit 1
+fi
+if [ -e "$reczt_project/$reczt_support" ] || [ -L "$reczt_project/$reczt_support" ]; then
+  if ! cmp -s "$reczt_source/$reczt_support" "$reczt_project/$reczt_support"; then
+    echo "The existing shared scene helper differs from this update: $reczt_support"
+    echo "Keep that file for review before installing. No files have been changed."
+    exit 1
+  fi
+else
+  reczt_files+=("$reczt_support")
 fi
 for reczt_file in "${reczt_files[@]}"; do
   if [ ! -f "$reczt_source/$reczt_file" ]; then

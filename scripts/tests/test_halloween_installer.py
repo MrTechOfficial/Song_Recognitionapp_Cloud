@@ -1,6 +1,7 @@
 """Exercise the scoped installer with Mac utilities substituted on Linux."""
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -10,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'scripts/install-halloween-update-macos.sh'
 FILES = [
     'lib/seasonal/halloween_scene_v2.dart', 'lib/seasonal/halloween_motion.dart',
+    'lib/seasonal/seasonal_scene_support.dart',
     *['assets/seasonal/halloween_v2/' + name + '.png' for name in [
         'background_tree_clear', 'tree_isolated', 'moon_cloud_clean', 'pumpkin_closed',
         'pumpkin_classic_light_mask', 'pumpkin_surprised_light_mask',
@@ -83,9 +85,55 @@ class HalloweenInstallerTests(unittest.TestCase):
         self.assertEqual((self.base / 'opened').read_text(), str(self.target / 'ios/Runner.xcworkspace'))
 
     def test_missing_asset_aborts_before_modifying_the_project(self):
-        (self.source / FILES[3]).unlink()
+        (self.source / 'assets/seasonal/halloween_v2/tree_isolated.png').unlink()
         result = self.install()
         self.assertNotEqual(result.returncode, 0)
+        self.unchanged()
+        self.assertFalse(self.backup.exists())
+
+    def test_installed_scene_contains_every_relative_dart_dependency(self):
+        # Use the real libraries, rather than synthetic manifest contents, so
+        # this catches a helper omitted from both the script and FILES above.
+        for source in (ROOT / 'lib/seasonal').glob('*.dart'):
+            self.write(self.source / 'lib/seasonal' / source.name, source.read_text())
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        pending = [self.target / 'lib/seasonal/halloween_scene_v2.dart']
+        visited = set()
+        while pending:
+            source = pending.pop().resolve()
+            if source in visited:
+                continue
+            self.assertTrue(source.is_file(), f'Missing installed dependency: {source.name}')
+            visited.add(source)
+            for uri in re.findall(r'''^\s*(?:import|export|part)\s+['"]([^'"]+)''', source.read_text(), re.M):
+                if ':' not in uri:
+                    pending.append(source.parent / uri)
+        self.assertIn((self.target / 'lib/seasonal/seasonal_scene_support.dart').resolve(), visited)
+
+    def test_missing_shared_support_aborts_before_any_changes(self):
+        (self.source / 'lib/seasonal/seasonal_scene_support.dart').unlink()
+        result = self.install()
+        self.assertNotEqual(result.returncode, 0)
+        self.unchanged()
+        self.assertFalse(self.backup.exists())
+
+    def test_existing_matching_shared_support_is_not_replaced(self):
+        name = 'lib/seasonal/seasonal_scene_support.dart'
+        self.write(self.target / name, (self.source / name).read_text())
+        os.utime(self.target / name, (1000000000, 1000000000))
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.target / name).stat().st_mtime, 1000000000)
+        self.assertNotIn(name, (self.backup / 'new-files.txt').read_text().splitlines())
+        self.assertFalse((self.backup / name).exists())
+
+    def test_different_existing_shared_support_aborts_without_overwriting(self):
+        name = 'lib/seasonal/seasonal_scene_support.dart'
+        self.write(self.target / name, 'locally changed shared helper')
+        result = self.install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.target / name).read_text(), 'locally changed shared helper')
         self.unchanged()
         self.assertFalse(self.backup.exists())
 
