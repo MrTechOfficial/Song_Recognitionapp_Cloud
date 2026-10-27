@@ -125,7 +125,7 @@ void main() {
     final covered = Rect.fromCenter(
         center: HalloweenMoonOcclusion.moon, width: 130, height: 130);
     expect(mask.coverage(covered), 1);
-    expect(mask.dimming(covered), closeTo(.11, .00001));
+    expect(mask.dimming(covered), closeTo(.30, .00001));
     expect(
         HalloweenMoonOcclusion(List.filled(32 * 12, 0), 32, 12)
             .dimming(covered),
@@ -135,21 +135,67 @@ void main() {
         (i) => mask.dimming(HalloweenMotion.cloudRect(i / 1000, visible)));
     expect(levels.first, 0);
     expect(levels.last, 0);
-    expect(levels.reduce(math.max), greaterThan(.08));
-    for (var i = 1; i < levels.length; i++) {
-      expect((levels[i] - levels[i - 1]).abs(), lessThan(.02));
+    expect(levels.reduce(math.max), greaterThan(.20));
+    final shadeCurve = List.generate(
+        1001, (i) => HalloweenMoonOcclusion.shadeForCoverage(i / 1000));
+    for (var i = 1; i < shadeCurve.length; i++) {
+      expect((shadeCurve[i] - shadeCurve[i - 1]).abs(), lessThan(.001));
     }
   });
 
   test('candle flicker is warm and bounded with a continuous long-cycle seam',
       () {
     final levels = List.generate(4301, (i) => HalloweenMotion.candle(i / 4300));
-    expect(levels.reduce(math.min), greaterThan(.25));
-    expect(levels.reduce(math.max), lessThan(.85));
-    expect(levels.reduce(math.max) - levels.reduce(math.min), greaterThan(.25));
+    expect(levels.reduce(math.min), greaterThanOrEqualTo(.16));
+    expect(levels.reduce(math.max), lessThanOrEqualTo(1));
+    expect(levels.reduce(math.max) - levels.reduce(math.min), greaterThan(.55));
     expect(levels.first, closeTo(levels.last, .000001));
     for (var i = 1; i < levels.length; i++) {
       expect((levels[i] - levels[i - 1]).abs(), lessThan(.03));
     }
+  });
+
+  test(
+      'rounded skull turns and blinks while the painted neck joint stays fixed',
+      () {
+    for (final turn in [-1.0, -.5, 0.0, .5, 1.0]) {
+      for (final blink in [0.0, .5, 1.0]) {
+        final joint = HalloweenMotion.skullVertex(
+            HalloweenMotion.skullPivot, turn, blink,
+            nod: 1);
+        expect(joint, HalloweenMotion.skullPivot);
+        expect(
+            HalloweenMotion.skullRect.topLeft +
+                joint * HalloweenMotion.skullScale,
+            HalloweenMotion.neck);
+      }
+    }
+    const eye = Offset(33, 46);
+    final left = HalloweenMotion.skullVertex(eye, -1, 0);
+    final right = HalloweenMotion.skullVertex(eye, 1, 0);
+    expect(right.dx - left.dx, greaterThan(10));
+    final upper = HalloweenMotion.skullVertex(const Offset(33, 35), 0, 1);
+    final lower = HalloweenMotion.skullVertex(const Offset(33, 55), 0, 1);
+    expect(lower.dy - upper.dy, lessThan(2));
+  });
+
+  test(
+      'clouds have distinct sizes, rates and heights and cross beyond the crop',
+      () {
+    const visible = Rect.fromLTWH(42, 0, 322, 696);
+    expect(HalloweenCloudFlight.sky.length, 6);
+    expect(HalloweenCloudFlight.sky.map((c) => c.width).toSet().length, 6);
+    expect(HalloweenCloudFlight.sky.map((c) => c.rate).toSet().length, 6);
+    for (final cloud in HalloweenCloudFlight.sky) {
+      final beforeWrap =
+          cloud.sample((1 - cloud.phase - .00001) / cloud.rate, visible);
+      final afterWrap =
+          cloud.sample((1 - cloud.phase + .00001) / cloud.rate, visible);
+      expect(beforeWrap.right, lessThan(visible.left));
+      expect(afterWrap.left, greaterThan(visible.right));
+    }
+    expect(HalloweenMotion.expression(0), 0);
+    expect(HalloweenMotion.expression(.5), 1);
+    expect(HalloweenMotion.expression(1), 0);
   });
 }

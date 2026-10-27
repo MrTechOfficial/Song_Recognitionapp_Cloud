@@ -3924,6 +3924,9 @@ class _SeasonalAppBackgroundState extends SeasonalSceneState<_SeasonalAppBackgro
   @override
   Widget build(BuildContext context) {
     if (widget.season == RecztSeason.standard) return widget.child;
+    if (widget.season == RecztSeason.halloween) {
+      return HalloweenSceneHost(child: widget.child);
+    }
     if (widget.season == RecztSeason.christmas) {
       return ChristmasSceneHost(child: widget.child);
     }
@@ -8698,17 +8701,19 @@ final christmasTextShadow = isChristmas
                       );
                     }).toList(),
                   ),
-                  SizedBox(height: isChristmas ? 20 : 32),
+                  SizedBox(height: illustratedNight ? 20 : 32),
                   Container(
-  padding: isChristmas
+  padding: illustratedNight
       ? const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 8,
         )
       : EdgeInsets.zero,
-  decoration: isChristmas
+  decoration: illustratedNight
       ? BoxDecoration(
-          color: const Color(0xFF061A2B)
+          color: (isChristmas
+              ? const Color(0xFF061A2B)
+              : const Color(0xFF201329))
               .withValues(alpha: 0.58),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
@@ -8721,10 +8726,10 @@ final christmasTextShadow = isChristmas
     textAlign: TextAlign.center,
     style: TextStyle(
       fontSize: 16,
-      fontWeight: isChristmas
+      fontWeight: illustratedNight
           ? FontWeight.w700
           : FontWeight.w500,
-      color: isChristmas
+      color: illustratedNight
           ? Colors.white
           : null,
       shadows: christmasTextShadow,

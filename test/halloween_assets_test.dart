@@ -83,8 +83,9 @@ void main() {
     }
   });
 
-  test('actual painted cloud produces a smooth, subtle moon shadow', () async {
-    final cloud = await decode('moon_cloud_clean');
+  test('the broad painted bank visibly covers and releases the moon smoothly',
+      () async {
+    final cloud = await decode('moon_cloud_bank');
     try {
       final data = cloud.$2;
       final mask = HalloweenMoonOcclusion.fromRgba(
@@ -96,9 +97,9 @@ void main() {
           (i) => mask.dimming(HalloweenMotion.cloudRect(i / 1000, visible)));
       expect(levels.first, 0);
       expect(levels.last, 0);
-      expect(levels.reduce(math.max), inInclusiveRange(.05, .12));
+      expect(levels.reduce(math.max), inInclusiveRange(.22, .30));
       for (var i = 1; i < levels.length; i++) {
-        expect((levels[i] - levels[i - 1]).abs(), lessThan(.006));
+        expect((levels[i] - levels[i - 1]).abs(), lessThan(.012));
       }
     } finally {
       cloud.$1.dispose();
@@ -128,7 +129,12 @@ void main() {
       'pumpkin_closed',
       'pumpkin_classic_light_mask',
       'pumpkin_surprised_light_mask',
-      'pumpkin_closed_light_mask'
+      'pumpkin_closed_light_mask',
+      'skeleton_skull_rig',
+      'pumpkin_shell',
+      'fog_far_clean',
+      'fog_near_clean',
+      'moon_cloud_bank'
     ]) {
       final image = await decode(name);
       try {

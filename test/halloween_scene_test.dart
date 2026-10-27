@@ -25,7 +25,8 @@ void main() {
     expect(state.layersReady, isTrue);
     var highestLeaf = 0;
     var blinks = 0, looks = 0;
-    final seenFaces = <String>{};
+    final seenFaces = <int>{};
+    var pumpkinBlinks = 0;
     for (var i = 0; i < 1100; i++) {
       await tester.pump(const Duration(milliseconds: 100));
       final head = tester
@@ -33,14 +34,10 @@ void main() {
       expect(head.blink > .01 && head.turn.abs() > .001, isFalse);
       if (head.blink > .01) blinks++;
       if (head.turn.abs() > .1) looks++;
-      for (final image in tester.widgetList<Image>(find.byType(Image))) {
-        final provider = image.image;
-        if (provider is AssetImage &&
-            RegExp(r'\.*/pumpkin_(classic|surprised|closed)\.png$')
-                .hasMatch(provider.assetName)) {
-          seenFaces.add(provider.assetName);
-        }
-      }
+      final pumpkin =
+          tester.widget<HalloweenPumpkin>(find.byType(HalloweenPumpkin));
+      seenFaces.add(pumpkin.face);
+      if (pumpkin.blink > .05) pumpkinBlinks++;
       expect(state.releasedLeaves, state.completedTreeSways ~/ 3);
       if (state.completedTreeSways < 3) {
         expect(find.byType(HalloweenFallingLeaf), findsNothing);
@@ -59,6 +56,58 @@ void main() {
     expect(blinks, greaterThan(0));
     expect(looks, greaterThan(0));
     expect(seenFaces.length, 3);
+    expect(pumpkinBlinks, greaterThan(0));
+    expect(state.launchedBats, greaterThanOrEqualTo(18));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(minutes: 2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'moon shade reaches real UI, preserves taps, and clears with Reduce Motion',
+      (tester) async {
+    var taps = 0;
+    Widget app({bool reduce = false}) => MaterialApp(
+            home: MediaQuery(
+          data: MediaQueryData(
+              size: const Size(390, 844), disableAnimations: reduce),
+          child: HalloweenSceneHost(
+              child: Center(
+                  child: TextButton(
+                      onPressed: () => taps++,
+                      child: const Text('Real control')))),
+        ));
+    await tester.pumpWidget(app());
+    final dynamic state = tester.state(find.byType(HalloweenLayeredSceneV2));
+    for (var i = 0; i < 60 && !state.layersReady; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+      await tester.pump();
+    }
+    expect(state.layersReady, isTrue);
+    var peak = 0.0;
+    for (var i = 0; i < 1000; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      final opacity = tester
+          .widget<Opacity>(
+              find.byKey(const ValueKey('halloween-ui-moon-dimming')))
+          .opacity;
+      if (opacity > peak) peak = opacity;
+      if (opacity > .20 && taps == 0) {
+        await tester.tap(find.text('Real control'));
+      }
+    }
+    expect(peak, greaterThan(.22));
+    expect(peak, lessThanOrEqualTo(.30));
+    expect(taps, 1);
+    await tester.pumpWidget(app(reduce: true));
+    await tester.pump();
+    expect(
+        tester
+            .widget<Opacity>(
+                find.byKey(const ValueKey('halloween-ui-moon-dimming')))
+            .opacity,
+        0);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(minutes: 2));
     expect(tester.takeException(), isNull);

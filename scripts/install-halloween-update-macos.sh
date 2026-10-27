@@ -10,6 +10,9 @@ reczt_project="${1:-$HOME/Documents/Reczt - Xcode}"
 reczt_files=(
   "lib/seasonal/halloween_scene_v2.dart"
   "lib/seasonal/halloween_motion.dart"
+  "lib/seasonal/halloween_characters.dart"
+  "lib/seasonal/halloween_carvings.dart"
+  "lib/main.dart"
   "assets/seasonal/halloween_v2/background_tree_clear.png"
   "assets/seasonal/halloween_v2/tree_isolated.png"
   "assets/seasonal/halloween_v2/moon_cloud_clean.png"
@@ -18,10 +21,16 @@ reczt_files=(
   "assets/seasonal/halloween_v2/pumpkin_surprised_light_mask.png"
   "assets/seasonal/halloween_v2/pumpkin_closed_light_mask.png"
   "assets/seasonal/halloween_v2/skeleton_eyes_closed_overlay.png"
+  "assets/seasonal/halloween_v2/skeleton_skull_rig.png"
+  "assets/seasonal/halloween_v2/pumpkin_shell.png"
+  "assets/seasonal/halloween_v2/fog_far_clean.png"
+  "assets/seasonal/halloween_v2/fog_near_clean.png"
+  "assets/seasonal/halloween_v2/moon_cloud_bank.png"
   "test/seasonal_scenes_test.dart"
   "test/halloween_motion_test.dart"
   "test/halloween_scene_test.dart"
   "test/halloween_assets_test.dart"
+  "test/halloween_rig_render_test.dart"
 )
 if [ ! -f "$reczt_project/pubspec.yaml" ] ||
    [ ! -d "$reczt_project/ios/Runner.xcworkspace" ] ||
@@ -39,6 +48,19 @@ if ! grep -Fq 'assets/seasonal/halloween_v2/' "$reczt_project/pubspec.yaml"; the
   echo "This working project's Halloween asset declaration is missing. No files have been changed."
   exit 1
 fi
+# main.dart now gains the requested UI changes. Its existing Christmas imports
+# must be present, but this update must never replace that unfinished work.
+for reczt_existing in \
+  "lib/main.dart" \
+  "lib/seasonal/christmas_scene.dart" \
+  "lib/seasonal/christmas_weather.dart" \
+  "lib/seasonal/christmas_skating.dart"; do
+  if [ ! -f "$reczt_project/$reczt_existing" ]; then
+    echo "Existing project dependency missing: $reczt_existing"
+    echo "Use the working project from the previous update. No files have been changed."
+    exit 1
+  fi
+done
 # Avoid the stale-path problem seen earlier in this session: the workspace must
 # actually build the directory receiving the new Dart code and assets.
 reczt_config="$reczt_project/ios/Flutter/Generated.xcconfig"
@@ -86,7 +108,9 @@ for reczt_file in "${reczt_files[@]}"; do
     echo "$reczt_file" >> "$reczt_backup/new-files.txt"
   fi
 done
-# Finish every backup before replacing anything. No Christmas, native Swift,
+# Finish every backup before replacing anything. main.dart now includes the
+# requested Halloween text backing and whole-screen moon shadow host.
+# No Christmas scene, native Swift,
 # pubspec, Pods, generated configuration or signing files are copied.
 for reczt_file in "${reczt_files[@]}"; do
   mkdir -p "$(dirname "$reczt_project/$reczt_file")"

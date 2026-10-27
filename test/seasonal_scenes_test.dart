@@ -200,11 +200,9 @@ void main() {
     var blinks = 0, looks = 0;
     for (var frame = 0; frame < 500; frame++) {
       await tester.pump(const Duration(milliseconds: 100));
-      final blink = tester
-          .widget<Opacity>(find.byKey(const ValueKey('halloween-blink')))
-          .opacity;
       final head = tester.widget<HalloweenPaintedHead>(
           find.byKey(const ValueKey('halloween-head-turn')));
+      final blink = head.blink;
       final turning = head.turn.abs() > .00001;
       if (blink > .01) blinks++;
       if (turning) looks++;
@@ -250,8 +248,9 @@ void main() {
     await tester.pump(const Duration(seconds: 60));
     expect(
         tester
-            .widget<Opacity>(find.byKey(const ValueKey('halloween-blink')))
-            .opacity,
+            .widget<HalloweenPaintedHead>(
+                find.byKey(const ValueKey('halloween-head-turn')))
+            .blink,
         0);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

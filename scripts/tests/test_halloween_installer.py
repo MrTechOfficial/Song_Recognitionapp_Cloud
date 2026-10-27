@@ -11,15 +11,20 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'scripts/install-halloween-update-macos.sh'
 FILES = [
     'lib/seasonal/halloween_scene_v2.dart', 'lib/seasonal/halloween_motion.dart',
+    'lib/seasonal/halloween_characters.dart', 'lib/seasonal/halloween_carvings.dart',
+    'lib/main.dart',
     'lib/seasonal/seasonal_scene_support.dart',
     *['assets/seasonal/halloween_v2/' + name + '.png' for name in [
         'background_tree_clear', 'tree_isolated', 'moon_cloud_clean', 'pumpkin_closed',
         'pumpkin_classic_light_mask', 'pumpkin_surprised_light_mask',
-        'pumpkin_closed_light_mask', 'skeleton_eyes_closed_overlay']],
+        'pumpkin_closed_light_mask', 'skeleton_eyes_closed_overlay',
+        'skeleton_skull_rig', 'pumpkin_shell', 'fog_far_clean', 'fog_near_clean',
+        'moon_cloud_bank']],
     'test/seasonal_scenes_test.dart', 'test/halloween_motion_test.dart',
     'test/halloween_scene_test.dart', 'test/halloween_assets_test.dart',
+    'test/halloween_rig_render_test.dart',
 ]
-EXISTING = {FILES[0], 'test/seasonal_scenes_test.dart'}
+EXISTING = {FILES[0], 'lib/main.dart', 'test/seasonal_scenes_test.dart'}
 
 
 class HalloweenInstallerTests(unittest.TestCase):
@@ -37,7 +42,8 @@ class HalloweenInstallerTests(unittest.TestCase):
         self.write(self.target / 'pubspec.yaml', 'flutter:\n  assets:\n    - assets/seasonal/halloween_v2/\n')
         (self.target / 'ios/Runner.xcworkspace').mkdir(parents=True)
         self.write(self.target / 'ios/Flutter/Generated.xcconfig', f'FLUTTER_APPLICATION_PATH={self.target}\n')
-        self.protected = ['lib/main.dart', 'lib/seasonal/christmas_scene.dart',
+        self.protected = ['lib/seasonal/christmas_scene.dart',
+            'lib/seasonal/christmas_weather.dart', 'lib/seasonal/christmas_skating.dart',
             'assets/seasonal/christmas/christmas_background_clean.png',
             'ios/RecztControl/RecztRecognitionLiveActivity.swift',
             'ios/Pods/keep', 'ios/Runner.xcodeproj/project.pbxproj']
@@ -151,6 +157,16 @@ class HalloweenInstallerTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.unchanged()
         self.assertFalse((self.target / FILES[1]).exists())
+
+    def test_missing_existing_christmas_dependency_aborts_before_main_is_changed(self):
+        missing = 'lib/seasonal/christmas_weather.dart'
+        (self.target / missing).unlink()
+        result = self.install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(missing, result.stdout)
+        self.assertEqual((self.target / 'lib/main.dart').read_text(), 'old: lib/main.dart')
+        self.assertFalse(self.backup.exists())
+        self.assertFalse((self.base / 'opened').exists())
 
 
 if __name__ == '__main__':

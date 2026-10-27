@@ -10,6 +10,13 @@ class HalloweenSwayCounter {
 }
 
 class HalloweenMotion {
+  // The body is painted into the 406 x 696 illustration, not screen-relative.
+  static const neck = Offset(330, 669);
+  static const skullPivot = Offset(45, 72);
+  static const skullScale = .94;
+  static final skullRect = Rect.fromLTWH(neck.dx - skullPivot.dx * skullScale,
+      neck.dy - skullPivot.dy * skullScale, 84 * skullScale, 88 * skullScale);
+
   static double ease(double t) {
     t = t.clamp(0, 1);
     return t * t * t * (t * (6 * t - 15) + 10);
@@ -50,18 +57,80 @@ class HalloweenMotion {
 
   static double candle(double phase) {
     final t = phase * math.pi * 2;
-    return .55 +
-        math.sin(t * 7) * .12 +
-        math.sin(t * 19 + .6) * .08 +
-        math.sin(t * 47 + 1.3) * .035 +
-        math.sin(t * 91) * .015;
+    return (.58 +
+            math.sin(t * 7) * .17 +
+            math.sin(t * 19 + .6) * .13 +
+            math.sin(t * 31 + 1.3) * .09 +
+            math.sin(t * 59) * .055)
+        .clamp(.16, 1.0);
   }
 
-  static Rect cloudRect(double progress, Rect visible) => Rect.fromLTWH(
-      visible.right + 30 - progress * (visible.width + 290),
-      62,
-      230,
-      230 * 111 / 420);
+  static double expression(double progress) {
+    if (progress < .08) return 0;
+    if (progress < .25) return ease((progress - .08) / .17);
+    if (progress < .72) return 1;
+    return 1 - ease((progress - .72) / .28);
+  }
+
+  /// A rounded skull surface turns continuously, with the neck joint fixed.
+  /// Eye vertices close the painted sockets instead of fading in a new face.
+  static Offset skullVertex(Offset point, double turn, double blink,
+      {double nod = 0}) {
+    var y = point.dy;
+    if (y >= 30 && y <= 60) {
+      final eye = math.max((1 - (point.dx - 33).abs() / 12).clamp(0.0, 1.0),
+          (1 - (point.dx - 55).abs() / 12).clamp(0.0, 1.0));
+      // Leave the nose bridge and nose cavity intact.
+      final nose = point.dx > 41 && point.dx < 49 && y > 51;
+      if (!nose) {
+        final closedY = y < 35
+            ? 30 + (y - 30) * 2.8
+            : y <= 55
+                ? 44 + (y - 35) * .065
+                : 45.3 + (y - 55) * 2.94;
+        y += (closedY - y) * blink * ease((eye * 2).clamp(0.0, 1.0));
+      }
+    }
+    final joint = ease(((72 - point.dy) / 18).clamp(0.0, 1.0));
+    final nx = (point.dx - 44) / 29, ny = (point.dy - 44) / 32;
+    final depth = math.sqrt(math.max(0, 1 - nx * nx - ny * ny)) * 18;
+    final angle = turn * .52;
+    final x = point.dx +
+        ((point.dx - 44) * (math.cos(angle) - 1) + depth * math.sin(angle)) *
+            joint;
+    y += nod * joint * .85;
+    final tilt = -turn * .025;
+    final dx = x - skullPivot.dx, dy = y - skullPivot.dy;
+    return skullPivot +
+        Offset(dx * math.cos(tilt) - dy * math.sin(tilt),
+            dx * math.sin(tilt) + dy * math.cos(tilt));
+  }
+
+  static Rect cloudRect(double progress, Rect visible) =>
+      HalloweenCloudFlight.sky.first.sample(progress, visible);
+}
+
+@immutable
+class HalloweenCloudFlight {
+  const HalloweenCloudFlight(
+      this.width, this.height, this.top, this.opacity, this.rate, this.phase,
+      {this.bank = false});
+  final double width, height, top, opacity, rate, phase;
+  final bool bank;
+  Rect sample(double clock, Rect visible) {
+    final p = (clock * rate + phase) % 1;
+    return Rect.fromLTWH(visible.right + 35 - p * (visible.width + width + 70),
+        top, width, height);
+  }
+
+  static const sky = [
+    HalloweenCloudFlight(345, 125, 34, .91, 1, .05, bank: true),
+    HalloweenCloudFlight(155, 47, 160, .55, 1.37, .42),
+    HalloweenCloudFlight(238, 67, 218, .46, .73, .19),
+    HalloweenCloudFlight(170, 54, 20, .44, .61, .71),
+    HalloweenCloudFlight(242, 78, 115, .61, .89, .83),
+    HalloweenCloudFlight(120, 34, 282, .28, 1.14, .57),
+  ];
 }
 
 @immutable
@@ -172,19 +241,24 @@ class HalloweenMoonOcclusion {
   }
 
   double coverage(Rect cloud) {
+    if (!cloud.overlaps(Rect.fromCircle(center: moon, radius: moonRadius))) {
+      return 0;
+    }
     var opacity = 0.0, count = 0;
     for (var y = -10; y <= 10; y++) {
       for (var x = -10; x <= 10; x++) {
         if (x * x + y * y > 100) continue;
-        final point = moon + Offset(x * moonRadius / 10, y * moonRadius / 10);
-        opacity += _alphaAt((point.dx - cloud.left) / cloud.width,
-            (point.dy - cloud.top) / cloud.height);
+        opacity += _alphaAt(
+            (moon.dx + x * moonRadius / 10 - cloud.left) / cloud.width,
+            (moon.dy + y * moonRadius / 10 - cloud.top) / cloud.height);
         count++;
       }
     }
     return opacity / count;
   }
 
-  double dimming(Rect cloud) =>
-      .11 * HalloweenMotion.ease(coverage(cloud) * .65 / .38);
+  double dimming(Rect cloud) => shadeForCoverage(coverage(cloud));
+
+  static double shadeForCoverage(double coverage) =>
+      .30 * HalloweenMotion.ease((coverage - .015) / .58);
 }
