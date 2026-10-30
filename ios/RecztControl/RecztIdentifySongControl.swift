@@ -11,7 +11,7 @@ struct RecztIdentifySongControl: ControlWidget {
             ControlWidgetButton(
                 action: ActivateRecztShortcutIntent()
             ){
-                Label("Identify Song", systemImage: "mic.fill")            } actionLabel: { isActive in
+                Label("Identify Song", systemImage: "waveform.badge.mic")            } actionLabel: { isActive in
                 Text(isActive ? "Listening…" : "Ready")
             }
         }

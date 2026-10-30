@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:song_recognition_app/seasonal/halloween_motion.dart';
+import 'package:song_recognition_app/seasonal/halloween_timeline.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,54 @@ void main() {
       codec.dispose();
     }
   }
+
+  test(
+      'filled sky edges, moving cloud bands and strict eye masks decode correctly',
+      () async {
+    final base = await decode('background_living_sky');
+    try {
+      for (var x = 0; x < 406; x++) {
+        expect(base.$2.getUint32(x * 4), base.$2.getUint32((2 * 406 + x) * 4));
+      }
+      for (var y = 0; y < 696; y++) {
+        expect(base.$2.getUint32(y * 406 * 4),
+            base.$2.getUint32((y * 406 + 2) * 4));
+      }
+    } finally {
+      base.$1.dispose();
+    }
+    for (var band = 0; band < 6; band++) {
+      final cloud = await decode('sky_cloud_$band');
+      try {
+        expect(cloud.$1.width, 406);
+        var painted = 0;
+        for (var i = 3; i < cloud.$2.lengthInBytes; i += 4) {
+          if (cloud.$2.getUint8(i) > 0) {
+            painted++;
+          }
+        }
+        expect(painted, greaterThan(100));
+      } finally {
+        cloud.$1.dispose();
+      }
+    }
+    for (final face in ['classic', 'surprised', 'sly']) {
+      final mask = await decode('pumpkin_${face}_eyes_mask');
+      try {
+        for (var y = 0; y < 96; y++) {
+          for (var x = 0; x < 115; x++) {
+            if (mask.$2.getUint8((y * 115 + x) * 4 + 3) == 0) {
+              continue;
+            }
+            expect(y, inInclusiveRange(31, 54));
+            expect(x, inInclusiveRange(25, 99));
+          }
+        }
+      } finally {
+        mask.$1.dispose();
+      }
+    }
+  });
 
   test('resting tree composite reproduces the original illustration exactly',
       () async {
@@ -93,11 +142,11 @@ void main() {
           cloud.$1.width,
           cloud.$1.height);
       const visible = ui.Rect.fromLTWH(42, 0, 322, 696);
-      final levels = List.generate(1001,
-          (i) => mask.dimming(HalloweenMotion.cloudRect(i / 1000, visible)));
+      final levels = List.generate(
+          1001, (i) => mask.dimming(HalloweenSky.bankRect(i / 1000, visible)));
       expect(levels.first, 0);
       expect(levels.last, 0);
-      expect(levels.reduce(math.max), inInclusiveRange(.22, .30));
+      expect(levels.reduce(math.max), inInclusiveRange(.30, .40));
       for (var i = 1; i < levels.length; i++) {
         expect((levels[i] - levels[i - 1]).abs(), lessThan(.012));
       }

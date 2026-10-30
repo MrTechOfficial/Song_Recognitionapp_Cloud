@@ -15,7 +15,7 @@ struct RecztControlControl: ControlWidget {
             ) {
                 Label(
                     "Identify Song",
-                    systemImage: "mic.fill"                )
+                    systemImage: "waveform.badge.mic"                )
             }
         }
         .displayName("Reczt")

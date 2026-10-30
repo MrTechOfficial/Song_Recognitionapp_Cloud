@@ -1,14 +1,19 @@
-# Seasonal work to resume
+# Seasonal follow-ups
 
-Halloween is the current priority. Christmas/winter is unfinished work in
-progress, preserved from commit 4da50fd6a7145e7e09079fc0739928a8edf0eb5f.
-No Christmas runtime, artwork or native Live Activity code is changed by the
-Halloween animation pass.
+Christmas/winter is still work in progress. The latest request explicitly brought
+skating and wind back into scope alongside the Halloween fixes.
 
-When returning to Christmas:
+Implemented in this revision:
 
-- Explore more expressive snowman skating/body animation.
-- Revisit the wind as a softer, less defined effect spread across the screen.
-- Reverse the current cabin-roof snow fall direction.
+- Separate alternating skate pushes and body weight shift.
+- An independently moving painted scarf tail.
+- Wind flurries at varied heights, times and directions.
+- Shared energy limits and a smaller decoded snowman art budget.
 
-These are recorded follow-ups, not implemented or claimed finished here.
+Still reserved for later winter work:
+
+- Reverse the cabin-roof snow fall direction.
+- Further visual refinements after testing the skating on the iPhone.
+
+Existing Christmas art, seasonal Dynamic Island layout and recognition actions
+remain available. The winter scene is not being declared final.

@@ -7,7 +7,7 @@ import 'package:song_recognition_app/seasonal/halloween_characters.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late ui.Image shell, skull;
+  late ui.Image shell, skull, eyeMask;
   late ui.ImageShader skullTexture;
   Future<ui.Image> load(String name) async {
     final data =
@@ -22,7 +22,8 @@ void main() {
   }
 
   setUpAll(() async {
-    shell = await load('pumpkin_shell');
+    shell = await load('pumpkin_classic');
+    eyeMask = await load('pumpkin_classic_eyes_mask');
     skull = await load('skeleton_skull_rig');
     skullTexture = ui.ImageShader(
         skull, TileMode.clamp, TileMode.clamp, Matrix4.identity().storage);
@@ -31,6 +32,7 @@ void main() {
     skullTexture.dispose();
     skull.dispose();
     shell.dispose();
+    eyeMask.dispose();
   });
 
   Future<ByteData> render(WidgetTester tester, Widget child, Size size) async {
@@ -57,61 +59,31 @@ void main() {
     }))!;
   }
 
-  Widget pumpkin({double expression = 0, int face = 0, double candle = .7}) =>
-      HalloweenPumpkin(
-          shell: shell,
-          face: face,
-          expression: expression,
-          blink: 0,
-          candle: candle,
-          breath: 0);
-
+  Widget pumpkin(double dim) =>
+      HalloweenPumpkin(image: shell, eyeMask: eyeMask, eyeDim: dim);
   testWidgets(
-      'candle intensity visibly changes carved interiors, not the whole pumpkin',
+      'occasional flicker affects only the eyes; mouth and painted body stay identical',
       (tester) async {
-    final low = await render(tester, pumpkin(candle: .16), const Size(115, 96));
-    final high = await render(tester, pumpkin(candle: 1), const Size(115, 96));
-    var eyeGain = 0.0, count = 0, skinChanged = 0;
+    final normal = await render(tester, pumpkin(0), const Size(115, 96));
+    final dim = await render(tester, pumpkin(.27), const Size(115, 96));
+    var changedEyes = 0, changedElsewhere = 0;
     for (var y = 0; y < 192; y++) {
       for (var x = 0; x < 230; x++) {
         final i = (y * 230 + x) * 4;
-        if (x >= 72 && x < 86 && y >= 88 && y < 98) {
-          eyeGain += high.getUint8(i + 1) - low.getUint8(i + 1);
-          count++;
+        if (normal.getUint32(i) == dim.getUint32(i)) {
+          continue;
         }
-        if (x < 34 &&
-            y > 60 &&
-            y < 170 &&
-            high.getUint32(i) != low.getUint32(i)) {
-          skinChanged++;
+        if (y >= 60 && y < 110 && x >= 48 && x < 200) {
+          changedEyes++;
+        } else {
+          changedElsewhere++;
         }
       }
     }
-    expect(eyeGain / count, greaterThan(45));
-    expect(skinChanged, lessThan(12));
-  });
-
-  testWidgets(
-      'the expression passes through moving carving shapes, rather than a face dissolve',
-      (tester) async {
-    final a = await render(tester, pumpkin(face: 1), const Size(115, 96));
-    final b = await render(
-        tester, pumpkin(face: 1, expression: 1), const Size(115, 96));
-    final mid = await render(
-        tester, pumpkin(face: 1, expression: .5), const Size(115, 96));
-    final near = await render(
-        tester, pumpkin(face: 1, expression: .501), const Size(115, 96));
-    var differsFromDissolve = 0, adjacentDifference = 0.0;
-    for (var i = 0; i < a.lengthInBytes; i += 4) {
-      if ((mid.getUint8(i + 1) - (a.getUint8(i + 1) + b.getUint8(i + 1)) / 2)
-              .abs() >
-          25) {
-        differsFromDissolve++;
-      }
-      adjacentDifference += (mid.getUint8(i + 1) - near.getUint8(i + 1)).abs();
-    }
-    expect(differsFromDissolve, greaterThan(300));
-    expect(adjacentDifference / (a.lengthInBytes / 4), lessThan(1));
+    expect(changedEyes, greaterThan(100));
+    expect(changedElsewhere, 0);
+    final again = await render(tester, pumpkin(0), const Size(115, 96));
+    expect(again.buffer.asUint8List(), normal.buffer.asUint8List());
   });
 
   testWidgets('blink physically closes the painted skull sockets',

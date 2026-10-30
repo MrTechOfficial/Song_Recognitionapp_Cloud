@@ -1,7 +1,5 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'halloween_carvings.dart';
 import 'halloween_motion.dart';
 
 /// One painted texture bends over a rounded skull surface. There are no
@@ -26,7 +24,7 @@ class _SkullPainter extends CustomPainter {
   const _SkullPainter(this.texture, this.turn, this.blink, this.nod);
   final ui.ImageShader texture;
   final double turn, blink, nod;
-  static const columns = 42, rows = 44;
+  static const columns = 28, rows = 32;
   static final coordinates = <Offset>[
     for (var row = 0; row <= rows; row++)
       for (var col = 0; col <= columns; col++)
@@ -60,7 +58,7 @@ class _SkullPainter extends CustomPainter {
         BlendMode.srcOver,
         Paint()
           ..shader = texture
-          ..filterQuality = FilterQuality.high);
+          ..filterQuality = FilterQuality.low);
     vertices.dispose();
     canvas.restore();
   }
@@ -73,130 +71,67 @@ class _SkullPainter extends CustomPainter {
       nod != old.nod;
 }
 
+/// The original painted face stays visible. Only the eyes briefly dim during
+/// a rare flicker; no flame, procedural face, mouth pulse or body deformation.
 class HalloweenPumpkin extends StatelessWidget {
   const HalloweenPumpkin(
-      {super.key,
-      required this.shell,
-      required this.face,
-      required this.expression,
-      required this.blink,
-      required this.candle,
-      required this.breath});
-  final ui.Image? shell;
-  final int face;
-  final double expression, blink, candle, breath;
+      {super.key, this.image, this.eyeMask, this.eyeDim = 0});
+  final ui.Image? image, eyeMask;
+  final double eyeDim;
   @override
-  Widget build(BuildContext context) => shell == null
+  Widget build(BuildContext context) => image == null
       ? Image.asset('assets/seasonal/halloween_v2/pumpkin_classic.png')
-      : CustomPaint(
-          painter:
-              _PumpkinPainter(shell!, face, expression, blink, candle, breath));
+      : CustomPaint(painter: _PaintedPumpkin(image!, eyeMask!, eyeDim));
 }
 
-class _PumpkinPainter extends CustomPainter {
-  const _PumpkinPainter(this.shell, this.face, this.expression, this.blink,
-      this.candle, this.breath);
-  final ui.Image shell;
-  final int face;
-  final double expression, blink, candle, breath;
-
-  Path _shape(List<Offset> normal, List<Offset> surprised,
-      {bool eye = false, bool right = false}) {
-    final points = <Offset>[];
-    final center =
-        normal.map((p) => p.dy).reduce((a, b) => a + b) / normal.length;
-    for (var i = 0; i < normal.length; i++) {
-      final a = normal[i];
-      final target = face == 1
-          ? surprised[i]
-          : Offset(a.dx,
-              eye ? center + (a.dy - center) * .55 : 73 + (a.dy - 73) * .16);
-      var point = Offset.lerp(a, target, expression)!;
-      if (eye) {
-        final lid = right ? math.pow(blink, 1.25).toDouble() : blink;
-        point =
-            Offset(point.dx, center + (point.dy - center) * (1 - .94 * lid));
-      }
-      points.add(point);
-    }
-    return Path()..addPolygon(points, true);
-  }
-
-  void _carving(Canvas canvas, Path path) {
-    // Warm spill follows the aperture, while the dark cut edge remains crisp.
-    canvas.drawPath(
-        path,
-        Paint()
-          ..color = Color.fromRGBO(255, 145, 33, .17 + candle * .32)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1.5 + candle * 1.9));
-    canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.7
-          ..strokeJoin = StrokeJoin.round
-          ..color = const Color(0xFF54220C));
-    final top =
-        Color.lerp(const Color(0xFFA3430B), const Color(0xFFFFBB3D), candle)!;
-    final core =
-        Color.lerp(const Color(0xFFEC7B16), const Color(0xFFFFF0AC), candle)!;
-    canvas.drawPath(
-        path,
-        Paint()
-          ..shader = ui.Gradient.linear(const Offset(58, 30),
-              const Offset(58, 81), [top, core, top], [0, .66, 1]));
-    canvas.drawPath(
-        path,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = .65
-          ..color = Color.fromRGBO(255, 194, 75, .30 + candle * .45));
-  }
-
+class _PaintedPumpkin extends CustomPainter {
+  const _PaintedPumpkin(this.image, this.mask, this.dim);
+  final ui.Image image, mask;
+  final double dim;
   @override
-  void paint(Canvas canvas, Size size) {
+  void paint(Canvas canvas, Size size) =>
+      paintPaintedPumpkin(canvas, Offset.zero & size, image, mask, dim);
+  @override
+  bool shouldRepaint(_PaintedPumpkin old) =>
+      image != old.image || dim != old.dim;
+}
+
+void paintPaintedPumpkin(
+    Canvas canvas, Rect rect, ui.Image image, ui.Image eyeMask, double dim) {
+  canvas.save();
+  canvas.translate(rect.left, rect.top);
+  canvas.scale(rect.width / 115, rect.height / 96);
+  canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      const Rect.fromLTWH(0, 0, 115, 96),
+      Paint()..filterQuality = FilterQuality.low);
+  if (dim > 0) {
     canvas.save();
-    canvas.scale(size.width / 115, size.height / 96);
-    // Tiny anticipation/breathing stretches the illustration from its planted
-    // base; the pumpkin never bobs away from the ground.
-    canvas.translate(57.5, 96);
-    canvas.scale(1 + breath * .009, 1 - breath * .013);
-    canvas.translate(-57.5, -96);
+    canvas.clipRect(const Rect.fromLTWH(24, 30, 76, 25));
     canvas.drawImageRect(
-        shell,
-        Rect.fromLTWH(0, 0, shell.width.toDouble(), shell.height.toDouble()),
+        eyeMask,
+        Rect.fromLTWH(
+            0, 0, eyeMask.width.toDouble(), eyeMask.height.toDouble()),
         const Rect.fromLTWH(0, 0, 115, 96),
-        Paint()..filterQuality = FilterQuality.high);
-    _carving(
-        canvas,
-        _shape(HalloweenCarvings.classicLeftEye,
-            HalloweenCarvings.surprisedLeftEye,
-            eye: true));
-    _carving(
-        canvas,
-        _shape(HalloweenCarvings.classicRightEye,
-            HalloweenCarvings.surprisedRightEye,
-            eye: true, right: true));
-    _carving(
-        canvas,
-        Path()
-          ..moveTo(61, 55)
-          ..lineTo(56, 63)
-          ..lineTo(65, 63)
-          ..close());
-    _carving(
-        canvas,
-        _shape(
-            HalloweenCarvings.classicMouth, HalloweenCarvings.surprisedMouth));
+        Paint()
+          ..colorFilter = ColorFilter.mode(
+              Color.fromRGBO(35, 16, 8, dim), BlendMode.srcIn));
     canvas.restore();
   }
+  canvas.restore();
+}
 
-  @override
-  bool shouldRepaint(_PumpkinPainter old) =>
-      shell != old.shell ||
-      face != old.face ||
-      expression != old.expression ||
-      blink != old.blink ||
-      candle != old.candle ||
-      breath != old.breath;
+void paintHalloweenSkull(
+    Canvas canvas, Size size, ui.ImageShader texture, double turn, double blink,
+    {ui.Image? image}) {
+  if (turn == 0 && blink == 0 && image != null) {
+    canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        Offset.zero & size,
+        Paint()..filterQuality = FilterQuality.low);
+  } else {
+    _SkullPainter(texture, turn, blink, 0).paint(canvas, size);
+  }
 }

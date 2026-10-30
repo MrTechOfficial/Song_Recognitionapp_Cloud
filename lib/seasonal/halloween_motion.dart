@@ -5,13 +5,13 @@ import 'package:flutter/foundation.dart';
 /// Completed gestures, rather than elapsed time, release the leaves.
 class HalloweenSwayCounter {
   int completed = 0;
-  int get leavesReleased => completed ~/ 3;
-  bool complete() => ++completed % 3 == 0;
+  int get leavesReleased => completed ~/ 9;
+  bool complete() => ++completed % 9 == 0;
 }
 
 class HalloweenMotion {
   // The body is painted into the 406 x 696 illustration, not screen-relative.
-  static const neck = Offset(330, 669);
+  static const neck = Offset(338, 673);
   static const skullPivot = Offset(45, 72);
   static const skullScale = .94;
   static final skullRect = Rect.fromLTWH(neck.dx - skullPivot.dx * skullScale,
@@ -55,23 +55,6 @@ class HalloweenMotion {
         amplitude * .055 * envelope * bend.abs() * height);
   }
 
-  static double candle(double phase) {
-    final t = phase * math.pi * 2;
-    return (.58 +
-            math.sin(t * 7) * .17 +
-            math.sin(t * 19 + .6) * .13 +
-            math.sin(t * 31 + 1.3) * .09 +
-            math.sin(t * 59) * .055)
-        .clamp(.16, 1.0);
-  }
-
-  static double expression(double progress) {
-    if (progress < .08) return 0;
-    if (progress < .25) return ease((progress - .08) / .17);
-    if (progress < .72) return 1;
-    return 1 - ease((progress - .72) / .28);
-  }
-
   /// A rounded skull surface turns continuously, with the neck joint fixed.
   /// Eye vertices close the painted sockets instead of fading in a new face.
   static Offset skullVertex(Offset point, double turn, double blink,
@@ -105,32 +88,6 @@ class HalloweenMotion {
         Offset(dx * math.cos(tilt) - dy * math.sin(tilt),
             dx * math.sin(tilt) + dy * math.cos(tilt));
   }
-
-  static Rect cloudRect(double progress, Rect visible) =>
-      HalloweenCloudFlight.sky.first.sample(progress, visible);
-}
-
-@immutable
-class HalloweenCloudFlight {
-  const HalloweenCloudFlight(
-      this.width, this.height, this.top, this.opacity, this.rate, this.phase,
-      {this.bank = false});
-  final double width, height, top, opacity, rate, phase;
-  final bool bank;
-  Rect sample(double clock, Rect visible) {
-    final p = (clock * rate + phase) % 1;
-    return Rect.fromLTWH(visible.right + 35 - p * (visible.width + width + 70),
-        top, width, height);
-  }
-
-  static const sky = [
-    HalloweenCloudFlight(345, 125, 34, .91, 1, .05, bank: true),
-    HalloweenCloudFlight(155, 47, 160, .55, 1.37, .42),
-    HalloweenCloudFlight(238, 67, 218, .46, .73, .19),
-    HalloweenCloudFlight(170, 54, 20, .44, .61, .71),
-    HalloweenCloudFlight(242, 78, 115, .61, .89, .83),
-    HalloweenCloudFlight(120, 34, 282, .28, 1.14, .57),
-  ];
 }
 
 @immutable
@@ -260,5 +217,5 @@ class HalloweenMoonOcclusion {
   double dimming(Rect cloud) => shadeForCoverage(coverage(cloud));
 
   static double shadeForCoverage(double coverage) =>
-      .30 * HalloweenMotion.ease((coverage - .015) / .58);
+      .40 * HalloweenMotion.ease((coverage - .015) / .48);
 }

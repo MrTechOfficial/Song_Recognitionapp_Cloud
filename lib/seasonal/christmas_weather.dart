@@ -1,6 +1,30 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+class ChristmasBreeze {
+  const ChristmasBreeze(this.position, this.opacity, this.rightward);
+  final Offset position;
+  final double opacity;
+  final bool rightward;
+  static double _hash(double value) =>
+      (math.sin(value * 12.9898) * 43758.5453) % 1;
+  static ChristmasBreeze sample(double seconds, Rect visible, int band) {
+    final clock = seconds + band * 4.3;
+    final cycle = (clock / 17).floor(), age = clock % 17;
+    final seed = cycle * 7.0 + band * 23;
+    final duration = 4 + _hash(seed + 1) * 2;
+    final p = (age / duration).clamp(0.0, 1.0);
+    final right = _hash(seed + 3) > .5;
+    final progress = right ? p : 1 - p;
+    final y = visible.top + visible.height * (.12 + .76 * _hash(seed + 8));
+    return ChristmasBreeze(
+        Offset(visible.left - 100 + progress * (visible.width + 200),
+            y + math.sin(p * math.pi * 2) * 20),
+        age < duration ? math.sin(p * math.pi) : 0,
+        right);
+  }
+}
+
 @immutable
 class ChristmasRoofSnowState {
   const ChristmasRoofSnowState(

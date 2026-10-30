@@ -1,5 +1,5 @@
 #!/bin/bash
-# Apply Halloween source/assets/tests and any missing shared scene dependency.
+# Install the Halloween/Christmas, event, widget and decoration-energy update.
 set -euo pipefail
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "Run this installer in Terminal on your Mac."
@@ -13,6 +13,37 @@ reczt_files=(
   "lib/seasonal/halloween_characters.dart"
   "lib/seasonal/halloween_carvings.dart"
   "lib/main.dart"
+  "lib/seasonal/halloween_timeline.dart"
+  "lib/seasonal/halloween_bats.dart"
+  "lib/seasonal/halloween_event.dart"
+  "lib/seasonal/scene_frame_clock.dart"
+  "lib/seasonal/christmas_scene.dart"
+  "lib/seasonal/christmas_skating.dart"
+  "lib/seasonal/christmas_weather.dart"
+  "assets/seasonal/halloween_v2/background_living_sky.png"
+  "assets/seasonal/halloween_v2/sky_cloud_0.png"
+  "assets/seasonal/halloween_v2/sky_cloud_1.png"
+  "assets/seasonal/halloween_v2/sky_cloud_2.png"
+  "assets/seasonal/halloween_v2/sky_cloud_3.png"
+  "assets/seasonal/halloween_v2/sky_cloud_4.png"
+  "assets/seasonal/halloween_v2/sky_cloud_5.png"
+  "assets/seasonal/halloween_v2/pumpkin_classic_eyes_mask.png"
+  "assets/seasonal/halloween_v2/pumpkin_surprised_eyes_mask.png"
+  "assets/seasonal/halloween_v2/pumpkin_sly_eyes_mask.png"
+  "assets/seasonal/christmas/christmas_background_edge_fill.png"
+  "assets/seasonal/christmas/snowman_body_rig.png"
+  "assets/seasonal/christmas/snowman_skate_back.png"
+  "assets/seasonal/christmas/snowman_skate_front.png"
+  "assets/seasonal/christmas/snowman_scarf_tail.png"
+  "ios/Runner/AppDelegate.swift"
+  "ios/RecztControl/RecztControlControl.swift"
+  "ios/RecztControl/RecztIdentifySongControl.swift"
+  "ios/RecztControl/RecztQuickIdentifyWidget.swift"
+  "ios/RecztControl/RecztRecognitionLiveActivity.swift"
+  "test/christmas_rig_render_test.dart"
+  "test/widget_test.dart"
+  "test/scene_energy_test.dart"
+  "test/halloween_event_test.dart"
   "assets/seasonal/halloween_v2/background_tree_clear.png"
   "assets/seasonal/halloween_v2/tree_isolated.png"
   "assets/seasonal/halloween_v2/moon_cloud_clean.png"
@@ -48,8 +79,12 @@ if ! grep -Fq 'assets/seasonal/halloween_v2/' "$reczt_project/pubspec.yaml"; the
   echo "This working project's Halloween asset declaration is missing. No files have been changed."
   exit 1
 fi
-# main.dart now gains the requested UI changes. Its existing Christmas imports
-# must be present, but this update must never replace that unfinished work.
+if ! grep -Fq 'assets/seasonal/christmas/' "$reczt_project/pubspec.yaml"; then
+  echo "The Christmas asset declaration is missing. No files have been changed."
+  exit 1
+fi
+# The working project must have the previous seasonal update. These existing
+# scene files are now intentionally backed up and revised for skating and wind.
 for reczt_existing in \
   "lib/main.dart" \
   "lib/seasonal/christmas_scene.dart" \
@@ -93,12 +128,20 @@ else
   reczt_files+=("$reczt_support")
 fi
 for reczt_file in "${reczt_files[@]}"; do
+  case "$reczt_file" in
+    ios/*)
+      if [ ! -f "$reczt_project/$reczt_file" ]; then
+        echo "Existing native file missing: $reczt_file. No files have been changed."
+        exit 1
+      fi
+      ;;
+  esac
   if [ ! -f "$reczt_source/$reczt_file" ]; then
     echo "Downloaded file missing: $reczt_file. No files have been changed."
     exit 1
   fi
 done
-reczt_backup="$(mktemp -d "$HOME/Desktop/Reczt-Halloween-backup-XXXXXX")"
+reczt_backup="$(mktemp -d "$HOME/Desktop/Reczt-Seasonal-backup-XXXXXX")"
 : > "$reczt_backup/new-files.txt"
 for reczt_file in "${reczt_files[@]}"; do
   if [ -f "$reczt_project/$reczt_file" ]; then
@@ -108,15 +151,14 @@ for reczt_file in "${reczt_files[@]}"; do
     echo "$reczt_file" >> "$reczt_backup/new-files.txt"
   fi
 done
-# Finish every backup before replacing anything. main.dart now includes the
-# requested Halloween text backing and whole-screen moon shadow host.
-# No Christmas scene, native Swift,
-# pubspec, Pods, generated configuration or signing files are copied.
+# Finish every backup before replacing anything, including the revised native
+# icon/energy bridge files and Christmas rig. Pods, signing, entitlements,
+# generated Flutter configuration and the Xcode project are never copied.
 for reczt_file in "${reczt_files[@]}"; do
   mkdir -p "$(dirname "$reczt_project/$reczt_file")"
   ditto "$reczt_source/$reczt_file" "$reczt_project/$reczt_file"
 done
-echo "Halloween updated in: $reczt_project"
+echo "Seasonal animation, event and widget update installed in: $reczt_project"
 echo "Your backup is at: $reczt_backup"
 echo "In Xcode, stop the app and Run Runner, then select Halloween in App Preferences."
 open "$reczt_project/ios/Runner.xcworkspace"

@@ -200,10 +200,9 @@ void main() {
     var blinks = 0, looks = 0;
     for (var frame = 0; frame < 500; frame++) {
       await tester.pump(const Duration(milliseconds: 100));
-      final head = tester.widget<HalloweenPaintedHead>(
-          find.byKey(const ValueKey('halloween-head-turn')));
-      final blink = head.blink;
-      final turning = head.turn.abs() > .00001;
+      final dynamic state = tester.state(find.byType(HalloweenLayeredSceneV2));
+      final blink = state.timeline.eyelid as double;
+      final turning = state.timeline.turn.abs() > .00001;
       if (blink > .01) blinks++;
       if (turning) looks++;
       expect(blink > .01 && turning, isFalse,
@@ -247,10 +246,9 @@ void main() {
         .pumpWidget(host(const HalloweenLayeredSceneV2(), reduceMotion: true));
     await tester.pump(const Duration(seconds: 60));
     expect(
-        tester
-            .widget<HalloweenPaintedHead>(
-                find.byKey(const ValueKey('halloween-head-turn')))
-            .blink,
+        (tester.state(find.byType(HalloweenLayeredSceneV2)) as dynamic)
+            .timeline
+            .eyelid,
         0);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

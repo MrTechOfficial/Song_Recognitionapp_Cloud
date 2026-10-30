@@ -22,6 +22,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'seasonal/halloween_scene_v2.dart';
 import 'seasonal/christmas_scene.dart';
 import 'seasonal/seasonal_scene_support.dart';
+import 'seasonal/halloween_event.dart';
+import 'seasonal/scene_frame_clock.dart';
 
 
 
@@ -1223,6 +1225,10 @@ void main() async {
 // --------------------------------------------------------------------
 final Map<String, Map<String, String>> localizedStrings = {
   'en': {
+    "halloween_event_title": "The Halloween Update Is Here!",
+    "halloween_event_body": "Moonlit skies, curious skeletons, and a pumpkin glow. Take a peek at Reczt’s spooky new look!",
+    "halloween_event_preview": "Check out the design",
+    "halloween_event_ok": "Ok",
     "clear_this_data": 'Clear This Data?',
     "clear_this_data_confirm": 'Clear only the {section} data? Your other Reczt data will stay.',
     "data_box_cleared": 'This data box was cleared.',
@@ -1376,6 +1382,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Other',
   },
   'es': {
+    "halloween_event_title": "¡Ya llegó la actualización de Halloween!",
+    "halloween_event_body": "Cielos de luna, esqueletos curiosos y calabazas brillantes. ¡Descubre el nuevo aspecto de Halloween de Reczt!",
+    "halloween_event_preview": "Ver el diseño",
+    "halloween_event_ok": "Vale",
     "clear_this_data": '¿Borrar estos datos?',
     "clear_this_data_confirm": '¿Borrar solo los datos de {section}? Tus otros datos de Reczt se conservarán.',
     "data_box_cleared": 'Se borraron los datos de esta tarjeta.',
@@ -1526,6 +1536,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Otro',
   },
   'fr': {
+    "halloween_event_title": "La mise à jour d’Halloween est là !",
+    "halloween_event_body": "Un ciel au clair de lune, des squelettes curieux et des citrouilles lumineuses. Découvrez le nouveau décor effrayant de Reczt !",
+    "halloween_event_preview": "Découvrir le décor",
+    "halloween_event_ok": "D’accord",
     "clear_this_data": 'Effacer ces données ?',
     "clear_this_data_confirm": 'Effacer uniquement les données de {section} ? Vos autres données Reczt seront conservées.',
     "data_box_cleared": 'Les données de cette carte ont été effacées.',
@@ -1676,6 +1690,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Autre',
   },
   'de': {
+    "halloween_event_title": "Das Halloween-Update ist da!",
+    "halloween_event_body": "Mondschein, neugierige Skelette und leuchtende Kürbisse. Entdecke den gruseligen neuen Look von Reczt!",
+    "halloween_event_preview": "Design ansehen",
+    "halloween_event_ok": "Okay",
     "clear_this_data": 'Diese Daten löschen?',
     "clear_this_data_confirm": 'Nur die Daten für {section} löschen? Deine anderen Reczt-Daten bleiben erhalten.',
     "data_box_cleared": 'Die Daten dieser Karte wurden gelöscht.',
@@ -1826,6 +1844,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Andere',
   },
   'it': {
+    "halloween_event_title": "L’aggiornamento di Halloween è arrivato!",
+    "halloween_event_body": "Cieli al chiaro di luna, scheletri curiosi e zucche luminose. Scopri il nuovo look da brivido di Reczt!",
+    "halloween_event_preview": "Scopri il design",
+    "halloween_event_ok": "Va bene",
     "clear_this_data": 'Cancellare questi dati?',
     "clear_this_data_confirm": 'Cancellare solo i dati di {section}? Gli altri dati Reczt resteranno invariati.',
     "data_box_cleared": 'I dati di questa scheda sono stati cancellati.',
@@ -1976,6 +1998,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Altro',
   },
   'pt': {
+    "halloween_event_title": "A atualização de Halloween chegou!",
+    "halloween_event_body": "Céus de luar, esqueletos curiosos e abóboras iluminadas. Conheça o novo visual assustador do Reczt!",
+    "halloween_event_preview": "Confira o visual",
+    "halloween_event_ok": "Ok",
     "clear_this_data": 'Limpar estes dados?',
     "clear_this_data_confirm": 'Limpar apenas os dados de {section}? Os outros dados do Reczt serão mantidos.',
     "data_box_cleared": 'Os dados deste cartão foram limpos.',
@@ -2126,6 +2152,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Outro',
   },
   'ja': {
+    "halloween_event_title": "ハロウィーンアップデートが登場！",
+    "halloween_event_body": "月明かりの空、好奇心いっぱいのガイコツ、光るカボチャ。Recztの楽しくてちょっぴり不気味な新デザインを見てみましょう！",
+    "halloween_event_preview": "デザインを見る",
+    "halloween_event_ok": "OK",
     "clear_this_data": 'このデータを消去しますか？',
     "clear_this_data_confirm": '{section} のデータだけを消去しますか？その他の Reczt データは残ります。',
     "data_box_cleared": 'このデータカードを消去しました。',
@@ -2277,6 +2307,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'その他',
   },
   'ko': {
+    "halloween_event_title": "할로윈 업데이트가 도착했어요!",
+    "halloween_event_body": "달빛 가득한 하늘, 호기심 많은 해골, 반짝이는 호박. Reczt의 으스스하고 재미있는 새 디자인을 만나 보세요!",
+    "halloween_event_preview": "디자인 보기",
+    "halloween_event_ok": "확인",
     "clear_this_data": '이 데이터를 지울까요?',
     "clear_this_data_confirm": '{section} 데이터만 지울까요? 다른 Reczt 데이터는 그대로 유지됩니다.',
     "data_box_cleared": '이 데이터 카드가 지워졌습니다.',
@@ -2428,6 +2462,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '기타',
   },
   'zh': {
+    "halloween_event_title": "万圣节更新来啦！",
+    "halloween_event_body": "月光下的天空、好奇的骷髅，还有发光的南瓜。快来看看 Reczt 趣味十足的万圣节新装吧！",
+    "halloween_event_preview": "看看新设计",
+    "halloween_event_ok": "好的",
     "clear_this_data": '清除这些数据？',
     "clear_this_data_confirm": '只清除 {section} 数据吗？其他 Reczt 数据将保留。',
     "data_box_cleared": '此数据卡已清除。',
@@ -2579,6 +2617,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '其他',
   },
   'hi': {
+    "halloween_event_title": "हैलोवीन अपडेट आ गया है!",
+    "halloween_event_body": "चाँदनी भरा आसमान, जिज्ञासु कंकाल और चमकते कद्दू। Reczt का मज़ेदार और डरावना नया रूप देखें!",
+    "halloween_event_preview": "नया डिज़ाइन देखें",
+    "halloween_event_ok": "ठीक है",
     "clear_this_data": 'यह डेटा साफ़ करें?',
     "clear_this_data_confirm": 'केवल {section} का डेटा साफ़ करें? आपका बाकी Reczt डेटा बना रहेगा।',
     "data_box_cleared": 'यह डेटा कार्ड साफ़ कर दिया गया।',
@@ -2730,6 +2772,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'अन्य',
   },
   'ru': {
+    "halloween_event_title": "Обновление к Хэллоуину уже здесь!",
+    "halloween_event_body": "Лунное небо, любопытные скелеты и светящиеся тыквы. Взгляните на новый жутко весёлый облик Reczt!",
+    "halloween_event_preview": "Посмотреть оформление",
+    "halloween_event_ok": "Хорошо",
     "clear_this_data": 'Очистить эти данные?',
     "clear_this_data_confirm": 'Очистить только данные «{section}»? Остальные данные Reczt сохранятся.',
     "data_box_cleared": 'Данные этой карточки очищены.',
@@ -2881,6 +2927,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Другое',
   },
   'tr': {
+    "halloween_event_title": "Cadılar Bayramı güncellemesi geldi!",
+    "halloween_event_body": "Ay ışıklı gökyüzü, meraklı iskeletler ve parlayan balkabakları. Reczt’in ürkütücü ve eğlenceli yeni görünümüne göz at!",
+    "halloween_event_preview": "Tasarımı incele",
+    "halloween_event_ok": "Tamam",
     "clear_this_data": 'Bu veriler temizlensin mi?',
     "clear_this_data_confirm": 'Yalnızca {section} verileri temizlensin mi? Diğer Reczt verileriniz korunur.',
     "data_box_cleared": 'Bu veri kartı temizlendi.',
@@ -3032,6 +3082,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Diğer',
   },
   'ar': {
+    "halloween_event_title": "وصل تحديث الهالوين!",
+    "halloween_event_body": "سماء يضيئها القمر وهياكل عظمية فضولية وقرع متوهج. اكتشف تصميم Reczt الجديد المليء بالمرح والأجواء المخيفة!",
+    "halloween_event_preview": "شاهد التصميم",
+    "halloween_event_ok": "حسنًا",
     "clear_this_data": 'مسح هذه البيانات؟',
     "clear_this_data_confirm": 'هل تريد مسح بيانات {section} فقط؟ ستبقى بيانات Reczt الأخرى كما هي.',
     "data_box_cleared": 'تم مسح بيانات هذه البطاقة.',
@@ -3183,6 +3237,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'أخرى',
   },
   'nl': {
+    "halloween_event_title": "De Halloween-update is er!",
+    "halloween_event_body": "Maanverlichte luchten, nieuwsgierige skeletten en gloeiende pompoenen. Bekijk de griezelig leuke nieuwe look van Reczt!",
+    "halloween_event_preview": "Bekijk het ontwerp",
+    "halloween_event_ok": "Oké",
     "clear_this_data": 'Deze gegevens wissen?',
     "clear_this_data_confirm": 'Alleen de gegevens van {section} wissen? Je andere Reczt-gegevens blijven behouden.',
     "data_box_cleared": 'De gegevens van deze kaart zijn gewist.',
@@ -3334,6 +3392,10 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Overig',
   },
   'pl': {
+    "halloween_event_title": "Aktualizacja na Halloween już jest!",
+    "halloween_event_body": "Księżycowe niebo, ciekawskie szkielety i świecące dynie. Zobacz nowy, strasznie fajny wygląd Reczt!",
+    "halloween_event_preview": "Zobacz wygląd",
+    "halloween_event_ok": "OK",
     "clear_this_data": 'Wyczyścić te dane?',
     "clear_this_data_confirm": 'Wyczyścić tylko dane {section}? Pozostałe dane Reczt zostaną zachowane.',
     "data_box_cleared": 'Dane tej karty zostały wyczyszczone.',
@@ -3925,10 +3987,14 @@ class _SeasonalAppBackgroundState extends SeasonalSceneState<_SeasonalAppBackgro
   Widget build(BuildContext context) {
     if (widget.season == RecztSeason.standard) return widget.child;
     if (widget.season == RecztSeason.halloween) {
-      return HalloweenSceneHost(child: widget.child);
+      return Listener(onPointerDown: (_) => SceneEnergyPolicy.instance.noteInteraction(),
+          onPointerSignal: (_) => SceneEnergyPolicy.instance.noteInteraction(),
+          child: HalloweenSceneHost(child: widget.child));
     }
     if (widget.season == RecztSeason.christmas) {
-      return ChristmasSceneHost(child: widget.child);
+      return Listener(onPointerDown: (_) => SceneEnergyPolicy.instance.noteInteraction(),
+          onPointerSignal: (_) => SceneEnergyPolicy.instance.noteInteraction(),
+          child: ChristmasSceneHost(child: widget.child));
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -5474,21 +5540,65 @@ class _SeasonalMicVisual extends StatelessWidget {
   }
 }
 
-class MyApp extends StatelessWidget {
-  final String currentLang;
-  final Color seedColor;
-  final RecztSeason seasonalTheme;
-
+class MyApp extends StatefulWidget {
   const MyApp({
     super.key,
     this.currentLang = 'en',
     this.seedColor = Colors.deepPurple,
     this.seasonalTheme = RecztSeason.standard,
+    this.home,
   });
+  final String currentLang;
+  final Color seedColor;
+  final RecztSeason seasonalTheme;
+  final Widget? home;
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  late String currentLang;
+  late Color seedColor;
+  late RecztSeason seasonalTheme;
+  @override
+  void initState() {
+    super.initState();
+    currentLang = widget.currentLang;
+    seedColor = widget.seedColor;
+    seasonalTheme = widget.seasonalTheme;
+  }
+
+  @override
+  void didUpdateWidget(covariant MyApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentLang != oldWidget.currentLang) {
+      currentLang = widget.currentLang;
+    }
+    if (widget.seedColor != oldWidget.seedColor) {
+      seedColor = widget.seedColor;
+    }
+    if (widget.seasonalTheme != oldWidget.seasonalTheme) {
+      seasonalTheme = widget.seasonalTheme;
+    }
+  }
+
+  void updatePreferences({
+    required String language,
+    required Color color,
+    required RecztSeason season,
+  }) {
+    setState(() {
+      currentLang = language;
+      seedColor = color;
+      seasonalTheme = season;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       locale: Locale(currentLang),
       theme: _buildRecztTheme(
         brightness: Brightness.light,
@@ -5505,15 +5615,10 @@ class MyApp extends StatelessWidget {
         final content = child ?? const SizedBox.shrink();
         return RecztSeasonalScope(
           season: seasonalTheme,
-          child: seasonalTheme == RecztSeason.standard
-              ? content
-              : _SeasonalAppBackground(
-                  season: seasonalTheme,
-                  child: content,
-                ),
+          child: _SeasonalAppBackground(season: seasonalTheme, child: content),
         );
       },
-      home: const AudioRecorderScreen(),
+      home: widget.home ?? const AudioRecorderScreen(),
     );
   }
 }
@@ -6135,6 +6240,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
   @override
   void dispose() {
+    SceneEnergyPolicy.instance.setBusy(false);
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
     _enhancedSearchTimer?.cancel();
@@ -6156,7 +6262,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_checkAndStartSiriRecording());
+        unawaited(_checkAndStartSiriRecording().then((_) =>
+            _showHalloweenAnnouncementIfNeeded()));
         unawaited(_handleQueuedRecognitionOnResume());
         unawaited(_importIOS27BackgroundResults());
       });
@@ -6544,9 +6651,65 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     await _importIOS27BackgroundResults();
     await _showLegalNoticeIfNeeded();
     await _showUserManualIfNeeded();
+    _startupDialogsFinished = true;
+    await _showHalloweenAnnouncementIfNeeded();
     if (mounted) {
       await _importServerOfflineResults();
       await _checkPendingOfflineQueue();
+    }
+  }
+
+  bool _sceneBusy = false;
+  bool _startupDialogsFinished = false;
+  bool _halloweenAnnouncementScheduled = false;
+  Future<void> _showHalloweenAnnouncementIfNeeded() async {
+    if (!mounted ||
+        !_startupDialogsFinished ||
+        !HalloweenEventCampaign.inWindow(DateTime.now()) ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        _halloweenAnnouncementScheduled ||
+        _isRecording ||
+        _isLoading ||
+        _seasonalPreview != RecztSeason.standard) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString('preferred_music_app') == null ||
+        prefs.getString('preferred_language') == null ||
+        prefs.getString('legal_notice_version') != recztLegalNoticeVersion ||
+        prefs.getBool('launchedFromSiri') == true) {
+      return;
+    }
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted ||
+        _halloweenAnnouncementScheduled ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        _seasonalPreview != RecztSeason.standard ||
+        _isRecording ||
+        _isLoading) {
+      return;
+    }
+    _halloweenAnnouncementScheduled = true;
+    final claimed = await HalloweenEventCampaign.claim(
+      prefs,
+      DateTime.now(),
+      standard: true,
+    );
+    if (!claimed) { _halloweenAnnouncementScheduled = false; return; }
+    if (!mounted) return;
+    final preview = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => HalloweenAnnouncement(t: t, language: _selectedLanguage),
+    );
+    if (preview == true && mounted) {
+      await _savePreferences(
+        _preferredMusicApp,
+        _selectedLanguage,
+        _themeSeedColor,
+        _autoPlayEnabled,
+        RecztSeason.halloween,
+      );
     }
   }
 
@@ -6570,9 +6733,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     });
 
     if (savedApp == null || savedLang == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showPreferencesDialog();
-      });
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) { await _showPreferencesDialog(); }
     }
   }
 
@@ -6593,6 +6755,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       unawaited(_prepareHandsFreeVoiceChoice());
     }
 
+    if (!mounted) return;
     setState(() {
       _preferredMusicApp = musicApp;
       _selectedLanguage = lang;
@@ -6604,28 +6767,20 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     unawaited(_syncIOS27RecognitionSettings());
 
     if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MyApp(
-            currentLang: lang,
-            seedColor: seedColor,
-            seasonalTheme: seasonalPreview,
-          ),
-        ),
-        (route) => false,
-      );
+      context.findAncestorStateOfType<_MyAppState>()?.updatePreferences(
+          language: lang, color: seedColor, season: seasonalPreview);
     }
   }
 
-  void _showPreferencesDialog() {
+  Future<void> _showPreferencesDialog() async {
+    bool savingPreferences = false;
     String tempApp = _preferredMusicApp;
     String tempLang = _selectedLanguage;
     Color tempColor = _themeSeedColor;
     bool tempAutoPlay = _autoPlayEnabled;
     RecztSeason tempSeason = _seasonalPreview;
 
-    showDialog(
+    await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
@@ -6860,15 +7015,15 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                   child: Text(t('cancel')),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _savePreferences(
-                      tempApp,
-                      tempLang,
-                      tempColor,
-                      tempAutoPlay,
-                      tempSeason,
-                    );
+                  onPressed: savingPreferences ? null : () async {
+                    setModalState(() => savingPreferences = true);
+                    try {
+                      await _savePreferences(tempApp, tempLang, tempColor,
+                          tempAutoPlay, tempSeason);
+                      if (context.mounted) { Navigator.pop(context); }
+                    } finally {
+                      if (context.mounted) { setModalState(() => savingPreferences = false); }
+                    }
                   },
                   child: Text(t('save')),
                 ),
@@ -6878,6 +7033,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         );
       },
     );
+    if (mounted && _startupDialogsFinished) {
+      await _showLegalNoticeIfNeeded();
+      await _showUserManualIfNeeded();
+      await _showHalloweenAnnouncementIfNeeded();
+    }
   }
 
   Future<void> _initSiriListener() async {
@@ -8508,6 +8668,14 @@ final isDarkMode = theme.brightness == Brightness.dark;
 final seasonalTheme = RecztSeasonalScope.of(context);
 final illustratedNight = seasonalTheme == RecztSeason.halloween ||
     seasonalTheme == RecztSeason.christmas;
+final sceneBusy = _isRecording || _isLoading;
+if (_sceneBusy != sceneBusy) {
+  _sceneBusy = sceneBusy;
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) SceneEnergyPolicy.instance.setBusy(sceneBusy);
+  });
+}
+
 
 final isChristmas =
     seasonalTheme == RecztSeason.christmas;
@@ -8603,7 +8771,7 @@ final christmasTextShadow = isChristmas
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const Divider(),
+                  if (!illustratedNight) const Divider(),
                   const SizedBox(height: 20),
                   Text(
                     t('where_are_you'),

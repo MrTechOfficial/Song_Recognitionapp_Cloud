@@ -120,7 +120,7 @@ struct RecztRecognitionLiveActivityWidget: Widget {
                 .foregroundStyle(christmas ? RecztChristmasPalette.gold : .green)
                 .accessibilityLabel("Song found")
         } else if compact || christmas {
-            Image(systemName: ["noMatch", "error", "denied"].contains(state.phase) ? "exclamationmark.circle" : "waveform")
+            Image(systemName: ["noMatch", "error", "denied"].contains(state.phase) ? "exclamationmark.circle" : "waveform.badge.mic")
                 .foregroundStyle(christmas ? RecztChristmasPalette.gold : .white)
                 .accessibilityLabel(expandedTitle(for: state))
         }
@@ -136,7 +136,7 @@ struct RecztRecognitionLiveActivityWidget: Widget {
         case "noMatch", "error", "denied":
             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
         default:
-            Image(systemName: "waveform.badge.mic").foregroundStyle(.orange).symbolEffect(.pulse)
+            Image(systemName: "waveform.badge.mic").foregroundStyle(.orange)
         }
     }
 

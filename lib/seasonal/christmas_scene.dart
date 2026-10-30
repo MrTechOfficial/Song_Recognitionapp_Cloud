@@ -1,4 +1,7 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'package:flutter/services.dart';
+import 'scene_frame_clock.dart';
 import 'package:flutter/material.dart';
 import 'christmas_skating.dart';
 import 'christmas_weather.dart';
@@ -12,8 +15,9 @@ class ChristmasSceneHost extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) => Stack(fit: StackFit.expand, children: [
+        const ColoredBox(color: Color(0xFF061A2B)),
         const ChristmasScene(),
-        child,
+        RepaintBoundary(child: child),
       ]);
 }
 
@@ -25,19 +29,20 @@ class ChristmasScene extends StatefulWidget {
 
 class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   static const _root = 'assets/seasonal/christmas';
-  late final AnimationController _clock;
+  late final SceneFrameClock _clock;
+  final _rig = <String, ui.Image>{};
+  ui.ImageShader? _scarf;
+  bool _rigLoading = false;
   late final List<_Snowflake> _flakes;
   ChristmasSkatingRoute? _route;
   Rect? _visible;
   @override
   void initState() {
     super.initState();
-    _clock = AnimationController(
-        vsync: this,
-        duration: const Duration(seconds: ChristmasWeather.loopSeconds));
+    _clock = SceneFrameClock(period: ChristmasWeather.loopSeconds.toDouble());
     final random = math.Random(19);
     _flakes = List.generate(
-        112,
+        64,
         (i) => _Snowflake(
             random.nextDouble(),
             random.nextDouble(),
@@ -49,8 +54,49 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    for (final pose in ['right', 'left']) {
-      precacheImage(AssetImage('$_root/snowman_skate_$pose.png'), context);
+    if (!_rigLoading) {
+      _rigLoading = true;
+      _loadRig();
+    }
+  }
+
+  Future<void> _loadRig() async {
+    final owned = <String, ui.Image>{};
+    var installed = false;
+    ui.ImageShader? scarf;
+    try {
+      for (final name in [
+        'body_rig',
+        'skate_back',
+        'skate_front',
+        'scarf_tail'
+      ]) {
+        final data = await rootBundle.load('$_root/snowman_$name.png');
+        final codec = await ui.instantiateImageCodec(
+            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        try {
+          owned[name] = (await codec.getNextFrame()).image;
+        } finally {
+          codec.dispose();
+        }
+        if (!mounted) return;
+      }
+      scarf = ui.ImageShader(owned['scarf_tail']!, TileMode.clamp,
+          TileMode.clamp, Matrix4.identity().storage);
+      setState(() {
+        _rig.addAll(owned);
+        _scarf = scarf;
+      });
+      installed = true;
+    } catch (error) {
+      debugPrint('Christmas rig unavailable: $error');
+    } finally {
+      if (!installed) {
+        scarf?.dispose();
+        for (final image in owned.values) {
+          image.dispose();
+        }
+      }
     }
   }
 
@@ -66,6 +112,10 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   @override
   void dispose() {
     _clock.dispose();
+    _scarf?.dispose();
+    for (final image in _rig.values) {
+      image.dispose();
+    }
     super.dispose();
   }
 
@@ -85,7 +135,8 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
         builder: (context, visible) => Stack(fit: StackFit.expand, children: [
           const RepaintBoundary(
               child: Image(
-                  image: AssetImage('$_root/christmas_background_clean.png'),
+                  image:
+                      AssetImage('$_root/christmas_background_edge_fill.png'),
                   fit: BoxFit.fill,
                   filterQuality: FilterQuality.high)),
           AnimatedBuilder(
@@ -110,7 +161,8 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
 
   Widget _snowman(SnowmanSkatingPose pose) {
     final width = pose.width;
-    Widget body() => _SkatingBody(pose: pose);
+    Widget body() =>
+        ChristmasSkatingFigure(pose: pose, images: _rig, scarf: _scarf);
     return Stack(children: [
       Positioned(
           left: pose.feet.dx - pose.shadowWidth / 2,
@@ -128,23 +180,15 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
                         .withValues(alpha: pose.shadowOpacity * .6),
                     blurRadius: 3 + pose.depth * 3)
               ]))),
-      Positioned(
-          left: pose.feet.dx - width * .52,
-          top: pose.feet.dy + 2,
-          width: width,
-          height: width * (.12 + pose.depth * .14),
-          child: Opacity(
-              opacity: pose.reflectionOpacity,
-              child: Transform.flip(
-                  flipY: true,
-                  child: ShaderMask(
-                      blendMode: BlendMode.dstIn,
-                      shaderCallback: (rect) => const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.transparent, Colors.white])
-                          .createShader(rect),
-                      child: body())))),
+      if (_rig['body_rig'] != null)
+        Positioned(
+            left: pose.feet.dx - width * .48,
+            top: pose.feet.dy + 2,
+            width: width * .90,
+            height: width * .16,
+            child: CustomPaint(
+                painter: _SnowmanReflection(
+                    _rig['body_rig']!, pose.reflectionOpacity * .60))),
       Positioned(
           key: const ValueKey('christmas-snowman'),
           left: pose.feet.dx - width * .52,
@@ -156,85 +200,146 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   }
 }
 
-/// Two skate poses, with a stable upper body. The left-facing leg pose is
-/// mirrored into the same direction and feathered in below the torso. This
-/// avoids alternating faces/hat silhouettes like a blinking two-frame GIF.
-class _SkatingBody extends StatelessWidget {
-  const _SkatingBody({required this.pose});
+/// Separate painted boots alternate support/push. The torso never dissolves.
+class ChristmasSkatingFigure extends StatelessWidget {
+  const ChristmasSkatingFigure(
+      {super.key,
+      required this.pose,
+      required this.images,
+      required this.scarf});
   final SnowmanSkatingPose pose;
-  static const _root = 'assets/seasonal/christmas';
+  final Map<String, ui.Image> images;
+  final ui.ImageShader? scarf;
   @override
-  Widget build(BuildContext context) {
-    final facing = ((pose.facing + .12) / .24).clamp(0.0, 1.0);
-    final rightAmount = facing * facing * (3 - 2 * facing);
-    Widget art(bool flip) => Transform.flip(
-        flipX: flip,
-        child: Transform.rotate(
-            angle: pose.lean * (flip ? -1 : 1),
-            alignment: Alignment.bottomCenter,
-            child: Stack(fit: StackFit.expand, children: [
-              ShaderMask(
-                  blendMode: BlendMode.dstIn,
-                  shaderCallback: (rect) => LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: const [
-                            0,
-                            .64,
-                            .79,
-                            1
-                          ],
-                          colors: [
-                            Colors.white,
-                            Colors.white,
-                            Colors.white
-                                .withValues(alpha: 1 - pose.strideBlend),
-                            Colors.white.withValues(alpha: 1 - pose.strideBlend)
-                          ]).createShader(rect),
-                  child: const Image(
-                      image: AssetImage('$_root/snowman_skate_right.png'),
-                      fit: BoxFit.fill,
-                      filterQuality: FilterQuality.high)),
-              Opacity(
-                  opacity: pose.strideBlend,
-                  child: ShaderMask(
-                      blendMode: BlendMode.dstIn,
-                      shaderCallback: (rect) => const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              stops: [
-                                0,
-                                .64,
-                                .79,
-                                1
-                              ],
-                              colors: [
-                                Colors.transparent,
-                                Colors.transparent,
-                                Colors.white,
-                                Colors.white
-                              ]).createShader(rect),
-                      child: const _MirroredSkatePose())),
-            ])));
-    return Transform.scale(
-        scaleX: .91 + .09 * pose.facing.abs(),
-        child: Stack(fit: StackFit.expand, children: [
-          if (rightAmount < 1)
-            Opacity(opacity: 1 - rightAmount, child: art(true)),
-          if (rightAmount > 0) Opacity(opacity: rightAmount, child: art(false)),
-        ]));
-  }
+  Widget build(BuildContext context) => images.isEmpty
+      ? const SizedBox.shrink()
+      : Transform.flip(
+          flipX: pose.facing < 0,
+          child: CustomPaint(painter: _SkaterPainter(pose, images, scarf!)));
 }
 
-class _MirroredSkatePose extends StatelessWidget {
-  const _MirroredSkatePose();
+class _SnowmanReflection extends CustomPainter {
+  const _SnowmanReflection(this.image, this.opacity);
+  final ui.Image image;
+  final double opacity;
   @override
-  Widget build(BuildContext context) => Transform.flip(
-      flipX: true,
-      child: const Image(
-          image: AssetImage('assets/seasonal/christmas/snowman_skate_left.png'),
-          fit: BoxFit.fill,
-          filterQuality: FilterQuality.high));
+  void paint(Canvas canvas, Size size) {
+    canvas.translate(0, size.height);
+    canvas.scale(1, -1);
+    canvas.drawImageRect(
+        image,
+        const Rect.fromLTWH(0, 0, 400, 400),
+        Offset.zero & size,
+        Paint()
+          ..color = Color.fromRGBO(255, 255, 255, opacity)
+          ..filterQuality = FilterQuality.low);
+  }
+
+  @override
+  bool shouldRepaint(_SnowmanReflection old) =>
+      opacity != old.opacity || image != old.image;
+}
+
+class _SkaterPainter extends CustomPainter {
+  const _SkaterPainter(this.pose, this.images, this.scarf);
+  final SnowmanSkatingPose pose;
+  final Map<String, ui.Image> images;
+  final ui.ImageShader scarf;
+  void layer(Canvas canvas, String name) {
+    canvas.drawImage(
+        images[name]!, Offset.zero, Paint()..filterQuality = FilterQuality.low);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 400, size.height / 400);
+    final push = math.sin(pose.stridePhase);
+    final back = math.pow(math.max(0.0, push), 2).toDouble(),
+        front = math.pow(math.max(0.0, -push), 2).toDouble();
+    canvas.translate(210, 385);
+    canvas.rotate(pose.lean * 1.6 + push * .025);
+    canvas.translate(-210, -385);
+    for (final rear in [true, false]) {
+      final weight = rear ? back : front;
+      final pivot = rear ? const Offset(123, 275) : const Offset(239, 313);
+      final hip = rear ? const Offset(136, 280) : const Offset(235, 302);
+      final ankle = pivot + Offset((rear ? -31 : 24) * weight, -18 * weight);
+      final leg = Path()
+        ..moveTo(hip.dx, hip.dy)
+        ..quadraticBezierTo((hip.dx + ankle.dx) / 2,
+            (hip.dy + ankle.dy) / 2 - 5, ankle.dx, ankle.dy);
+      canvas.drawPath(
+          leg,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 14
+            ..color = const Color(0xFFC1D7EA));
+      canvas.drawPath(
+          leg,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 10
+            ..color = const Color(0xFFEDF5F8));
+      canvas.save();
+      canvas.translate(
+          pivot.dx + (rear ? -31 : 24) * weight, pivot.dy - 18 * weight);
+      canvas.rotate((rear ? -.36 : .28) * weight);
+      canvas.translate(-pivot.dx, -pivot.dy);
+      layer(canvas, rear ? 'skate_back' : 'skate_front');
+      canvas.restore();
+    }
+    canvas.save();
+    canvas.translate(push * 3, -math.sin(pose.stridePhase * 2).abs() * 2);
+    _scarf(canvas);
+    layer(canvas, 'body_rig');
+    canvas.restore();
+    canvas.restore();
+  }
+
+  static final uv = <Offset>[
+    for (var y = 0; y <= 10; y++)
+      for (var x = 0; x <= 10; x++) Offset(x * 40.0, y * 40.0)
+  ];
+  static final ix = <int>[
+    for (var y = 0; y < 10; y++)
+      for (var x = 0; x < 10; x++) ...[
+        y * 11 + x,
+        y * 11 + x + 1,
+        (y + 1) * 11 + x,
+        y * 11 + x + 1,
+        (y + 1) * 11 + x + 1,
+        (y + 1) * 11 + x
+      ]
+  ];
+  void _scarf(Canvas canvas) {
+    final vertices = ui.Vertices(
+        ui.VertexMode.triangles,
+        [
+          for (final p in uv)
+            p +
+                Offset(
+                    0,
+                    (math.sin(pose.scarfPhase - p.dx / 41) * 10 +
+                            math.sin(pose.scarfPhase * .75 - p.dx / 27) * 3) *
+                        ((183 - p.dx) / 125).clamp(0.0, 1.0))
+        ],
+        textureCoordinates: uv,
+        indices: ix);
+    canvas.drawVertices(
+        vertices,
+        BlendMode.srcOver,
+        Paint()
+          ..shader = scarf
+          ..filterQuality = FilterQuality.low);
+    vertices.dispose();
+  }
+
+  @override
+  bool shouldRepaint(_SkaterPainter old) =>
+      pose != old.pose || images != old.images;
 }
 
 class _Snowflake {
@@ -498,38 +603,30 @@ class _WinterAtmosphere extends CustomPainter {
   }
 
   void _blowingSnow(Canvas canvas) {
-    final strength = ChristmasWeather.gustStrength(seconds);
-    if (strength <= 0) return;
-    final travel = ((seconds - 1) % 12 + 12) % 12 / 6;
-    for (var band = 0; band < 2; band++) {
+    for (var band = 0; band < 4; band++) {
+      final gust = ChristmasBreeze.sample(seconds, visible, band);
+      if (gust.opacity <= 0) continue;
       canvas.save();
-      canvas.translate(
-          visible.left - 110 + travel * (visible.width + 220) + band * 65,
-          visible.bottom -
-              (band == 0 ? 330 : 115) +
-              math.sin(travel * math.pi * 2 + band) * 12);
-      final curl = Path()
-        ..moveTo(-85, 8)
-        ..cubicTo(-50, -6, -15, 11, 25, -1)
-        ..cubicTo(48, -9, 57, -22, 43, -23)
-        ..cubicTo(34, -24, 29, -17, 38, -15);
+      canvas.translate(gust.position.dx, gust.position.dy);
+      for (var i = 0; i < 9; i++) {
+        final x = (i - 4) * 12.0;
+        canvas.drawCircle(
+            Offset(x, math.sin(i * 1.9 + seconds * 1.3) * 10),
+            1.3 + (i % 3) * .6,
+            Paint()
+              ..color = const Color(0xFFF2FAFF)
+                  .withValues(alpha: gust.opacity * .63));
+      }
+      final wisp = Path()
+        ..moveTo(-35, 5)
+        ..cubicTo(-10, -7, 12, 7, 35, -1);
       canvas.drawPath(
-          curl,
+          wisp,
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = 2.2
+            ..strokeWidth = 1.3
             ..color =
-                const Color(0xFFDAF0FF).withValues(alpha: .48 * strength));
-      for (var i = 0; i < 12; i++) {
-        canvas.drawCircle(
-            Offset(
-                -100 + i * 12.0, math.sin(i * 2.3 + seconds) * (8 + i % 3 * 4)),
-            1.6 + i % 3 * .6,
-            Paint()
-              ..color =
-                  const Color(0xFFF2FAFF).withValues(alpha: .85 * strength));
-      }
+                const Color(0xFFD8ECF9).withValues(alpha: gust.opacity * .20));
       canvas.restore();
     }
   }

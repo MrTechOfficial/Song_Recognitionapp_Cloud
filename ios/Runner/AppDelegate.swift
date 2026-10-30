@@ -6,6 +6,7 @@ import Speech
 import UserNotifications
 import MusicKit
 import StoreKit
+import WidgetKit
 
 class SiriBridge {
     static var channel: FlutterMethodChannel?
@@ -1364,6 +1365,13 @@ final class AppleMusicPlaylistBridge {
         let messenger = engineBridge.applicationRegistrar.messenger()
         
         RecztIOS27Bridge.register(with: messenger)
+        RecztSceneEnergyBridge.register(with: messenger)
+        let iconRevision = "waveform-mic-2026"
+        if UserDefaults.standard.string(forKey: "recztWidgetIconRevision") != iconRevision {
+            WidgetCenter.shared.reloadAllTimelines()
+            if #available(iOS 18.0, *) { ControlCenter.shared.reloadAllControls() }
+            UserDefaults.standard.set(iconRevision, forKey: "recztWidgetIconRevision")
+        }
         
         let siriChannel = FlutterMethodChannel(
             name: "com.handsfreefinder/siri",
@@ -1609,5 +1617,36 @@ struct AppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Identify Song",
             systemImageName: "mic.fill"        )
+    }
+}
+
+
+// Decoration budget only: microphone/session/native recognition are untouched.
+private final class RecztSceneEnergyBridge {
+    private static let shared = RecztSceneEnergyBridge()
+    private var channel: FlutterMethodChannel?
+    private var observers: [NSObjectProtocol] = []
+    private var policy: [String: Any] {
+        ["thermal": ProcessInfo.processInfo.thermalState.rawValue,
+         "lowPower": ProcessInfo.processInfo.isLowPowerModeEnabled]
+    }
+    static func register(with messenger: FlutterBinaryMessenger) {
+        let bridge = shared
+        bridge.channel = FlutterMethodChannel(name: "reczt/scene_energy", binaryMessenger: messenger)
+        bridge.channel?.setMethodCallHandler { [weak bridge] call, result in
+            guard call.method == "policy", let bridge else {
+                result(FlutterMethodNotImplemented); return
+            }
+            result(bridge.policy)
+        }
+        guard bridge.observers.isEmpty else { return }
+        for name in [ProcessInfo.thermalStateDidChangeNotification,
+                     Notification.Name.NSProcessInfoPowerStateDidChange] {
+            bridge.observers.append(NotificationCenter.default.addObserver(
+                forName: name, object: nil, queue: .main) { [weak bridge] _ in
+                    guard let bridge else { return }
+                    bridge.channel?.invokeMethod("policy", arguments: bridge.policy)
+                })
+        }
     }
 }

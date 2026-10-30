@@ -2,14 +2,15 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:song_recognition_app/seasonal/halloween_motion.dart';
+import 'package:song_recognition_app/seasonal/halloween_timeline.dart';
 
 void main() {
-  test('one leaf is released only after every third completed sway', () {
+  test('one leaf is released only after every ninth completed sway', () {
     final counter = HalloweenSwayCounter();
     for (var cycle = 1; cycle <= 15; cycle++) {
-      expect(counter.complete(), cycle % 3 == 0);
+      expect(counter.complete(), cycle % 9 == 0);
       expect(counter.completed, cycle);
-      expect(counter.leavesReleased, cycle ~/ 3);
+      expect(counter.leavesReleased, cycle ~/ 9);
     }
   });
 
@@ -125,33 +126,21 @@ void main() {
     final covered = Rect.fromCenter(
         center: HalloweenMoonOcclusion.moon, width: 130, height: 130);
     expect(mask.coverage(covered), 1);
-    expect(mask.dimming(covered), closeTo(.30, .00001));
+    expect(mask.dimming(covered), closeTo(.40, .00001));
     expect(
         HalloweenMoonOcclusion(List.filled(32 * 12, 0), 32, 12)
             .dimming(covered),
         0);
     const visible = Rect.fromLTWH(42, 0, 322, 696);
-    final levels = List.generate(1001,
-        (i) => mask.dimming(HalloweenMotion.cloudRect(i / 1000, visible)));
+    final levels = List.generate(
+        1001, (i) => mask.dimming(HalloweenSky.bankRect(i / 1000, visible)));
     expect(levels.first, 0);
     expect(levels.last, 0);
     expect(levels.reduce(math.max), greaterThan(.20));
     final shadeCurve = List.generate(
         1001, (i) => HalloweenMoonOcclusion.shadeForCoverage(i / 1000));
     for (var i = 1; i < shadeCurve.length; i++) {
-      expect((shadeCurve[i] - shadeCurve[i - 1]).abs(), lessThan(.001));
-    }
-  });
-
-  test('candle flicker is warm and bounded with a continuous long-cycle seam',
-      () {
-    final levels = List.generate(4301, (i) => HalloweenMotion.candle(i / 4300));
-    expect(levels.reduce(math.min), greaterThanOrEqualTo(.16));
-    expect(levels.reduce(math.max), lessThanOrEqualTo(1));
-    expect(levels.reduce(math.max) - levels.reduce(math.min), greaterThan(.55));
-    expect(levels.first, closeTo(levels.last, .000001));
-    for (var i = 1; i < levels.length; i++) {
-      expect((levels[i] - levels[i - 1]).abs(), lessThan(.03));
+      expect((shadeCurve[i] - shadeCurve[i - 1]).abs(), lessThan(.002));
     }
   });
 
@@ -179,23 +168,16 @@ void main() {
     expect(lower.dy - upper.dy, lessThan(2));
   });
 
-  test(
-      'clouds have distinct sizes, rates and heights and cross beyond the crop',
-      () {
-    const visible = Rect.fromLTWH(42, 0, 322, 696);
-    expect(HalloweenCloudFlight.sky.length, 6);
-    expect(HalloweenCloudFlight.sky.map((c) => c.width).toSet().length, 6);
-    expect(HalloweenCloudFlight.sky.map((c) => c.rate).toSet().length, 6);
-    for (final cloud in HalloweenCloudFlight.sky) {
-      final beforeWrap =
-          cloud.sample((1 - cloud.phase - .00001) / cloud.rate, visible);
-      final afterWrap =
-          cloud.sample((1 - cloud.phase + .00001) / cloud.rate, visible);
-      expect(beforeWrap.right, lessThan(visible.left));
-      expect(afterWrap.left, greaterThan(visible.right));
+  test('all six painted sky bands move at distinct rates', () {
+    final shifts = [for (var i = 0; i < 6; i++) HalloweenSky.bandLeft(10, i)];
+    expect(shifts.toSet().length, 6);
+    for (final shift in shifts) {
+      expect(shift, lessThan(-10));
+      expect(shift, greaterThan(-406));
     }
-    expect(HalloweenMotion.expression(0), 0);
-    expect(HalloweenMotion.expression(.5), 1);
-    expect(HalloweenMotion.expression(1), 0);
+    expect(HalloweenSky.heights.toSet().length, 6);
+    const visible = Rect.fromLTWH(42, 0, 322, 696);
+    expect(HalloweenSky.bankRect(0, visible).left, greaterThan(visible.right));
+    expect(HalloweenSky.bankRect(1, visible).right, lessThan(visible.left));
   });
 }

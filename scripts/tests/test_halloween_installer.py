@@ -13,6 +13,37 @@ FILES = [
     'lib/seasonal/halloween_scene_v2.dart', 'lib/seasonal/halloween_motion.dart',
     'lib/seasonal/halloween_characters.dart', 'lib/seasonal/halloween_carvings.dart',
     'lib/main.dart',
+    'lib/seasonal/halloween_timeline.dart',
+    'lib/seasonal/halloween_bats.dart',
+    'lib/seasonal/halloween_event.dart',
+    'lib/seasonal/scene_frame_clock.dart',
+    'lib/seasonal/christmas_scene.dart',
+    'lib/seasonal/christmas_skating.dart',
+    'lib/seasonal/christmas_weather.dart',
+    'assets/seasonal/halloween_v2/background_living_sky.png',
+    'assets/seasonal/halloween_v2/sky_cloud_0.png',
+    'assets/seasonal/halloween_v2/sky_cloud_1.png',
+    'assets/seasonal/halloween_v2/sky_cloud_2.png',
+    'assets/seasonal/halloween_v2/sky_cloud_3.png',
+    'assets/seasonal/halloween_v2/sky_cloud_4.png',
+    'assets/seasonal/halloween_v2/sky_cloud_5.png',
+    'assets/seasonal/halloween_v2/pumpkin_classic_eyes_mask.png',
+    'assets/seasonal/halloween_v2/pumpkin_surprised_eyes_mask.png',
+    'assets/seasonal/halloween_v2/pumpkin_sly_eyes_mask.png',
+    'assets/seasonal/christmas/christmas_background_edge_fill.png',
+    'assets/seasonal/christmas/snowman_body_rig.png',
+    'assets/seasonal/christmas/snowman_skate_back.png',
+    'assets/seasonal/christmas/snowman_skate_front.png',
+    'assets/seasonal/christmas/snowman_scarf_tail.png',
+    'ios/Runner/AppDelegate.swift',
+    'ios/RecztControl/RecztControlControl.swift',
+    'ios/RecztControl/RecztIdentifySongControl.swift',
+    'ios/RecztControl/RecztQuickIdentifyWidget.swift',
+    'ios/RecztControl/RecztRecognitionLiveActivity.swift',
+    'test/christmas_rig_render_test.dart',
+    'test/widget_test.dart',
+    'test/scene_energy_test.dart',
+    'test/halloween_event_test.dart',
     'lib/seasonal/seasonal_scene_support.dart',
     *['assets/seasonal/halloween_v2/' + name + '.png' for name in [
         'background_tree_clear', 'tree_isolated', 'moon_cloud_clean', 'pumpkin_closed',
@@ -24,7 +55,8 @@ FILES = [
     'test/halloween_scene_test.dart', 'test/halloween_assets_test.dart',
     'test/halloween_rig_render_test.dart',
 ]
-EXISTING = {FILES[0], 'lib/main.dart', 'test/seasonal_scenes_test.dart'}
+EXISTING = {FILES[0], 'lib/main.dart', 'test/seasonal_scenes_test.dart', 'test/widget_test.dart',
+    *[name for name in FILES if name.startswith('ios/') or name.startswith('lib/seasonal/christmas_')]}
 
 
 class HalloweenInstallerTests(unittest.TestCase):
@@ -39,13 +71,11 @@ class HalloweenInstallerTests(unittest.TestCase):
             self.write(self.source / name, 'new: ' + name)
             if name in EXISTING:
                 self.write(self.target / name, 'old: ' + name)
-        self.write(self.target / 'pubspec.yaml', 'flutter:\n  assets:\n    - assets/seasonal/halloween_v2/\n')
+        self.write(self.target / 'pubspec.yaml', 'flutter:\n  assets:\n    - assets/seasonal/halloween_v2/\n    - assets/seasonal/christmas/\n')
         (self.target / 'ios/Runner.xcworkspace').mkdir(parents=True)
         self.write(self.target / 'ios/Flutter/Generated.xcconfig', f'FLUTTER_APPLICATION_PATH={self.target}\n')
-        self.protected = ['lib/seasonal/christmas_scene.dart',
-            'lib/seasonal/christmas_weather.dart', 'lib/seasonal/christmas_skating.dart',
-            'assets/seasonal/christmas/christmas_background_clean.png',
-            'ios/RecztControl/RecztRecognitionLiveActivity.swift',
+        self.protected = ['assets/seasonal/christmas/christmas_background_clean.png',
+            'ios/Runner/iOS 27 System Integration/RecztRecognitionCoordinator.swift',
             'ios/Pods/keep', 'ios/Runner.xcodeproj/project.pbxproj']
         for name in self.protected:
             self.write(self.target / name, 'preserve: ' + name)
@@ -97,14 +127,34 @@ class HalloweenInstallerTests(unittest.TestCase):
         self.unchanged()
         self.assertFalse(self.backup.exists())
 
+    def test_missing_new_snowman_layer_aborts_before_any_writes(self):
+        (self.source / 'assets/seasonal/christmas/snowman_scarf_tail.png').unlink()
+        self.assertNotEqual(self.install().returncode, 0)
+        self.unchanged()
+        self.assertFalse(self.backup.exists())
+
+    def test_missing_existing_native_file_aborts_before_any_writes(self):
+        missing = 'ios/Runner/AppDelegate.swift'
+        (self.target / missing).unlink()
+        result = self.install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(missing, result.stdout)
+        self.assertEqual((self.target / 'lib/main.dart').read_text(), 'old: lib/main.dart')
+        self.assertFalse(self.backup.exists())
+
     def test_installed_scene_contains_every_relative_dart_dependency(self):
         # Use the real libraries, rather than synthetic manifest contents, so
         # this catches a helper omitted from both the script and FILES above.
         for source in (ROOT / 'lib/seasonal').glob('*.dart'):
             self.write(self.source / 'lib/seasonal' / source.name, source.read_text())
+        self.write(self.source / 'lib/main.dart', (ROOT / 'lib/main.dart').read_text())
+        # Existing seasonal dependencies retained in the working project.
+        for source in (ROOT / 'lib/seasonal').glob('*.dart'):
+            if source.name not in ['halloween_timeline.dart','halloween_bats.dart','halloween_event.dart','scene_frame_clock.dart']:
+                self.write(self.target / 'lib/seasonal' / source.name, source.read_text())
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        pending = [self.target / 'lib/seasonal/halloween_scene_v2.dart']
+        pending = [self.target / 'lib/main.dart']
         visited = set()
         while pending:
             source = pending.pop().resolve()

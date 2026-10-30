@@ -34,7 +34,7 @@ struct RecztQuickIdentifyWidget: Widget {
                 Text("Reczt")
                     .font(.headline)
 
-                Button(intent: ActivateRecztShortcutIntent()) {                    Label("Identify", systemImage: "mic.fill")                        .frame(maxWidth: .infinity)
+                Button(intent: ActivateRecztShortcutIntent()) {                    Label("Identify", systemImage: "waveform.badge.mic")                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)

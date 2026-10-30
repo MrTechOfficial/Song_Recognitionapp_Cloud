@@ -11,9 +11,12 @@ class SnowmanSkatingPose {
       required this.strideBlend,
       required this.lift,
       required this.depth,
-      required this.speed});
+      required this.speed,
+      this.stridePhase = 0,
+      this.scarfPhase = 0});
   final Offset feet;
   final double width, lean, facing, strideBlend, lift, depth, speed;
+  final double stridePhase, scarfPhase;
   bool get moving => speed > .1;
   // Kept for callers inspecting orientation; the renderer never flattens the PNG edge-on.
   double get yaw => facing < 0 ? math.pi : 0;
@@ -68,7 +71,7 @@ class ChristmasSkatingRoute {
     }
   }
   static const double period = 96;
-  static const double startingPhase = 56;
+  static const double startingPhase = 64;
   static const _samples = 768;
   static const _durations = [18.0, 20.0, 10.0, 8.0, 10.0, 10.0, 10.0, 10.0];
   final Rect visible;
@@ -130,6 +133,8 @@ class ChristmasSkatingRoute {
       lift: push * (.15 + .65 * depth),
       depth: depth,
       speed: speed,
+      stridePhase: cycle * math.pi,
+      scarfPhase: elapsed * math.pi * 2 / 1.5,
     );
   }
 }
