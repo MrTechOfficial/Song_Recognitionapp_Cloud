@@ -40,6 +40,10 @@ reczt_files=(
   "ios/RecztControl/RecztIdentifySongControl.swift"
   "ios/RecztControl/RecztQuickIdentifyWidget.swift"
   "ios/RecztControl/RecztRecognitionLiveActivity.swift"
+  "ios/Runner/iOS 27 System Integration/RecztRecognitionAttributes.swift"
+  "ios/Runner/iOS 27 System Integration/RecztLiveActivityManager.swift"
+  "ios/Runner/iOS 27 System Integration/RecztSharedStore.swift"
+  "ios/Runner/iOS 27 System Integration/RecztIOS27Bridge.swift"
   "test/christmas_rig_render_test.dart"
   "test/widget_test.dart"
   "test/scene_energy_test.dart"
@@ -150,9 +154,10 @@ for reczt_file in "${reczt_files[@]}"; do
     echo "$reczt_file" >> "$reczt_backup/new-files.txt"
   fi
 done
-# Finish every backup before replacing anything, including the revised native
-# icon/energy bridge files and Christmas rig. Pods, signing, entitlements,
-# generated Flutter configuration and the Xcode project are never copied.
+# Finish every backup before replacing anything. Install the Live Activity view,
+# shared attributes, manager, settings and bridge as one matching seasonal set.
+# This includes the revised native icon/energy files and Christmas rig. Pods,
+# signing, entitlements, generated config and the Xcode project are never copied.
 for reczt_file in "${reczt_files[@]}"; do
   mkdir -p "$(dirname "$reczt_project/$reczt_file")"
   ditto "$reczt_source/$reczt_file" "$reczt_project/$reczt_file"

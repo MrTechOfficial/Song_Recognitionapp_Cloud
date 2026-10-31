@@ -147,8 +147,8 @@ movement, rare gestures, exact ninth-sway releases, source asset decoding/edges,
 clock/thermal/audio budgets, a simulated ten-minute idle/cache check, pause/resume,
 Reduce Motion, taps during dimming, root/navigator lifetime, all event translations,
 campaign boundaries/once-only persistence and the existing winter route checks.
-All 17 installer/repair checks pass, covering backups before writes, every local Dart import from the
-installed main.dart, new images, native inputs, build paths and protected config.
+All 18 installer/repair checks pass, covering backups before writes, every local Dart import from the
+installed main.dart, new images, matching native seasonal schemas, build paths and protected config.
 
 Production browser checks cover fresh-install preferences/legal/manual/event ordering,
 a later eligible foreground resume after opening before the event, theme round trips,
@@ -174,7 +174,7 @@ its `scripts/install-halloween-update-macos.sh`. The default working project is
 The installer verifies that Generated.xcconfig builds that actual folder, checks
 required existing scene/native files and asset declarations, backs up every
 existing file it replaces to Desktop, and records new files. It now intentionally
-updates the requested Christmas modules and five native icon/energy files as well
+updates the requested Christmas modules and nine native files as well
 as Halloween, main.dart and tests. The shared lifecycle helper is added if missing,
 kept if identical, and preserved for review if different. Dependencies, Pods,
 generated config, project files, signing and entitlements are not replaced.
@@ -184,6 +184,16 @@ The installer also supports older working folders that lack
 and missing paths are recorded in the backup's `new-files.txt`. Their absence no
 longer stops installation. The existing app/scene entry points and native files
 are still required, and every downloaded input is checked before any backup/write.
+
+The Live Activity view is installed together with its shared attributes, manager,
+settings store and Flutter bridge. Earlier installers omitted the last four files,
+which could leave the new widget using an older three-argument attributes type
+and fail with `Extra argument 'seasonalTheme' in call` plus preview inference
+errors. All four matching dependencies already exist in the source ZIP and are
+now backed up and copied as part of the update; Xcode project files are unchanged.
+These dependencies are `RecztRecognitionAttributes.swift`,
+`RecztLiveActivityManager.swift`, `RecztSharedStore.swift` and `RecztIOS27Bridge.swift`
+under `ios/Runner/iOS 27 System Integration/`. Their repository source is unchanged.
 
 Stop and Run in Xcode so native/widget changes rebuild. To inspect the event,
 select Standard during its window; the announcement is deliberately once-only.

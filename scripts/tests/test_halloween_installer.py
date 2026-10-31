@@ -40,6 +40,10 @@ FILES = [
     'ios/RecztControl/RecztIdentifySongControl.swift',
     'ios/RecztControl/RecztQuickIdentifyWidget.swift',
     'ios/RecztControl/RecztRecognitionLiveActivity.swift',
+    'ios/Runner/iOS 27 System Integration/RecztRecognitionAttributes.swift',
+    'ios/Runner/iOS 27 System Integration/RecztLiveActivityManager.swift',
+    'ios/Runner/iOS 27 System Integration/RecztSharedStore.swift',
+    'ios/Runner/iOS 27 System Integration/RecztIOS27Bridge.swift',
     'test/christmas_rig_render_test.dart',
     'test/widget_test.dart',
     'test/scene_energy_test.dart',
@@ -141,6 +145,38 @@ class HalloweenInstallerTests(unittest.TestCase):
         self.assertIn(missing, result.stdout)
         self.assertEqual((self.target / 'lib/main.dart').read_text(), 'old: lib/main.dart')
         self.assertFalse(self.backup.exists())
+
+    def test_native_seasonal_schema_and_widget_are_installed_together(self):
+        # Discover the actual runtime users of the seasonal schema so omitting
+        # a file from both the installer and FILES cannot conceal this mismatch.
+        native_sources = [source for folder in ['ios/Runner', 'ios/RecztControl']
+                          for source in (ROOT / folder).rglob('*.swift')
+                          if re.search(r'\bseasonalTheme\b|attributes\.isChristmas',
+                                       source.read_text())]
+        attributes = 'ios/Runner/iOS 27 System Integration/RecztRecognitionAttributes.swift'
+        self.assertIn(ROOT / attributes, native_sources)
+        for source in native_sources:
+            name = source.relative_to(ROOT)
+            self.write(self.source / name, source.read_text())
+            self.write(self.target / name, 'old: ' + str(name))
+        # Reproduce the pre-seasonal three-argument attributes definition that
+        # caused "Extra argument seasonalTheme" in the new widget previews.
+        old_attributes = (ROOT / attributes).read_text().replace(
+            '    var seasonalTheme: String? = nil\n', '').replace(
+            '    var isChristmas: Bool { seasonalTheme == "christmas" }\n', '')
+        self.assertNotIn('seasonalTheme', old_attributes)
+        self.write(self.target / attributes, old_attributes)
+        originals = {source.relative_to(ROOT):
+                     (self.target / source.relative_to(ROOT)).read_bytes()
+                     for source in native_sources}
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for source in native_sources:
+            name = source.relative_to(ROOT)
+            self.assertEqual((self.target / name).read_bytes(), source.read_bytes(), str(name))
+            self.assertEqual((self.backup / name).read_bytes(), originals[name], str(name))
+        for name in self.protected:
+            self.assertEqual((self.target / name).read_text(), 'preserve: ' + name)
 
     def test_installed_scene_contains_every_relative_dart_dependency(self):
         # Use the real libraries, rather than synthetic manifest contents, so
