@@ -1,5 +1,9 @@
 # Seasonal animation, event and energy update
 
+The latest visual refinements and both native character sets are documented in
+[seasonal-softening-update.md](seasonal-softening-update.md). This earlier report
+describes the foundation release; its animation parameters predate that refinement.
+
 This revision addresses the Halloween corrections, widget identification symbols,
 once-only Halloween announcement, Christmas skating/wind, and idle resource use.
 The winter scene remains work in progress; later roof-direction work is recorded

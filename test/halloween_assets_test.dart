@@ -146,7 +146,7 @@ void main() {
           1001, (i) => mask.dimming(HalloweenSky.bankRect(i / 1000, visible)));
       expect(levels.first, 0);
       expect(levels.last, 0);
-      expect(levels.reduce(math.max), inInclusiveRange(.30, .40));
+      expect(levels.reduce(math.max), inInclusiveRange(.24, .30));
       for (var i = 1; i < levels.length; i++) {
         expect((levels[i] - levels[i - 1]).abs(), lessThan(.012));
       }

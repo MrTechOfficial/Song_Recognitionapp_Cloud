@@ -138,26 +138,32 @@ void main() {
     expect(ChristmasWeather.wind(4).abs(), greaterThan(40));
   });
 
-  test(
-      'roof snow falls from the front cap and settles quickly into the bank pile',
+  test('roof snow takes the left slope and creates a little pile on impact',
       () {
     expect(ChristmasWeather.roofSnowAt(0).visible, isFalse);
     final slide = ChristmasWeather.roofSnowAt(3.5);
-    final falling = ChristmasWeather.roofSnowAt(4.5);
-    final fallingLater = ChristmasWeather.roofSnowAt(4.8);
-    final landed = ChristmasWeather.roofSnowAt(5.4);
+    final falling = ChristmasWeather.roofSnowAt(4.6);
+    final fallingLater = ChristmasWeather.roofSnowAt(4.9);
+    final landed = ChristmasWeather.roofSnowAt(5.7);
     expect(slide.visible, isTrue);
-    expect(slide.position.dx, lessThan(falling.position.dx));
+    expect(slide.position.dx, greaterThan(falling.position.dx));
     expect(slide.position.dy, lessThan(falling.position.dy));
     final earlyDrop =
-        ChristmasWeather.roofSnowAt(4.6).position.dy - falling.position.dy;
+        ChristmasWeather.roofSnowAt(4.7).position.dy - falling.position.dy;
     final lateDrop =
-        ChristmasWeather.roofSnowAt(4.9).position.dy - fallingLater.position.dy;
+        ChristmasWeather.roofSnowAt(5.0).position.dy - fallingLater.position.dy;
     expect(lateDrop, greaterThan(earlyDrop));
-    expect(landed.position, const Offset(826, 725));
+    expect(landed.position, const Offset(733, 731));
     expect(landed.landed, isTrue);
-    expect(ChristmasWeather.roofSnowAt(5.9).visible, isFalse);
-    for (final join in [4.35, 5.2]) {
+    expect(ChristmasWeather.roofSnowAt(6.2).visible, isFalse);
+    expect(ChristmasWeather.roofSnowAt(2).pile, 0);
+    expect(ChristmasWeather.roofSnowAt(5).pile, 0);
+    expect(landed.pile, inExclusiveRange(0, 1));
+    expect(ChristmasWeather.roofSnowAt(7).pile, 1);
+    expect(ChristmasWeather.roofSnowAt(24).pile, 0);
+    expect(
+        ChristmasWeather.roofBank.dx, lessThan(ChristmasWeather.roofEave.dx));
+    for (final join in [4.25, 5.4]) {
       expect(
           (ChristmasWeather.roofSnowAt(join - .0001).position -
                   ChristmasWeather.roofSnowAt(join + .0001).position)

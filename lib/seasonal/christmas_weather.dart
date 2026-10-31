@@ -31,9 +31,10 @@ class ChristmasRoofSnowState {
       {required this.position,
       required this.rotation,
       required this.opacity,
-      required this.scatter});
+      required this.scatter,
+      this.pile = 0});
   final Offset position;
-  final double rotation, opacity, scatter;
+  final double rotation, opacity, scatter, pile;
   bool get visible => opacity > 0;
   bool get landed => scatter > 0;
 }
@@ -42,7 +43,8 @@ class ChristmasRoofSnowState {
 /// weather event can change the skating route or depend on scroll position.
 class ChristmasWeather {
   static const loopSeconds = 384;
-  static const roofBank = Offset(826, 725);
+  static const roofBank = Offset(733, 731);
+  static const roofStart = Offset(821, 591), roofEave = Offset(743, 666);
   // Artwork-space centers of the seven bulbs, including the partially cropped
   // bulbs at the sides. Use the same cover transform as the background.
   static const lightPositions = [
@@ -85,33 +87,40 @@ class ChristmasWeather {
   }
 
   static ChristmasRoofSnowState roofSnowAt(double seconds) {
-    // The front gable's snow cap. Fresh snow joins a small settled pile rather
-    // than hanging around as airborne flecks after landing.
+    // Follow the front gable's LEFT slope, then drop beside the left wall.
+    // A new mound grows on impact, rests, then gently blends back into the bank.
     final age = ((seconds - 3) % 24 + 24) % 24;
-    const roof = Offset(822, 591), eave = Offset(840, 612), bank = roofBank;
-    if (age >= 2.85) {
-      return const ChristmasRoofSnowState(
-          position: roof, rotation: .78, opacity: 0, scatter: 0);
+    const roof = roofStart, eave = roofEave, bank = roofBank;
+    final grow = ((age - 2.4) / .65).clamp(0.0, 1.0);
+    final melt = 1 - ((age - 16) / 5).clamp(0.0, 1.0);
+    final pile = grow * grow * (3 - 2 * grow) * melt;
+    if (age >= 3.15) {
+      return ChristmasRoofSnowState(
+          position: roof, rotation: -.78, opacity: 0, scatter: 0, pile: pile);
     }
-    if (age < 1.35) {
-      final slide = math.pow(age / 1.35, 1.7).toDouble();
+    if (age < 1.25) {
+      final slide = math.pow(age / 1.25, 1.7).toDouble();
       return ChristmasRoofSnowState(
           position: Offset.lerp(roof, eave, slide)!,
-          rotation: .78 - slide * .13,
+          rotation: -.78 + slide * .13,
           opacity: (age / .15).clamp(0, 1),
           scatter: 0);
     }
-    if (age < 2.2) {
-      final fall = (age - 1.35) / .85;
+    if (age < 2.4) {
+      final fall = (age - 1.25) / 1.15;
       return ChristmasRoofSnowState(
           position: Offset(eave.dx + (bank.dx - eave.dx) * fall,
               eave.dy + (bank.dy - eave.dy) * fall * fall),
-          rotation: .65 + fall * .6,
+          rotation: -.65 - fall * .3,
           opacity: 1,
           scatter: 0);
     }
-    final scatter = (age - 2.2) / .65;
+    final scatter = (age - 2.4) / .75;
     return ChristmasRoofSnowState(
-        position: bank, rotation: 0, opacity: 1 - scatter, scatter: scatter);
+        position: bank,
+        rotation: 0,
+        opacity: 1 - scatter,
+        scatter: scatter,
+        pile: pile);
   }
 }

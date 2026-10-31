@@ -49,6 +49,22 @@ void main() {
       }
     }
   });
+  test('native activity copy is in all fifteen canonical dictionaries', () {
+    for (final language in localizedStrings.entries) {
+      for (final key in [
+        'activity_no_match',
+        'activity_ended',
+        'activity_error',
+        'activity_listening_hint',
+        'activity_search_hint',
+        'activity_seconds_remaining'
+      ]) {
+        expect(language.value[key], isNotEmpty, reason: '${language.key}/$key');
+      }
+      expect(
+          language.value['activity_seconds_remaining'], contains('{seconds}'));
+    }
+  });
   testWidgets(
       'localized popup fits a small phone, supports RTL, and returns the chosen action',
       (tester) async {

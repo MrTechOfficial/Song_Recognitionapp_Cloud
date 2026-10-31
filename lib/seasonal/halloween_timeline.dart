@@ -6,8 +6,12 @@ class HalloweenSky {
   static const tops = [53.0, 112.0, 155.0, 300.0, 388.0, 470.0];
   static const heights = [59.0, 43.0, 57.0, 88.0, 82.0, 65.0];
   static double bandLeft(double seconds, int index) =>
-      -(seconds * (1.2 + index * .23) % 406);
-  static double bankPhase(double seconds) => (seconds / 62 + .07) % 1;
+      -(seconds * (.72 + index * .14) % 406);
+  // One gentle crossing, followed by clear sky. The former 62-second loop
+  // shaded the controls too often. Reset happens fully outside the viewport.
+  static const bankCycle = 180.0, bankTravel = 86.0;
+  static double bankPhase(double seconds) =>
+      ((seconds % bankCycle) / bankTravel + .02).clamp(0.0, 1.0);
   static Rect bankRect(double phase, Rect visible) => Rect.fromLTWH(
       visible.right + 40 - phase * (visible.width + 350 + 80), 27, 350, 139);
 }
@@ -49,8 +53,18 @@ class HalloweenTimeline {
       nextFace = 38,
       faceUntil = 0,
       nextFlicker = 16;
-  double direction = 1, treeAmplitude = 25;
-  int face = 0, lastFace = 0, launchedBats = 0;
+  double direction = 1, treeAmplitude = 12;
+  int face = 0, previousFace = 0, lastFace = 0, launchedBats = 0;
+  double faceChangedAt = -1;
+  static const faceTransitionSeconds = 1.15;
+  double get faceBlend =>
+      HalloweenMotion.ease((time - faceChangedAt) / faceTransitionSeconds);
+  void _changeFace(int next) {
+    previousFace = face;
+    face = next;
+    faceChangedAt = time;
+  }
+
   HalloweenLeafFlight? fall;
   List<HalloweenBatFlight> flights = [];
   double between(double a, double b) => a + random.nextDouble() * (b - a);
@@ -83,36 +97,38 @@ class HalloweenTimeline {
       nextTree = time + between(4, 7);
     }
     if (!tree.active && time >= nextTree) {
-      treeAmplitude = (random.nextBool() ? 1 : -1) * between(23, 32);
-      tree.begin(time, between(6, 8));
+      treeAmplitude = (random.nextBool() ? 1 : -1) * between(10, 15);
+      tree.begin(time, between(8, 11));
     }
     leaf.finish(time);
     if (bats.finish(time)) nextBat = time + between(7, 12);
     if (!bats.active && time >= nextBat) {
-      final right = random.nextBool();
       flights = List.generate(
           2 + random.nextInt(3),
           (i) => HalloweenBatFlight(
-              rightward: right,
-              width: between(23, 35),
-              duration: between(6, 9),
-              delay: i * .8,
-              altitude: between(-42, 70),
-              bend: between(-30, 30),
-              flapPeriod: between(.48, .72),
-              flapPhase: between(0, 6)));
+              rightward: random.nextBool(),
+              width: between(20, 32),
+              duration: between(10, 15),
+              delay: i * between(.6, 1.5),
+              altitude: between(-46, 125),
+              bend: between(-34, 38),
+              flapPeriod: between(.85, 1.2),
+              flapPhase: between(0, 6),
+              wander: between(3, 9),
+              wanderPhase: between(0, math.pi * 2),
+              wanderCycles: between(.65, 1.35)));
       launchedBats += flights.length;
       bats.begin(
           time, flights.map((f) => f.delay + f.duration).reduce(math.max));
     }
     if (face != 0 && time >= faceUntil) {
-      face = 0;
+      _changeFace(0);
       nextFace = time + between(35, 55);
     }
     if (face == 0 && time >= nextFace) {
-      face = lastFace == 1 ? 2 : 1;
+      _changeFace(lastFace == 1 ? 2 : 1);
       lastFace = face;
-      faceUntil = time + between(3, 4);
+      faceUntil = time + between(4.5, 5.5);
     }
     if (candle.finish(time)) nextFlicker = time + between(28, 45);
     if (!candle.active && time >= nextFlicker) candle.begin(time, .95);

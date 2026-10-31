@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'halloween_motion.dart';
+import 'halloween_carvings.dart';
 
 /// One painted texture bends over a rounded skull surface. There are no
 /// dissolving perspective PNGs; eye vertices physically close the sockets.
@@ -16,7 +17,7 @@ class HalloweenPaintedHead extends StatelessWidget {
   @override
   Widget build(BuildContext context) => texture == null
       ? Image.asset('assets/seasonal/halloween_v2/skeleton_skull_rig.png',
-          fit: BoxFit.fill)
+          fit: BoxFit.fill, filterQuality: FilterQuality.high)
       : CustomPaint(painter: _SkullPainter(texture!, turn, blink, nod));
 }
 
@@ -58,7 +59,7 @@ class _SkullPainter extends CustomPainter {
         BlendMode.srcOver,
         Paint()
           ..shader = texture
-          ..filterQuality = FilterQuality.low);
+          ..filterQuality = FilterQuality.high);
     vertices.dispose();
     canvas.restore();
   }
@@ -105,7 +106,7 @@ void paintPaintedPumpkin(
       image,
       Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
       const Rect.fromLTWH(0, 0, 115, 96),
-      Paint()..filterQuality = FilterQuality.low);
+      Paint()..filterQuality = FilterQuality.high);
   if (dim > 0) {
     canvas.save();
     canvas.clipRect(const Rect.fromLTWH(24, 30, 76, 25));
@@ -130,8 +131,99 @@ void paintHalloweenSkull(
         image,
         Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
         Offset.zero & size,
-        Paint()..filterQuality = FilterQuality.low);
+        Paint()..filterQuality = FilterQuality.high);
   } else {
     _SkullPainter(texture, turn, blink, 0).paint(canvas, size);
+  }
+}
+
+/// The painted apertures physically change shape: both images are warped onto
+/// the same moving eye/mouth landmarks before their paint colors blend. This
+/// avoids a dissolve between two stationary faces, duplicate eyes or a flame.
+/// Shaders are created once per scene; only three small radial patches move.
+class HalloweenPumpkinRig {
+  HalloweenPumpkinRig(this.faces, this.eyeMasks)
+      : textures = [for (final image in faces) _texture(image)],
+        maskTextures = [for (final image in eyeMasks) _texture(image)];
+  final List<ui.Image> faces, eyeMasks;
+  final List<ui.ImageShader> textures, maskTextures;
+  static ui.ImageShader _texture(ui.Image image) => ui.ImageShader(
+      image, TileMode.clamp, TileMode.clamp, Matrix4.identity().storage);
+  void dispose() {
+    for (final shader in [...textures, ...maskTextures]) {
+      shader.dispose();
+    }
+  }
+
+  void paint(Canvas canvas, Rect rect,
+      {required int from,
+      required int to,
+      required double blend,
+      double dim = 0}) {
+    if (from == to || blend >= 1) {
+      paintPaintedPumpkin(canvas, rect, faces[to], eyeMasks[to], dim);
+      return;
+    }
+    if (blend <= 0) {
+      paintPaintedPumpkin(canvas, rect, faces[from], eyeMasks[from], dim);
+      return;
+    }
+    final source = HalloweenCarvings.landmarks[from];
+    final target = HalloweenCarvings.landmarks[to];
+    final positions = [
+      for (var i = 0; i < source.length; i++)
+        Offset.lerp(source[i], target[i], blend)!
+    ];
+    final indices = HalloweenCarvings.indices;
+    final first = ui.Vertices(ui.VertexMode.triangles, positions,
+        textureCoordinates: source, indices: indices);
+    final second = ui.Vertices(ui.VertexMode.triangles, positions,
+        textureCoordinates: target, indices: indices);
+    canvas.save();
+    canvas.translate(rect.left, rect.top);
+    canvas.scale(rect.width / 115, rect.height / 96);
+    final bounds = const Rect.fromLTWH(0, 0, 115, 96);
+    for (final (image, opacity) in [(faces[from], 1.0), (faces[to], blend)]) {
+      canvas.drawImageRect(
+          image,
+          bounds,
+          bounds,
+          Paint()
+            ..filterQuality = FilterQuality.high
+            ..color = Color.fromRGBO(255, 255, 255, opacity));
+    }
+    canvas.clipRect(const Rect.fromLTRB(24, 27, 102, 86));
+    canvas.drawVertices(
+        first,
+        BlendMode.srcOver,
+        Paint()
+          ..shader = textures[from]
+          ..filterQuality = FilterQuality.high);
+    canvas.drawVertices(
+        second,
+        BlendMode.srcOver,
+        Paint()
+          ..shader = textures[to]
+          ..filterQuality = FilterQuality.high
+          ..color = Color.fromRGBO(255, 255, 255, blend));
+    if (dim > 0) {
+      canvas.clipRect(const Rect.fromLTWH(24, 30, 76, 25));
+      for (final (mesh, shader, opacity) in [
+        (first, maskTextures[from], 1 - blend),
+        (second, maskTextures[to], blend)
+      ]) {
+        canvas.drawVertices(
+            mesh,
+            BlendMode.srcOver,
+            Paint()
+              ..shader = shader
+              ..filterQuality = FilterQuality.high
+              ..colorFilter = ColorFilter.mode(
+                  Color.fromRGBO(35, 16, 8, dim * opacity), BlendMode.srcIn));
+      }
+    }
+    canvas.restore();
+    first.dispose();
+    second.dispose();
   }
 }

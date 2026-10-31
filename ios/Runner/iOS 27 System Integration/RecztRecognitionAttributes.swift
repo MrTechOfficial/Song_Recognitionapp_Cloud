@@ -28,4 +28,5 @@ struct RecztRecognitionAttributes: ActivityAttributes {
     var seasonalTheme: String? = nil
 
     var isChristmas: Bool { seasonalTheme == "christmas" }
+    var isHalloween: Bool { seasonalTheme == "halloween" }
 }

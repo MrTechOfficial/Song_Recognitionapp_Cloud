@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'halloween_bats.dart';
@@ -42,7 +43,7 @@ class HalloweenAnnouncement extends StatelessWidget {
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         const ExcludeSemantics(
                             child: SizedBox(
-                                height: 94,
+                                height: 132,
                                 width: 270,
                                 child: CustomPaint(painter: _EventSky()))),
                         Text(t('halloween_event_title'),
@@ -62,7 +63,7 @@ class HalloweenAnnouncement extends StatelessWidget {
                         const SizedBox(height: 24),
                         SizedBox(
                             width: double.infinity,
-                            child: FilledButton(
+                            child: FilledButton.icon(
                                 key: const ValueKey('halloween-event-preview'),
                                 style: FilledButton.styleFrom(
                                     backgroundColor: const Color(0xFFFFAF52),
@@ -70,7 +71,9 @@ class HalloweenAnnouncement extends StatelessWidget {
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 15)),
                                 onPressed: () => Navigator.pop(context, true),
-                                child: Text(t('halloween_event_preview')))),
+                                icon: const Icon(Icons.palette_outlined,
+                                    size: 20),
+                                label: Text(t('halloween_event_preview')))),
                         TextButton(
                             key: const ValueKey('halloween-event-ok'),
                             style: TextButton.styleFrom(
@@ -84,17 +87,19 @@ class _EventSky extends CustomPainter {
   const _EventSky();
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawCircle(Offset(size.width * .53, 40), 32,
-        Paint()..color = const Color(0xFFFFCB78));
+    final warm = Paint()..color = const Color(0xFFFFCB78);
+    canvas.drawCircle(Offset(size.width * .53, 53), 34, warm);
+    canvas.drawCircle(Offset(size.width * .53, 53), 42,
+        Paint()..color = const Color(0xFFFFBA65).withValues(alpha: .08));
     for (final p in [
-      const Offset(121, 24),
-      const Offset(153, 47),
-      const Offset(139, 60)
+      const Offset(121, 37),
+      const Offset(153, 60),
+      const Offset(139, 73)
     ]) {
       canvas.drawCircle(p, 5, Paint()..color = const Color(0xFFE7AC63));
     }
-    paintHalloweenBat(canvas, const Offset(68, 35), 61, .5, -.12);
-    paintHalloweenBat(canvas, Offset(size.width - 44, 60), 42, -.4, .15);
+    paintHalloweenBat(canvas, const Offset(75, 48), 49, .5, -.12);
+    paintHalloweenBat(canvas, Offset(size.width - 42, 65), 35, -.4, .15);
     for (final p in [
       const Offset(28, 64),
       const Offset(194, 14),
@@ -102,6 +107,84 @@ class _EventSky extends CustomPainter {
       const Offset(101, 76)
     ]) {
       canvas.drawCircle(p, 1.5, Paint()..color = const Color(0xFFE8C3F7));
+    }
+    // A bowed paper bunting and little ink pumpkins make this an event card,
+    // rather than just the old moon illustration. No recurring animation loop.
+    final cable = Path()
+      ..moveTo(6, 1)
+      ..quadraticBezierTo(size.width / 2, 32, size.width - 6, 1);
+    canvas.drawPath(
+        cable,
+        Paint()
+          ..color = const Color(0xFFC6A2DC)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3);
+    for (var i = 0; i < 9; i++) {
+      final x = 14 + i * (size.width - 28) / 8;
+      final y = math.sin((i + .3) / 8.6 * math.pi) * 15;
+      final flag = Path()
+        ..moveTo(x - 7, y)
+        ..lineTo(x + 7, y)
+        ..lineTo(x + 1, y + 14)
+        ..close();
+      canvas.drawPath(
+          flag,
+          Paint()
+            ..color =
+                i.isEven ? const Color(0xFFF0A356) : const Color(0xFF9B76B6));
+    }
+    for (final (x, scale, tilt) in [(49.0, 1.0, -.10), (209.0, .78, .09)]) {
+      canvas.save();
+      canvas.translate(x, 108);
+      canvas.rotate(tilt);
+      canvas.scale(scale);
+      canvas.drawOval(const Rect.fromLTWH(-23, -18, 46, 35),
+          Paint()..color = const Color(0xFFEF8E3D));
+      canvas.drawOval(const Rect.fromLTWH(-13, -18, 26, 35),
+          Paint()..color = const Color(0xFFFFA650));
+      canvas.drawPath(
+          Path()
+            ..moveTo(-2, -17)
+            ..quadraticBezierTo(-4, -27, 5, -25),
+          Paint()
+            ..color = const Color(0xFF9DAD70)
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeWidth = 4);
+      for (final eye in [-8.0, 8.0]) {
+        canvas.drawPath(
+            Path()
+              ..moveTo(eye, -9)
+              ..lineTo(eye - 4, -2)
+              ..lineTo(eye + 4, -2)
+              ..close(),
+            warm);
+      }
+      canvas.drawPath(
+          Path()
+            ..moveTo(-11, 4)
+            ..quadraticBezierTo(0, 17, 12, 4)
+            ..quadraticBezierTo(0, 9, -11, 4),
+          warm);
+      canvas.restore();
+    }
+    for (final point in [
+      const Offset(15, 76),
+      const Offset(251, 95),
+      const Offset(103, 108)
+    ]) {
+      canvas.drawLine(
+          point + const Offset(-3, 0),
+          point + const Offset(3, 0),
+          Paint()
+            ..color = const Color(0xFFD4B4E6)
+            ..strokeWidth = 1.3);
+      canvas.drawLine(
+          point + const Offset(0, -3),
+          point + const Offset(0, 3),
+          Paint()
+            ..color = const Color(0xFFD4B4E6)
+            ..strokeWidth = 1.3);
     }
   }
 

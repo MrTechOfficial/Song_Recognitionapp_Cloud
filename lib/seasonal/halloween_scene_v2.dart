@@ -57,6 +57,7 @@ class _HalloweenLayeredSceneV2State
   late final HalloweenTimeline timeline;
   final images = <String, ui.Image>{};
   ui.ImageShader? treeTexture, skullTexture;
+  HalloweenPumpkinRig? pumpkin;
   HalloweenMoonOcclusion? moon;
   Rect? _visible;
   List<double> _shadeCurve = [];
@@ -113,6 +114,7 @@ class _HalloweenLayeredSceneV2State
   Future<void> _load() async {
     final owned = <String, ui.Image>{};
     ui.ImageShader? tree, skull;
+    HalloweenPumpkinRig? pumpkinRig;
     var installed = false;
     try {
       for (final name in [
@@ -130,7 +132,7 @@ class _HalloweenLayeredSceneV2State
         'fog_near_clean',
         'leaf_01',
         'leaf_02',
-        for (var i = 0; i < 6; i++) 'sky_cloud_$i'
+        for (var i = 2; i < 6; i++) 'sky_cloud_$i'
       ]) {
         final data = await rootBundle.load('$root/$name.png');
         final codec = await ui.instantiateImageCodec(
@@ -153,11 +155,19 @@ class _HalloweenLayeredSceneV2State
           TileMode.clamp, Matrix4.identity().storage);
       skull = ui.ImageShader(owned['skeleton_skull_rig']!, TileMode.clamp,
           TileMode.clamp, Matrix4.identity().storage);
+      pumpkinRig = HalloweenPumpkinRig([
+        for (final face in ['classic', 'surprised', 'sly'])
+          owned['pumpkin_$face']!
+      ], [
+        for (final face in ['classic', 'surprised', 'sly'])
+          owned['pumpkin_${face}_eyes_mask']!
+      ]);
       setState(() {
         images.addAll(owned);
         treeTexture = tree;
         skullTexture = skull;
         moon = coverage;
+        pumpkin = pumpkinRig;
       });
       installed = true;
     } catch (error) {
@@ -166,6 +176,7 @@ class _HalloweenLayeredSceneV2State
       if (!installed) {
         tree?.dispose();
         skull?.dispose();
+        pumpkinRig?.dispose();
         for (final image in owned.values) {
           image.dispose();
         }
@@ -178,7 +189,7 @@ class _HalloweenLayeredSceneV2State
     _visible = visible;
     if (moon == null) return;
     _shadeCurve = List.generate(257,
-        (i) => moon!.dimming(HalloweenSky.bankRect(i / 256, visible)) * .97);
+        (i) => moon!.dimming(HalloweenSky.bankRect(i / 256, visible)) * .90);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _publishShade();
     });
@@ -215,6 +226,7 @@ class _HalloweenLayeredSceneV2State
                 images,
                 treeTexture!,
                 skullTexture!,
+                pumpkin!,
                 visible,
                 _still,
                 widget.moonShade == null ? () => moonShade : null));
@@ -225,6 +237,7 @@ class _HalloweenLayeredSceneV2State
     clock.dispose();
     treeTexture?.dispose();
     skullTexture?.dispose();
+    pumpkin?.dispose();
     for (final image in images.values) {
       image.dispose();
     }
@@ -234,12 +247,13 @@ class _HalloweenLayeredSceneV2State
 
 class _HalloweenWorld extends CustomPainter {
   _HalloweenWorld(this.clock, this.scene, this.images, this.tree, this.skull,
-      this.visible, this.still, this.shade)
+      this.pumpkin, this.visible, this.still, this.shade)
       : super(repaint: clock);
   final SceneFrameClock clock;
   final HalloweenTimeline scene;
   final Map<String, ui.Image> images;
   final ui.ImageShader tree, skull;
+  final HalloweenPumpkinRig pumpkin;
   final Rect visible;
   final bool still;
   final double Function()? shade;
@@ -251,7 +265,7 @@ class _HalloweenWorld extends CustomPainter {
         Rect.fromLTWH(0, 0, im.width.toDouble(), im.height.toDouble()),
         rect,
         Paint()
-          ..filterQuality = FilterQuality.low
+          ..filterQuality = FilterQuality.high
           ..color = Color.fromRGBO(255, 255, 255, opacity)
           ..colorFilter = tint);
   }
@@ -266,22 +280,24 @@ class _HalloweenWorld extends CustomPainter {
     for (var i = 0; i < 6; i++) {
       final shift = staticScene ? 0.0 : -HalloweenSky.bandLeft(t, i);
       for (final x in [-shift, 406 - shift]) {
+        // The first two original strips contain a circular moon cutout. Use
+        // a clean, flatter painted bank there rather than moving that outline.
         image(
             canvas,
-            'sky_cloud_$i',
+            i < 2 ? 'moon_cloud_bank' : 'sky_cloud_$i',
             Rect.fromLTWH(
-                x,
+                x + (i < 2 ? 24 + i * 90 : 0),
                 HalloweenSky.tops[i] +
                     (staticScene ? 0 : math.sin(t / 13 + i) * 2),
-                406,
-                HalloweenSky.heights[i]),
-            opacity: .83);
+                i < 2 ? (i == 0 ? 285 : 235) : 406,
+                i < 2 ? (i == 0 ? 41 : 33) : HalloweenSky.heights[i]),
+            opacity: [.65, .65, .77, .45, .30, .16][i]);
       }
     }
     if (!staticScene) {
       image(canvas, 'moon_cloud_bank',
           HalloweenSky.bankRect(HalloweenSky.bankPhase(t), visible),
-          opacity: .97,
+          opacity: .90,
           tint: const ColorFilter.mode(Color(0xFF9583AC), BlendMode.modulate));
     }
     _tree(canvas, staticScene || !scene.tree.active ? 0 : scene.tree.phase(t));
@@ -292,8 +308,8 @@ class _HalloweenWorld extends CustomPainter {
           canvas,
           'fog_${i == 0 ? 'far' : 'near'}_clean',
           Rect.fromLTWH(visible.left - 90 + dx, [568.0, 612.0, 650.0][i],
-              visible.width + 180, 53),
-          opacity: [.16, .20, .10][i]);
+              visible.width + 180, 42),
+          opacity: [.065, .075, .035][i]);
     }
     if (!staticScene && scene.bats.active) {
       final age = t - scene.bats.start;
@@ -326,16 +342,11 @@ class _HalloweenWorld extends CustomPainter {
     final pumpkinRect = Rect.fromLTWH(visible.left + 14,
         696 - 27 - width * 96 / 115, width, width * 96 / 115);
     final face = staticScene ? 0 : scene.face;
-    paintPaintedPumpkin(
-        canvas,
-        pumpkinRect,
-        images[['pumpkin_classic', 'pumpkin_surprised', 'pumpkin_sly'][face]]!,
-        images[[
-          'pumpkin_classic_eyes_mask',
-          'pumpkin_surprised_eyes_mask',
-          'pumpkin_sly_eyes_mask'
-        ][face]]!,
-        staticScene ? 0 : scene.eyeDim);
+    pumpkin.paint(canvas, pumpkinRect,
+        from: staticScene ? 0 : scene.previousFace,
+        to: face,
+        blend: staticScene ? 1 : scene.faceBlend,
+        dim: staticScene ? 0 : scene.eyeDim);
     canvas.save();
     canvas.translate(
         HalloweenMotion.skullRect.left, HalloweenMotion.skullRect.top);
@@ -383,7 +394,7 @@ class _HalloweenWorld extends CustomPainter {
         BlendMode.srcOver,
         Paint()
           ..shader = tree
-          ..filterQuality = FilterQuality.low);
+          ..filterQuality = FilterQuality.high);
     mesh.dispose();
   }
 

@@ -44,6 +44,7 @@ FILES = [
     'ios/Runner/iOS 27 System Integration/RecztLiveActivityManager.swift',
     'ios/Runner/iOS 27 System Integration/RecztSharedStore.swift',
     'ios/Runner/iOS 27 System Integration/RecztIOS27Bridge.swift',
+    'ios/RunnerTests/RunnerTests.swift',
     'test/christmas_rig_render_test.dart',
     'test/widget_test.dart',
     'test/scene_energy_test.dart',
@@ -163,7 +164,8 @@ class HalloweenInstallerTests(unittest.TestCase):
         # caused "Extra argument seasonalTheme" in the new widget previews.
         old_attributes = (ROOT / attributes).read_text().replace(
             '    var seasonalTheme: String? = nil\n', '').replace(
-            '    var isChristmas: Bool { seasonalTheme == "christmas" }\n', '')
+            '    var isChristmas: Bool { seasonalTheme == "christmas" }\n', '').replace(
+            '    var isHalloween: Bool { seasonalTheme == "halloween" }\n', '')
         self.assertNotIn('seasonalTheme', old_attributes)
         self.write(self.target / attributes, old_attributes)
         originals = {source.relative_to(ROOT):

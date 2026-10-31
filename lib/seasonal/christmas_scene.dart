@@ -258,17 +258,21 @@ class _SkaterPainter extends CustomPainter {
     final back = math.pow(math.max(0.0, push), 2).toDouble(),
         front = math.pow(math.max(0.0, -push), 2).toDouble();
     canvas.translate(210, 385);
-    canvas.rotate(pose.lean * 1.6 + push * .025);
+    canvas.rotate(pose.lean + push * .006);
     canvas.translate(-210, -385);
     for (final rear in [true, false]) {
       final weight = rear ? back : front;
       final pivot = rear ? const Offset(123, 275) : const Offset(239, 313);
-      final hip = rear ? const Offset(136, 280) : const Offset(235, 302);
-      final ankle = pivot + Offset((rear ? -31 : 24) * weight, -18 * weight);
+      final hip = rear ? const Offset(141, 306) : const Offset(235, 302);
+      // Bring the raised boot to the ice once, then alternate tiny pushes.
+      // Both blades share a contact plane instead of the old high marching kick.
+      final rest = rear ? const Offset(8, 43) : const Offset(-3, -7);
+      final shift = rest + Offset((rear ? -8 : 7) * weight, -5 * weight);
+      final ankle = pivot + shift;
       final leg = Path()
         ..moveTo(hip.dx, hip.dy)
         ..quadraticBezierTo((hip.dx + ankle.dx) / 2,
-            (hip.dy + ankle.dy) / 2 - 5, ankle.dx, ankle.dy);
+            (hip.dy + ankle.dy) / 2 - 2, ankle.dx, ankle.dy);
       canvas.drawPath(
           leg,
           Paint()
@@ -284,15 +288,14 @@ class _SkaterPainter extends CustomPainter {
             ..strokeWidth = 10
             ..color = const Color(0xFFEDF5F8));
       canvas.save();
-      canvas.translate(
-          pivot.dx + (rear ? -31 : 24) * weight, pivot.dy - 18 * weight);
-      canvas.rotate((rear ? -.36 : .28) * weight);
+      canvas.translate(pivot.dx + shift.dx, pivot.dy + shift.dy);
+      canvas.rotate((rear ? .27 : 0) + (rear ? -.065 : .055) * weight);
       canvas.translate(-pivot.dx, -pivot.dy);
       layer(canvas, rear ? 'skate_back' : 'skate_front');
       canvas.restore();
     }
     canvas.save();
-    canvas.translate(push * 3, -math.sin(pose.stridePhase * 2).abs() * 2);
+    canvas.translate(push * .9, -math.sin(pose.stridePhase * 2).abs() * .6);
     _scarf(canvas);
     layer(canvas, 'body_rig');
     canvas.restore();
@@ -322,8 +325,8 @@ class _SkaterPainter extends CustomPainter {
             p +
                 Offset(
                     0,
-                    (math.sin(pose.scarfPhase - p.dx / 41) * 10 +
-                            math.sin(pose.scarfPhase * .75 - p.dx / 27) * 3) *
+                    (math.sin(pose.scarfPhase - p.dx / 41) * 7 +
+                            math.sin(pose.scarfPhase * .75 - p.dx / 27) * 2) *
                         ((183 - p.dx) / 125).clamp(0.0, 1.0))
         ],
         textureCoordinates: uv,
@@ -361,7 +364,7 @@ class _WinterAtmosphere extends CustomPainter {
       _clouds(canvas);
       _smoke(canvas);
       _lights(canvas);
-      _roofSnow(canvas);
+      ChristmasRoofSnowPainter(seconds).paint(canvas, size);
     }
     for (final flake in flakes) {
       if ((flake.layer == 2) != foreground) continue;
@@ -502,6 +505,79 @@ class _WinterAtmosphere extends CustomPainter {
     }
   }
 
+  void _blowingSnow(Canvas canvas) {
+    for (var band = 0; band < 4; band++) {
+      final gust = ChristmasBreeze.sample(seconds, visible, band);
+      if (gust.opacity <= 0) continue;
+      canvas.save();
+      canvas.translate(gust.position.dx, gust.position.dy);
+      for (var i = 0; i < 9; i++) {
+        final x = (i - 4) * 12.0;
+        canvas.drawCircle(
+            Offset(x, math.sin(i * 1.9 + seconds * 1.3) * 10),
+            1.3 + (i % 3) * .6,
+            Paint()
+              ..color = const Color(0xFFF2FAFF)
+                  .withValues(alpha: gust.opacity * .63));
+      }
+      final wisp = Path()
+        ..moveTo(-35, 5)
+        ..cubicTo(-10, -7, 12, 7, 35, -1);
+      canvas.drawPath(
+          wisp,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.3
+            ..color =
+                const Color(0xFFD8ECF9).withValues(alpha: gust.opacity * .20));
+      canvas.restore();
+    }
+  }
+
+  void _twig(Canvas canvas, Size size) {
+    // A small new foreground sprig, not a rotating rectangular patch of scenery.
+    final breeze = ChristmasWeather.wind(seconds) / 67;
+    canvas.save();
+    canvas.translate(visible.right - 16, size.height - 58);
+    canvas.rotate(breeze * .10);
+    final twig = Path()
+      ..moveTo(0, 0)
+      ..quadraticBezierTo(-2, -24, -13, -43)
+      ..moveTo(-5, -20)
+      ..lineTo(-23, -31)
+      ..moveTo(-9, -33)
+      ..lineTo(2, -48);
+    canvas.drawPath(
+        twig,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF112C40));
+    canvas.drawLine(
+        const Offset(-22, -32),
+        const Offset(-9, -25),
+        Paint()
+          ..color = const Color(0xFFC6DBE8)
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_WinterAtmosphere oldDelegate) =>
+      seconds != oldDelegate.seconds ||
+      foreground != oldDelegate.foreground ||
+      visible != oldDelegate.visible;
+}
+
+/// Shared production painter also lets the actual cabin fall/pile be inspected
+/// independently of foreground menus. Coordinates use the original artwork.
+class ChristmasRoofSnowPainter extends CustomPainter {
+  const ChristmasRoofSnowPainter(this.seconds);
+  final double seconds;
+  @override
+  void paint(Canvas canvas, Size size) => _roofSnow(canvas);
   void _roofSnow(Canvas canvas) {
     final snow = ChristmasWeather.roofSnowAt(seconds);
     _roofSnowPile(canvas, snow);
@@ -575,12 +651,13 @@ class _WinterAtmosphere extends CustomPainter {
   }
 
   void _roofSnowPile(Canvas canvas, ChristmasRoofSnowState snow) {
-    // A modest existing drift receives each fall. Keeping the resting mound
-    // avoids either vanishing snow or an abrupt reset at the scene-clock seam.
+    // The little mound is created by the fall, then gradually settles/melts.
+    if (snow.pile <= 0) return;
     final settle = snow.landed ? math.sin(snow.scatter * math.pi) * 1.8 : 0.0;
     canvas.save();
     canvas.translate(
         ChristmasWeather.roofBank.dx, ChristmasWeather.roofBank.dy);
+    canvas.scale(.50 + .50 * snow.pile, snow.pile);
     final pile = Path()
       ..moveTo(-20, 2)
       ..quadraticBezierTo(-16, -3, -10, -4)
@@ -602,68 +679,6 @@ class _WinterAtmosphere extends CustomPainter {
     canvas.restore();
   }
 
-  void _blowingSnow(Canvas canvas) {
-    for (var band = 0; band < 4; band++) {
-      final gust = ChristmasBreeze.sample(seconds, visible, band);
-      if (gust.opacity <= 0) continue;
-      canvas.save();
-      canvas.translate(gust.position.dx, gust.position.dy);
-      for (var i = 0; i < 9; i++) {
-        final x = (i - 4) * 12.0;
-        canvas.drawCircle(
-            Offset(x, math.sin(i * 1.9 + seconds * 1.3) * 10),
-            1.3 + (i % 3) * .6,
-            Paint()
-              ..color = const Color(0xFFF2FAFF)
-                  .withValues(alpha: gust.opacity * .63));
-      }
-      final wisp = Path()
-        ..moveTo(-35, 5)
-        ..cubicTo(-10, -7, 12, 7, 35, -1);
-      canvas.drawPath(
-          wisp,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.3
-            ..color =
-                const Color(0xFFD8ECF9).withValues(alpha: gust.opacity * .20));
-      canvas.restore();
-    }
-  }
-
-  void _twig(Canvas canvas, Size size) {
-    // A small new foreground sprig, not a rotating rectangular patch of scenery.
-    final breeze = ChristmasWeather.wind(seconds) / 67;
-    canvas.save();
-    canvas.translate(visible.right - 16, size.height - 58);
-    canvas.rotate(breeze * .10);
-    final twig = Path()
-      ..moveTo(0, 0)
-      ..quadraticBezierTo(-2, -24, -13, -43)
-      ..moveTo(-5, -20)
-      ..lineTo(-23, -31)
-      ..moveTo(-9, -33)
-      ..lineTo(2, -48);
-    canvas.drawPath(
-        twig,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFF112C40));
-    canvas.drawLine(
-        const Offset(-22, -32),
-        const Offset(-9, -25),
-        Paint()
-          ..color = const Color(0xFFC6DBE8)
-          ..strokeWidth = 2
-          ..strokeCap = StrokeCap.round);
-    canvas.restore();
-  }
-
   @override
-  bool shouldRepaint(_WinterAtmosphere oldDelegate) =>
-      seconds != oldDelegate.seconds ||
-      foreground != oldDelegate.foreground ||
-      visible != oldDelegate.visible;
+  bool shouldRepaint(ChristmasRoofSnowPainter old) => old.seconds != seconds;
 }

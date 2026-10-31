@@ -79,7 +79,8 @@ void main() {
       (tester) async {
     expect(images.values.every((im) => im.width == 400 && im.height == 400),
         isTrue);
-    final left = await render(tester, 1.57, 0),
+    final rest = await render(tester, 0, 0),
+        left = await render(tester, 1.57, 0),
         right = await render(tester, 4.71, 0);
     var changed = 0;
     for (var y = 265; y < 395; y++) {
@@ -91,6 +92,33 @@ void main() {
       }
     }
     expect(changed, greaterThan(1200));
+    Offset bladeCenter(ByteData data, bool rear) {
+      var xSum = 0.0, ySum = 0.0, count = 0;
+      for (var y = 335; y < 395; y++) {
+        for (var x = rear ? 50 : 185; x < (rear ? 180 : 335); x++) {
+          final i = (y * 400 + x) * 4;
+          if (data.getUint8(i) < 40 &&
+              data.getUint8(i + 1) < 42 &&
+              data.getUint8(i + 2) < 55) {
+            xSum += x;
+            ySum += y;
+            count++;
+          }
+        }
+      }
+      expect(count, greaterThan(40));
+      return Offset(xSum / count, ySum / count);
+    }
+
+    for (final rear in [true, false]) {
+      final planted = bladeCenter(rest, rear);
+      final pushed = bladeCenter(rear ? left : right, rear);
+      final supporting = bladeCenter(rear ? right : left, rear);
+      expect((pushed - planted).distance, inExclusiveRange(2, 18),
+          reason: 'The pushing boot moves only a little');
+      expect((supporting - planted).distance, lessThan(2),
+          reason: 'The opposite boot remains planted as support switches');
+    }
   });
   testWidgets(
       'the scarf moves independently while the upper body stays painted',
@@ -114,4 +142,56 @@ void main() {
     expect(tailChanged, greaterThan(150));
     expect(headChanged, 0);
   });
+
+  testWidgets('the real roof painter creates a visible pile left of the cabin',
+      (tester) async {
+    Future<ByteData> roof(double seconds) async {
+      final key = GlobalKey();
+      await tester.pumpWidget(Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+              child: RepaintBoundary(
+                  key: key,
+                  child: SizedBox(
+                      width: 200,
+                      height: 210,
+                      child: CustomPaint(painter: _RoofDetail(seconds)))))));
+      await tester.pump();
+      return (await tester.runAsync(() async {
+        final image = await (key.currentContext!.findRenderObject()
+                as RenderRepaintBoundary)
+            .toImage();
+        try {
+          return (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+        } finally {
+          image.dispose();
+        }
+      }))!;
+    }
+
+    final before = await roof(2), after = await roof(7);
+    var newSnow = 0;
+    for (var y = 160; y < 195; y++) {
+      for (var x = 5; x < 65; x++) {
+        final i = (y * 200 + x) * 4;
+        if (before.getUint8(i + 3) == 0 && after.getUint8(i + 3) > 120) {
+          newSnow++;
+        }
+      }
+    }
+    expect(newSnow, greaterThan(120));
+  });
+}
+
+class _RoofDetail extends CustomPainter {
+  const _RoofDetail(this.seconds);
+  final double seconds;
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.translate(-700, -550);
+    ChristmasRoofSnowPainter(seconds).paint(canvas, const Size(941, 1672));
+  }
+
+  @override
+  bool shouldRepaint(_RoofDetail old) => seconds != old.seconds;
 }

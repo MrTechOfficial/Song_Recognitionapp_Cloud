@@ -44,6 +44,7 @@ reczt_files=(
   "ios/Runner/iOS 27 System Integration/RecztLiveActivityManager.swift"
   "ios/Runner/iOS 27 System Integration/RecztSharedStore.swift"
   "ios/Runner/iOS 27 System Integration/RecztIOS27Bridge.swift"
+  "ios/RunnerTests/RunnerTests.swift"
   "test/christmas_rig_render_test.dart"
   "test/widget_test.dart"
   "test/scene_energy_test.dart"

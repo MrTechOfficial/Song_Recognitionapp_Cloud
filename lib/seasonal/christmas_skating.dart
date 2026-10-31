@@ -65,7 +65,7 @@ class ChristmasSkatingRoute {
       _stride.add(_stride.last + rate * period / _samples);
     }
     // Even count: both the pose and its cadence join at the clock seam.
-    final factor = 36 / _stride.last;
+    final factor = 32 / _stride.last;
     for (var i = 0; i < _stride.length; i++) {
       _stride[i] *= factor;
     }
@@ -127,14 +127,14 @@ class ChristmasSkatingRoute {
     return SnowmanSkatingPose(
       feet: feet,
       width: 104 + 124 * (.5 - .5 * math.cos(math.pi * depth)),
-      lean: (blend - .5) * (.018 + depth * .038) + forwardLean * push,
+      lean: (blend - .5) * (.009 + depth * .016) + forwardLean * push * .4,
       facing: facing,
       strideBlend: blend,
-      lift: push * (.15 + .65 * depth),
+      lift: push * (.05 + .20 * depth),
       depth: depth,
       speed: speed,
       stridePhase: cycle * math.pi,
-      scarfPhase: elapsed * math.pi * 2 / 1.5,
+      scarfPhase: elapsed * math.pi * 2 / 2,
     );
   }
 }

@@ -68,7 +68,7 @@ void main() {
       if (alpha > peak) {
         peak = alpha;
       }
-      if (alpha > .30 && taps == 0) {
+      if (alpha > .20 && taps == 0) {
         await tester.tap(find.text('Real control'));
         state.clock.policy.apply({'thermal': 3, 'lowPower': false});
         await tester.pump();
@@ -85,8 +85,8 @@ void main() {
         state.clock.policy.apply({'thermal': 0, 'lowPower': false});
       }
     }
-    expect(peak, greaterThan(.33));
-    expect(peak, lessThanOrEqualTo(.40));
+    expect(peak, greaterThan(.24));
+    expect(peak, lessThanOrEqualTo(.30));
     expect(taps, 1);
     await tester.pumpWidget(app(true));
     await tester.pump();

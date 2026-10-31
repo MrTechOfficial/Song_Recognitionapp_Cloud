@@ -21,6 +21,7 @@ class RunnerTests: XCTestCase {
     let attributes = try JSONDecoder().decode(RecztRecognitionAttributes.self, from: json)
     XCTAssertNil(attributes.seasonalTheme)
     XCTAssertFalse(attributes.isChristmas)
+    XCTAssertFalse(attributes.isHalloween)
   }
 
   func testChristmasThemeSurvivesActivityAndSettingsEncoding() throws {
@@ -31,12 +32,26 @@ class RunnerTests: XCTestCase {
       RecztRecognitionAttributes.self, from: JSONEncoder().encode(attributes)
     )
     XCTAssertTrue(restored.isChristmas)
+    XCTAssertFalse(restored.isHalloween)
     var settings = RecztRecognitionSettings()
     settings.seasonalTheme = "christmas"
     let restoredSettings = try JSONDecoder().decode(
       RecztRecognitionSettings.self, from: JSONEncoder().encode(settings)
     )
     XCTAssertEqual(restoredSettings.seasonalTheme, "christmas")
+  }
+
+  func testHalloweenActivityKeepsItsThemeWithoutAffectingRecognitionContent() throws {
+    let attributes = RecztRecognitionAttributes(
+      sessionID: "halloween-session", startedAt: Date(), environment: "outdoors", seasonalTheme: "halloween"
+    )
+    let restored = try JSONDecoder().decode(
+      RecztRecognitionAttributes.self, from: JSONEncoder().encode(attributes)
+    )
+    XCTAssertTrue(restored.isHalloween)
+    XCTAssertFalse(restored.isChristmas)
+    XCTAssertEqual(restored.sessionID, "halloween-session")
+    XCTAssertEqual(restored.environment, "outdoors")
   }
 
 }

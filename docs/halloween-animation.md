@@ -1,6 +1,7 @@
 # Current seasonal implementation
 
-The latest Halloween corrections, Christmas rig, localized event and energy work
-are described in [seasonal-performance-update.md](seasonal-performance-update.md).
-That report includes behavior, verification limits, installation and the file
-inventory. Earlier implementations remain available in Git history.
+The latest motion, painted-face morph, left-side cabin snow and native seasonal
+characters are described in [seasonal-softening-update.md](seasonal-softening-update.md).
+The underlying lifecycle/energy work is described in
+[seasonal-performance-update.md](seasonal-performance-update.md). Both reports
+include verification limits and installation details.

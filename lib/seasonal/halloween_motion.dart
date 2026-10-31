@@ -13,7 +13,7 @@ class HalloweenMotion {
   // The body is painted into the 406 x 696 illustration, not screen-relative.
   static const neck = Offset(338, 673);
   static const skullPivot = Offset(45, 72);
-  static const skullScale = .94;
+  static const skullScale = .79;
   static final skullRect = Rect.fromLTWH(neck.dx - skullPivot.dx * skullScale,
       neck.dy - skullPivot.dy * skullScale, 84 * skullScale, 88 * skullScale);
 
@@ -108,9 +108,13 @@ class HalloweenBatFlight {
       required this.altitude,
       required this.bend,
       required this.flapPeriod,
-      required this.flapPhase});
+      required this.flapPhase,
+      this.wander = 0,
+      this.wanderPhase = 0,
+      this.wanderCycles = 1});
   final bool rightward;
   final double width, duration, delay, altitude, bend, flapPeriod, flapPhase;
+  final double wander, wanderPhase, wanderCycles;
 
   HalloweenBatPose sample(double seconds, Rect visible) {
     final age = seconds - delay;
@@ -119,16 +123,28 @@ class HalloweenBatFlight {
         rightward ? visible.left - width * 1.2 : visible.right + width * 1.2;
     final end =
         rightward ? visible.right + width * 1.2 : visible.left - width * 1.2;
-    final x = start + (end - start) * p;
+    // Slightly varying forward speed remains monotonic; smooth broad turns
+    // replace jerky zigzags. Every bat has its own continuous path parameters.
+    final travel = p - math.sin(p * math.pi * 2) * .025;
+    final x = start + (end - start) * travel;
     final y = 96 +
         altitude +
         math.sin(p * math.pi) * bend +
-        math.sin(p * math.pi * 2 + flapPhase) * 2;
-    final slope = (bend * math.pi * math.cos(p * math.pi)) / (end - start);
+        math.sin(p * math.pi * 2 * wanderCycles + wanderPhase) * wander +
+        math.sin(p * math.pi * 2 + flapPhase) * 1.3;
+    final derivative = bend * math.pi * math.cos(p * math.pi) +
+        math.cos(p * math.pi * 2 * wanderCycles + wanderPhase) *
+            wander *
+            math.pi *
+            2 *
+            wanderCycles +
+        math.cos(p * math.pi * 2 + flapPhase) * 2.6 * math.pi;
+    final slope = derivative /
+        ((end - start) * (1 - math.cos(p * math.pi * 2) * .05 * math.pi));
     return HalloweenBatPose(
         Offset(x, y),
         math.sin(age * math.pi * 2 / flapPeriod + flapPhase) * .62,
-        math.atan(slope) * .4,
+        math.atan(slope) * .55,
         age >= 0 && age <= duration);
   }
 }
@@ -217,5 +233,5 @@ class HalloweenMoonOcclusion {
   double dimming(Rect cloud) => shadeForCoverage(coverage(cloud));
 
   static double shadeForCoverage(double coverage) =>
-      .40 * HalloweenMotion.ease((coverage - .015) / .48);
+      .30 * HalloweenMotion.ease((coverage - .04) / .50);
 }

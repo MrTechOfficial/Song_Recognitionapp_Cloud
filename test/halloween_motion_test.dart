@@ -3,8 +3,58 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:song_recognition_app/seasonal/halloween_motion.dart';
 import 'package:song_recognition_app/seasonal/halloween_timeline.dart';
+import 'package:song_recognition_app/seasonal/halloween_carvings.dart';
 
 void main() {
+  test(
+      'painted pumpkin landmarks keep a fold-free mesh through every face transition',
+      () {
+    final faces = HalloweenCarvings.landmarks,
+        indices = HalloweenCarvings.indices;
+    for (var from = 0; from < faces.length; from++) {
+      for (var to = from + 1; to < faces.length; to++) {
+        for (var frame = 0; frame <= 20; frame++) {
+          final points = [
+            for (var i = 0; i < faces[from].length; i++)
+              Offset.lerp(faces[from][i], faces[to][i], frame / 20)!
+          ];
+          for (var i = 0; i < indices.length; i += 3) {
+            final a = points[indices[i + 1]] - points[indices[i]];
+            final b = points[indices[i + 2]] - points[indices[i]];
+            expect(a.dx * b.dy - a.dy * b.dx, greaterThan(-.0001));
+          }
+        }
+      }
+    }
+  });
+  test('slower clouds leave a long clear-sky gap between moon shade passes',
+      () {
+    for (var band = 0; band < 6; band++) {
+      expect(HalloweenSky.bandLeft(10, band).abs(), inInclusiveRange(7, 15));
+    }
+    final mask = HalloweenMoonOcclusion(List.filled(32 * 12, 1), 32, 12);
+    const visible = Rect.fromLTWH(42, 0, 322, 696);
+    for (var second = 95; second < 175; second++) {
+      expect(
+          mask.dimming(HalloweenSky.bankRect(
+              HalloweenSky.bankPhase(second.toDouble()), visible)),
+          0);
+    }
+    final scene = HalloweenTimeline(seed: 7);
+    final directions = <bool>{}, altitudes = <int>{};
+    for (var step = 0; step < 3600; step++) {
+      scene.advance(step / 10);
+      for (final flight in scene.flights) {
+        directions.add(flight.rightward);
+        altitudes.add(flight.altitude.round());
+        expect(flight.duration, inInclusiveRange(10, 15));
+        expect(flight.flapPeriod, greaterThanOrEqualTo(.85));
+      }
+      expect(scene.treeAmplitude.abs(), lessThanOrEqualTo(15));
+    }
+    expect(directions.length, 2);
+    expect(altitudes.length, greaterThan(12));
+  });
   test('one leaf is released only after every ninth completed sway', () {
     final counter = HalloweenSwayCounter();
     for (var cycle = 1; cycle <= 15; cycle++) {
@@ -126,7 +176,7 @@ void main() {
     final covered = Rect.fromCenter(
         center: HalloweenMoonOcclusion.moon, width: 130, height: 130);
     expect(mask.coverage(covered), 1);
-    expect(mask.dimming(covered), closeTo(.40, .00001));
+    expect(mask.dimming(covered), closeTo(.30, .00001));
     expect(
         HalloweenMoonOcclusion(List.filled(32 * 12, 0), 32, 12)
             .dimming(covered),
@@ -172,7 +222,7 @@ void main() {
     final shifts = [for (var i = 0; i < 6; i++) HalloweenSky.bandLeft(10, i)];
     expect(shifts.toSet().length, 6);
     for (final shift in shifts) {
-      expect(shift, lessThan(-10));
+      expect(shift, lessThan(-6.5));
       expect(shift, greaterThan(-406));
     }
     expect(HalloweenSky.heights.toSet().length, 6);

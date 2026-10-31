@@ -9,6 +9,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late ui.Image shell, skull, eyeMask;
   late ui.ImageShader skullTexture;
+  late HalloweenPumpkinRig pumpkinRig;
+  final morphFaces = <ui.Image>[], morphMasks = <ui.Image>[];
   Future<ui.Image> load(String name) async {
     final data =
         await rootBundle.load('assets/seasonal/halloween_v2/$name.png');
@@ -27,12 +29,21 @@ void main() {
     skull = await load('skeleton_skull_rig');
     skullTexture = ui.ImageShader(
         skull, TileMode.clamp, TileMode.clamp, Matrix4.identity().storage);
+    for (final name in ['classic', 'surprised', 'sly']) {
+      morphFaces.add(await load('pumpkin_$name'));
+      morphMasks.add(await load('pumpkin_${name}_eyes_mask'));
+    }
+    pumpkinRig = HalloweenPumpkinRig(morphFaces, morphMasks);
   });
   tearDownAll(() {
     skullTexture.dispose();
     skull.dispose();
     shell.dispose();
     eyeMask.dispose();
+    pumpkinRig.dispose();
+    for (final image in [...morphFaces, ...morphMasks]) {
+      image.dispose();
+    }
   });
 
   Future<ByteData> render(WidgetTester tester, Widget child, Size size) async {
@@ -107,4 +118,54 @@ void main() {
     expect(openDark, greaterThan(700));
     expect(closedDark, lessThan(openDark * .45));
   });
+
+  testWidgets(
+      'painted face morph moves the carving instead of dissolving two faces',
+      (tester) async {
+    for (final target in [1, 2]) {
+      Widget pose(double blend) =>
+          CustomPaint(painter: _MorphPainter(pumpkinRig, target, blend));
+      final start = await render(tester, pose(0), const Size(115, 96));
+      final end = await render(tester, pose(1), const Size(115, 96));
+      final middle = await render(tester, pose(.5), const Size(115, 96));
+      var movedPixels = 0;
+      for (var y = 60; y < 172; y++) {
+        for (var x = 48; x < 204; x++) {
+          final i = (y * 230 + x) * 4;
+          var difference = 0.0;
+          for (var c = 0; c < 3; c++) {
+            difference += (middle.getUint8(i + c) -
+                    (start.getUint8(i + c) + end.getUint8(i + c)) / 2)
+                .abs();
+          }
+          if (difference > 35) movedPixels++;
+        }
+      }
+      expect(movedPixels, greaterThan(200),
+          reason: 'A dissolve leaves stationary apertures');
+      for (final (phase, endpoint) in [(0.00001, start), (.99999, end)]) {
+        final near = await render(tester, pose(phase), const Size(115, 96));
+        var total = 0.0;
+        for (var i = 0; i < near.lengthInBytes; i++) {
+          total += (near.getUint8(i) - endpoint.getUint8(i)).abs();
+        }
+        expect(total / near.lengthInBytes, lessThan(1.5),
+            reason:
+                'Morph endpoints must join the original painted faces smoothly');
+      }
+    }
+  });
+}
+
+class _MorphPainter extends CustomPainter {
+  const _MorphPainter(this.rig, this.target, this.blend);
+  final HalloweenPumpkinRig rig;
+  final int target;
+  final double blend;
+  @override
+  void paint(Canvas canvas, Size size) =>
+      rig.paint(canvas, Offset.zero & size, from: 0, to: target, blend: blend);
+  @override
+  bool shouldRepaint(_MorphPainter old) =>
+      target != old.target || blend != old.blend;
 }
