@@ -83,13 +83,12 @@ if ! grep -Fq 'assets/seasonal/christmas/' "$reczt_project/pubspec.yaml"; then
   echo "The Christmas asset declaration is missing. No files have been changed."
   exit 1
 fi
-# The working project must have the previous seasonal update. These existing
-# scene files are now intentionally backed up and revised for skating and wind.
+# Require the existing app/scene entry points. Earlier seasonal installs can lack
+# the weather/skating helpers; both are supplied by this download and can be
+# added below, with missing paths recorded in the backup's new-files manifest.
 for reczt_existing in \
   "lib/main.dart" \
-  "lib/seasonal/christmas_scene.dart" \
-  "lib/seasonal/christmas_weather.dart" \
-  "lib/seasonal/christmas_skating.dart"; do
+  "lib/seasonal/christmas_scene.dart"; do
   if [ ! -f "$reczt_project/$reczt_existing" ]; then
     echo "Existing project dependency missing: $reczt_existing"
     echo "Use the working project from the previous update. No files have been changed."

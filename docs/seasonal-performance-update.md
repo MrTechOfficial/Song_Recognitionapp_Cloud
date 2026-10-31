@@ -179,6 +179,12 @@ as Halloween, main.dart and tests. The shared lifecycle helper is added if missi
 kept if identical, and preserved for review if different. Dependencies, Pods,
 generated config, project files, signing and entitlements are not replaced.
 
+The installer also supports older working folders that lack
+`christmas_weather.dart` or `christmas_skating.dart`: the ZIP supplies both helpers,
+and missing paths are recorded in the backup's `new-files.txt`. Their absence no
+longer stops installation. The existing app/scene entry points and native files
+are still required, and every downloaded input is checked before any backup/write.
+
 Stop and Run in Xcode so native/widget changes rebuild. To inspect the event,
 select Standard during its window; the announcement is deliberately once-only.
 Watch Halloween for a full moon pass and around two minutes for a rare leaf.

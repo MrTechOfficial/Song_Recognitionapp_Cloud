@@ -148,9 +148,14 @@ class HalloweenInstallerTests(unittest.TestCase):
         for source in (ROOT / 'lib/seasonal').glob('*.dart'):
             self.write(self.source / 'lib/seasonal' / source.name, source.read_text())
         self.write(self.source / 'lib/main.dart', (ROOT / 'lib/main.dart').read_text())
-        # Existing seasonal dependencies retained in the working project.
+        # An older working project can be missing both extracted Christmas
+        # helpers. Resolve the real main.dart import graph after installing.
+        missing_helpers = {'christmas_weather.dart', 'christmas_skating.dart'}
+        for name in missing_helpers:
+            (self.target / 'lib/seasonal' / name).unlink()
         for source in (ROOT / 'lib/seasonal').glob('*.dart'):
-            if source.name not in ['halloween_timeline.dart','halloween_bats.dart','halloween_event.dart','scene_frame_clock.dart']:
+            if source.name not in {'halloween_timeline.dart', 'halloween_bats.dart',
+                    'halloween_event.dart', 'scene_frame_clock.dart'} | missing_helpers:
                 self.write(self.target / 'lib/seasonal' / source.name, source.read_text())
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -166,6 +171,10 @@ class HalloweenInstallerTests(unittest.TestCase):
                 if ':' not in uri:
                     pending.append(source.parent / uri)
         self.assertIn((self.target / 'lib/seasonal/seasonal_scene_support.dart').resolve(), visited)
+        added = set((self.backup / 'new-files.txt').read_text().splitlines())
+        for name in missing_helpers:
+            self.assertIn((self.target / 'lib/seasonal' / name).resolve(), visited)
+            self.assertIn('lib/seasonal/' + name, added)
 
     def test_missing_shared_support_aborts_before_any_changes(self):
         (self.source / 'lib/seasonal/seasonal_scene_support.dart').unlink()
@@ -208,15 +217,23 @@ class HalloweenInstallerTests(unittest.TestCase):
         self.unchanged()
         self.assertFalse((self.target / FILES[1]).exists())
 
-    def test_missing_existing_christmas_dependency_aborts_before_main_is_changed(self):
+    def test_missing_christmas_weather_is_installed_and_recorded_as_new(self):
         missing = 'lib/seasonal/christmas_weather.dart'
         (self.target / missing).unlink()
+        config = (self.target / 'ios/Flutter/Generated.xcconfig').read_bytes()
         result = self.install()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(missing, result.stdout)
-        self.assertEqual((self.target / 'lib/main.dart').read_text(), 'old: lib/main.dart')
-        self.assertFalse(self.backup.exists())
-        self.assertFalse((self.base / 'opened').exists())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for name in FILES:
+            self.assertEqual((self.target / name).read_text(), 'new: ' + name)
+        for name in EXISTING - {missing}:
+            self.assertEqual((self.backup / name).read_text(), 'old: ' + name)
+        self.assertFalse((self.backup / missing).exists())
+        self.assertEqual(set((self.backup / 'new-files.txt').read_text().splitlines()),
+                         (set(FILES) - EXISTING) | {missing})
+        for name in self.protected:
+            self.assertEqual((self.target / name).read_text(), 'preserve: ' + name)
+        self.assertEqual((self.target / 'ios/Flutter/Generated.xcconfig').read_bytes(), config)
+        self.assertEqual((self.base / 'opened').read_text(), str(self.target / 'ios/Runner.xcworkspace'))
 
 
 if __name__ == '__main__':
