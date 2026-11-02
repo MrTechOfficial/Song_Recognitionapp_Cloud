@@ -39,6 +39,24 @@ void main() {
             standard: true),
         isFalse);
   });
+  test(
+      'explicit Standard preview repeats outside the release dates without changing seen state',
+      () async {
+    SharedPreferences.setMockInitialValues(
+        {HalloweenEventCampaign.seenKey: true});
+    final prefs = await SharedPreferences.getInstance();
+    for (var i = 0; i < 3; i++) {
+      expect(
+          await HalloweenEventCampaign.claim(prefs, DateTime(2027, 2, 1),
+              standard: true, preview: true),
+          isTrue);
+    }
+    expect(prefs.getBool(HalloweenEventCampaign.seenKey), true);
+    expect(
+        await HalloweenEventCampaign.claim(prefs, DateTime(2027, 2, 1),
+            standard: false, preview: true),
+        isFalse);
+  });
   test('all fifteen dictionaries contain every added event string', () {
     expect(localizedStrings.length, 15);
     for (final language in localizedStrings.entries) {

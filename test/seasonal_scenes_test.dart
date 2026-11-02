@@ -30,6 +30,19 @@ void main() {
     expect(route.sample(7.14).blink, greaterThan(.95));
     expect(route.sample(7.14, animateEyes: false).blink, 0);
   });
+  test('turn blend is continuous across the route instead of a mirror jump',
+      () {
+    final route = ChristmasSkatingRoute(const Rect.fromLTWH(0, 0, 941, 1672));
+    var previous = route.sample(0).facingBlend;
+    var turning = 0;
+    for (var i = 1; i <= 9600; i++) {
+      final blend = route.sample(i / 100).facingBlend;
+      expect((blend - previous).abs(), lessThan(.04));
+      if (blend > 0 && blend < 1) turning++;
+      previous = blend;
+    }
+    expect(turning, greaterThan(20));
+  });
   test('lake route uses depth and stays within the visible ice', () {
     for (final size in [
       const Size(320, 568),

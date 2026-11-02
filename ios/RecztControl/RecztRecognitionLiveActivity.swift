@@ -5,14 +5,15 @@ import WidgetKit
 
 struct RecztRecognitionLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
-        let copy = RecztActivityCopy(language: RecztSharedStore.shared.recognitionSettings().language)
         return ActivityConfiguration(for: RecztRecognitionAttributes.self) { context in
+            let copy = RecztActivityCopy(language: context.state.language ?? RecztSharedStore.shared.recognitionSettings().language)
             RecztActivityLockScreen(state: context.state, style: RecztActivityStyle(context.attributes), copy: copy)
                 .environment(\.layoutDirection, copy.direction)
                 .activityBackgroundTint(RecztActivityStyle(context.attributes).night)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             let style = RecztActivityStyle(context.attributes)
+            let copy = RecztActivityCopy(language: context.state.language ?? RecztSharedStore.shared.recognitionSettings().language)
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     if style.seasonal {
@@ -31,8 +32,8 @@ struct RecztRecognitionLiveActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: style.seasonal ? 6 : 3) {
                         if style.seasonal {
-                            RecztActivityTrim(style: style, highlight: context.state.phase == "listening" ? max(0, context.state.secondsRemaining) % 7 : -1)
-                                .frame(height: 11).accessibilityHidden(true)
+                            RecztActivityTrim(style: style, state: context.state)
+                                .frame(height: 30).accessibilityHidden(true)
                         }
                         if context.state.phase == "found" {
                             Text(context.state.title).font(.subheadline.weight(.semibold))
@@ -95,8 +96,8 @@ private struct RecztActivityLockScreen: View {
     var body: some View {
         VStack(spacing: 8) {
             if style.seasonal {
-                RecztActivityTrim(style: style, highlight: state.phase == "listening" ? max(0, state.secondsRemaining) % 7 : -1)
-                    .frame(height: 11).accessibilityHidden(true)
+                RecztActivityTrim(style: style, state: state)
+                    .frame(height: 30).accessibilityHidden(true)
             }
             HStack(spacing: 12) {
                 if style.seasonal {
@@ -147,6 +148,7 @@ private struct RecztActivityTrailing: View {
                     .accessibilityLabel(copy.headline(state))
             }
         }.foregroundStyle(style.accent)
+            .environment(\.locale, Locale(identifier: copy.language))
     }
 }
 
@@ -210,34 +212,50 @@ private struct RecztCharacterMark: View, Animatable {
                         Image("RecztSnowmanBody").resizable().scaledToFit()
                     }.rotationEffect(.degrees(sway * 1.1), anchor: .bottom)
                 }
+                RecztSeasonalMotes(style: style, step: step)
             }.frame(width: side, height: side)
         }
     }
 }
 
+/// Painted ornament replaces the old wire-and-dot Canvas. Only three tiny
+/// particles interpolate during real recording/phase updates; no idle loop.
 private struct RecztActivityTrim: View {
     let style: RecztActivityStyle
-    let highlight: Int
+    let state: RecztRecognitionAttributes.ContentState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var step: Double { reduceMotion ? 0 : Double(state.secondsRemaining) }
     var body: some View {
-        Canvas { context, size in
-            var cable = Path(); cable.move(to: .zero)
-            cable.addQuadCurve(to: CGPoint(x: size.width, y: 0), control: CGPoint(x: size.width / 2, y: 8))
-            context.stroke(cable, with: .color(style.snow.opacity(0.3)), lineWidth: 1)
-            let colors = style == .halloween ? [style.accent, Color(red: 0.67, green: 0.48, blue: 0.78)] :
-                [Color(red: 0.78, green: 0.14, blue: 0.21), Color(red: 0.40, green: 0.74, blue: 0.52), style.accent]
-            for index in 0..<7 {
-                let fraction = Double(index + 1) / 8
-                let x = size.width * fraction, y = 2 + sin(fraction * .pi) * 3
-                let color = colors[index % colors.count]
-                context.fill(Path(ellipseIn: CGRect(x: x - 2, y: y, width: 4, height: 5)), with: .color(color.opacity(index == highlight ? 1 : 0.58)))
-                if index == highlight {
-                    var sparkle = Path(); sparkle.move(to: CGPoint(x: x - 4, y: y + 2))
-                    sparkle.addLine(to: CGPoint(x: x + 4, y: y + 2))
-                    sparkle.move(to: CGPoint(x: x, y: y - 2)); sparkle.addLine(to: CGPoint(x: x, y: y + 6))
-                    context.stroke(sparkle, with: .color(color.opacity(0.6)), lineWidth: 0.6)
-                }
+        ZStack {
+            if style == .christmas {
+                Image("RecztChristmasGarland").resizable().scaledToFill()
+            } else {
+                Image("RecztHalloweenGarland").resizable().scaledToFill()
             }
-        }
+            RecztSeasonalMotes(style: style, step: step)
+        }.clipped()
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.85), value: step)
+    }
+}
+
+private struct RecztSeasonalMotes: View, Animatable {
+    let style: RecztActivityStyle
+    var step: Double
+    var animatableData: Double { get { step } set { step = newValue } }
+    var body: some View {
+        GeometryReader { geometry in
+            ForEach(0..<3) { index in
+                let phase = Double(index) * 2.1
+                let x = 0.18 + Double(index) * 0.31 + sin(step * 0.35 + phase) * 0.05
+                let y = 0.30 + sin(step * 0.55 + phase) * 0.24
+                Image(systemName: style == .christmas ? "snowflake" : "sparkle")
+                    .font(.system(size: max(2.5, min(6, geometry.size.height * 0.13))))
+                    .foregroundStyle(style == .christmas ? Color.white : style.accent)
+                    .opacity(0.35 + abs(sin(step * 0.65 + phase)) * 0.5)
+                    .rotationEffect(.degrees(step * 5 + phase * 12))
+                    .position(x: geometry.size.width * CGFloat(x), y: geometry.size.height * CGFloat(y))
+            }
+        }.allowsHitTesting(false).accessibilityHidden(true)
     }
 }
 
@@ -246,211 +264,32 @@ private struct RecztActivityCopy {
     var direction: LayoutDirection { language.hasPrefix("ar") ? .rightToLeft : .leftToRight }
     func text(_ key: String) -> String {
         let base = language.replacingOccurrences(of: "_", with: "-").split(separator: "-").first.map(String.init) ?? "en"
-        return Self.dictionaries[base]?[key] ?? Self.dictionaries["en"]?[key] ?? "Reczt"
+        return RecztRecognitionAttributes.localizedText(key, language: base)
     }
     func headline(_ state: RecztRecognitionAttributes.ContentState) -> String {
         switch state.phase {
-        case "found": return text("match_found")
+        case "found": return text("activity_found")
         case "searching": return text("searching")
         case "noMatch": return text("activity_no_match")
         case "denied": return text("mic_denied")
         case "error": return text("activity_error")
         case "cancelled", "idle": return text("activity_ended")
+        case "queued": return text("activity_queued")
         default: return text("listening")
         }
     }
     func subtitle(_ state: RecztRecognitionAttributes.ContentState) -> String {
         if state.phase == "listening" { return text("activity_listening_hint") }
         if state.phase == "searching" { return text("activity_search_hint") }
-        return state.artist
+        if state.phase == "found" { return state.redirecting == true ? text("activity_redirecting") : text("activity_found_hint") }
+        if state.phase == "noMatch" { return text("activity_no_match_hint") }
+        if state.phase == "queued" { return text("activity_queued") }
+        return ""
     }
     func seconds(_ count: Int) -> String {
         text("activity_seconds_remaining").replacingOccurrences(of: "{seconds}", with: String(count))
     }
-    // BEGIN GENERATED ACTIVITY DICTIONARIES
-    static let dictionaries: [String: [String: String]] = [
-        "en": [
-            "listening": "Listening...",
-            "searching": "Searching database...",
-            "match_found": "Match Found!",
-            "mic_denied": "Microphone permission denied.",
-            "activity_no_match": "No match",
-            "activity_ended": "Recognition ended",
-            "activity_error": "Recognition unavailable",
-            "activity_listening_hint": "Sing or hum a song",
-            "activity_search_hint": "Matching the melody",
-            "activity_seconds_remaining": "{seconds} seconds remaining",
-        ],
-        "es": [
-            "listening": "Escuchando...",
-            "searching": "Buscando en la base de datos...",
-            "match_found": "¡Coincidencia encontrada!",
-            "mic_denied": "Permiso de micrófono denegado.",
-            "activity_no_match": "Sin coincidencias",
-            "activity_ended": "Reconocimiento finalizado",
-            "activity_error": "Reconocimiento no disponible",
-            "activity_listening_hint": "Canta o tararea una canción",
-            "activity_search_hint": "Buscando la melodía",
-            "activity_seconds_remaining": "Quedan {seconds} segundos",
-        ],
-        "fr": [
-            "listening": "Écoute en cours...",
-            "searching": "Recherche dans la base de données...",
-            "match_found": "Correspondance trouvée !",
-            "mic_denied": "Autorisation du microphone refusée.",
-            "activity_no_match": "Aucune correspondance",
-            "activity_ended": "Reconnaissance terminée",
-            "activity_error": "Reconnaissance indisponible",
-            "activity_listening_hint": "Chantez ou fredonnez une chanson",
-            "activity_search_hint": "Recherche de la mélodie",
-            "activity_seconds_remaining": "{seconds} secondes restantes",
-        ],
-        "de": [
-            "listening": "Zuhören...",
-            "searching": "Datenbank wird durchsucht...",
-            "match_found": "Treffer gefunden!",
-            "mic_denied": "Mikrofonberechtigung verweigert.",
-            "activity_no_match": "Kein Treffer",
-            "activity_ended": "Erkennung beendet",
-            "activity_error": "Erkennung nicht verfügbar",
-            "activity_listening_hint": "Singe oder summe ein Lied",
-            "activity_search_hint": "Melodie wird gesucht",
-            "activity_seconds_remaining": "Noch {seconds} Sekunden",
-        ],
-        "it": [
-            "listening": "Ascolto in corso...",
-            "searching": "Ricerca nel database...",
-            "match_found": "Brano trovato!",
-            "mic_denied": "Autorizzazione microfono negata.",
-            "activity_no_match": "Nessuna corrispondenza",
-            "activity_ended": "Riconoscimento terminato",
-            "activity_error": "Riconoscimento non disponibile",
-            "activity_listening_hint": "Canta o canticchia una canzone",
-            "activity_search_hint": "Ricerca della melodia",
-            "activity_seconds_remaining": "{seconds} secondi rimanenti",
-        ],
-        "pt": [
-            "listening": "Ouvindo...",
-            "searching": "Buscando no banco de dados...",
-            "match_found": "Música encontrada!",
-            "mic_denied": "Permissão do microfone negada.",
-            "activity_no_match": "Nenhuma correspondência",
-            "activity_ended": "Reconhecimento encerrado",
-            "activity_error": "Reconhecimento indisponível",
-            "activity_listening_hint": "Cante ou cantarole uma música",
-            "activity_search_hint": "Buscando a melodia",
-            "activity_seconds_remaining": "Restam {seconds} segundos",
-        ],
-        "ja": [
-            "listening": "聞き取り中...",
-            "searching": "データベースを検索中...",
-            "match_found": "曲が見つかりました！",
-            "mic_denied": "マイクのアクセス許可が拒否されました。",
-            "activity_no_match": "一致する曲がありません",
-            "activity_ended": "認識が終了しました",
-            "activity_error": "認識を利用できません",
-            "activity_listening_hint": "歌うか、ハミングしてください",
-            "activity_search_hint": "メロディーを照合中",
-            "activity_seconds_remaining": "残り{seconds}秒",
-        ],
-        "ko": [
-            "listening": "듣는 중...",
-            "searching": "데이터베이스 검색 중...",
-            "match_found": "곡을 찾았습니다!",
-            "mic_denied": "마이크 권한이 거부되었습니다.",
-            "activity_no_match": "일치하는 곡이 없어요",
-            "activity_ended": "인식이 종료됐어요",
-            "activity_error": "인식을 사용할 수 없어요",
-            "activity_listening_hint": "노래를 부르거나 흥얼거려 주세요",
-            "activity_search_hint": "멜로디를 찾는 중",
-            "activity_seconds_remaining": "{seconds}초 남음",
-        ],
-        "zh": [
-            "listening": "正在聆听...",
-            "searching": "正在搜索数据库...",
-            "match_found": "找到歌曲！",
-            "mic_denied": "麦克风权限被拒绝。",
-            "activity_no_match": "未找到匹配歌曲",
-            "activity_ended": "识别已结束",
-            "activity_error": "暂时无法识别",
-            "activity_listening_hint": "请唱歌或哼唱",
-            "activity_search_hint": "正在匹配旋律",
-            "activity_seconds_remaining": "剩余{seconds}秒",
-        ],
-        "hi": [
-            "listening": "सुन रहा है...",
-            "searching": "डेटाबेस में खोज रहा है...",
-            "match_found": "गाना मिल गया!",
-            "mic_denied": "माइक अनुमति अस्वीकृत।",
-            "activity_no_match": "कोई मेल नहीं मिला",
-            "activity_ended": "पहचान समाप्त हुई",
-            "activity_error": "पहचान उपलब्ध नहीं है",
-            "activity_listening_hint": "कोई गीत गाएँ या गुनगुनाएँ",
-            "activity_search_hint": "धुन का मिलान हो रहा है",
-            "activity_seconds_remaining": "{seconds} सेकंड शेष",
-        ],
-        "ru": [
-            "listening": "Слушаю...",
-            "searching": "Поиск в базе данных...",
-            "match_found": "Песня найдена!",
-            "mic_denied": "Доступ к микрофону запрещен.",
-            "activity_no_match": "Совпадений нет",
-            "activity_ended": "Распознавание завершено",
-            "activity_error": "Распознавание недоступно",
-            "activity_listening_hint": "Спойте или напойте песню",
-            "activity_search_hint": "Ищем мелодию",
-            "activity_seconds_remaining": "Осталось секунд: {seconds}",
-        ],
-        "tr": [
-            "listening": "Dinleniyor...",
-            "searching": "Veritabanı aranıyor...",
-            "match_found": "Eşleşme Bulundu!",
-            "mic_denied": "Mikrofon izni reddedildi.",
-            "activity_no_match": "Eşleşme yok",
-            "activity_ended": "Tanıma sona erdi",
-            "activity_error": "Tanıma kullanılamıyor",
-            "activity_listening_hint": "Bir şarkı söyleyin veya mırıldanın",
-            "activity_search_hint": "Melodi eşleştiriliyor",
-            "activity_seconds_remaining": "{seconds} saniye kaldı",
-        ],
-        "ar": [
-            "listening": "جاري الاستماع...",
-            "searching": "جاري البحث...",
-            "match_found": "تم العثور على الأغنية!",
-            "mic_denied": "تم رفض إذن الميكروفون.",
-            "activity_no_match": "لا يوجد تطابق",
-            "activity_ended": "انتهى التعرف",
-            "activity_error": "التعرف غير متاح",
-            "activity_listening_hint": "غنِّ أغنية أو دندنها",
-            "activity_search_hint": "جارٍ مطابقة اللحن",
-            "activity_seconds_remaining": "تبقّى {seconds} ثانية",
-        ],
-        "nl": [
-            "listening": "Luisteren...",
-            "searching": "Database zoeken...",
-            "match_found": "Nummer Gevonden!",
-            "mic_denied": "Microfoontoegang geweigerd.",
-            "activity_no_match": "Geen overeenkomst",
-            "activity_ended": "Herkenning beëindigd",
-            "activity_error": "Herkenning niet beschikbaar",
-            "activity_listening_hint": "Zing of neurie een liedje",
-            "activity_search_hint": "Melodie wordt gezocht",
-            "activity_seconds_remaining": "Nog {seconds} seconden",
-        ],
-        "pl": [
-            "listening": "Słucham...",
-            "searching": "Wyszukiwanie w bazie...",
-            "match_found": "Znaleziono utwór!",
-            "mic_denied": "Odmowa dostępu do mikrofonu.",
-            "activity_no_match": "Brak dopasowania",
-            "activity_ended": "Rozpoznawanie zakończone",
-            "activity_error": "Rozpoznawanie niedostępne",
-            "activity_listening_hint": "Zaśpiewaj lub zanuć piosenkę",
-            "activity_search_hint": "Dopasowywanie melodii",
-            "activity_seconds_remaining": "Pozostało sekund: {seconds}",
-        ],
-    ]
-    // END GENERATED ACTIVITY DICTIONARIES
+
 }
 
 #if DEBUG

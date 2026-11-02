@@ -43,6 +43,18 @@ actor RecztRecognitionCoordinator {
         source: String,
         progress: (@Sendable (Int, Int, String) -> Void)? = nil
     ) async throws -> RecztRecognitionResult {
+        do { return try await runRecognition(source: source, progress: progress) }
+        catch {
+            await RecztLiveActivityManager.shared.finish(
+                phase: error is CancellationError ? "cancelled" : "error")
+            throw error
+        }
+    }
+
+    private func runRecognition(
+        source: String,
+        progress: (@Sendable (Int, Int, String) -> Void)?
+    ) async throws -> RecztRecognitionResult {
         let settings = RecztSharedStore.shared.recognitionSettings()
         let duration = max(4, min(settings.durationSeconds, 20))
 

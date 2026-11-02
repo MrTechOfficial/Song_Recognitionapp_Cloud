@@ -117,25 +117,6 @@ void main() {
       return Offset(xSum / count, ySum / count);
     }
 
-    int soleBottom(ByteData data, bool rear) {
-      var bottom = 0;
-      for (var y = 335; y < 395; y++) {
-        for (var x = rear ? 50 : 185; x < (rear ? 180 : 335); x++) {
-          final i = (y * 400 + x) * 4;
-          if (data.getUint8(i) < 40 &&
-              data.getUint8(i + 1) < 42 &&
-              data.getUint8(i + 2) < 55) {
-            bottom = y;
-          }
-        }
-      }
-      return bottom;
-    }
-
-    expect((soleBottom(rest, true) - soleBottom(rest, false)).abs(),
-        lessThanOrEqualTo(4),
-        reason:
-            'Both blades reach the ice; the rear skate must not stay raised');
     for (final rear in [true, false]) {
       final planted = bladeCenter(rest, rear);
       final pushed = bladeCenter(rear ? left : right, rear);

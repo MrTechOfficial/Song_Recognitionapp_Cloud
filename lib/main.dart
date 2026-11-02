@@ -25,6 +25,8 @@ import 'seasonal/seasonal_scene_support.dart';
 import 'seasonal/halloween_event.dart';
 import 'seasonal/music_intelligence_card.dart';
 import 'seasonal/scene_frame_clock.dart';
+import 'seasonal/seasonal_page_transition.dart';
+import 'seasonal/recognition_activity_session.dart';
 
 
 
@@ -63,68 +65,43 @@ class _RecztIOS27Bridge {
 
   static bool get isAvailable => !kIsWeb && Platform.isIOS;
 
+  static final _activity = RecognitionActivitySession(_recztIOS27Channel);
+  static int get activityRevision => _activity.revision;
+
   static Future<void> startRecognitionActivity({
-    required int durationSeconds,
-    required String environment,
-    required String seasonalTheme,
-    String source = 'app',
+    required int durationSeconds, required String environment,
+    required String seasonalTheme, String source = 'app',
   }) async {
     if (!isAvailable) return;
     try {
-      await _recztIOS27Channel.invokeMethod('startRecognitionActivity', {
-        'durationSeconds': durationSeconds,
-        'environment': environment,
-        'source': source,
-        'seasonalTheme': seasonalTheme,
-      });
-    } catch (e) {
-      debugPrint('iOS 27 Live Activity start unavailable: $e');
-    }
+      await _activity.start({'durationSeconds': durationSeconds,
+        'environment': environment, 'source': source, 'seasonalTheme': seasonalTheme});
+    } catch (e) { debugPrint('Live Activity start unavailable: $e'); }
   }
 
-  static Future<void> updateRecognitionActivity({
-    required String phase,
-    int? secondsRemaining,
-  }) async {
+  static Future<void> updateRecognitionActivity({required String phase, int? secondsRemaining}) async {
     if (!isAvailable) return;
-    try {
-      await _recztIOS27Channel.invokeMethod('updateRecognitionActivity', {
-        'phase': phase,
-        if (secondsRemaining != null) 'secondsRemaining': secondsRemaining,
-      });
-    } catch (e) {
-      debugPrint('iOS 27 Live Activity update unavailable: $e');
-    }
+    try { await _activity.update(phase, secondsRemaining: secondsRemaining); }
+    catch (e) { debugPrint('Live Activity update unavailable: $e'); }
   }
 
-  static Future<void> showRecognitionResult({
-    required String title,
-    required String artist,
-    String? artworkUrl,
-  }) async {
+  static Future<void> showRecognitionResult({required String title,
+    required String artist, bool redirecting = false, int? activityRevision}) async {
     if (!isAvailable) return;
-    try {
-      await _recztIOS27Channel.invokeMethod('showRecognitionResult', {
-        'title': title,
-        'artist': artist,
-        'artworkUrl': artworkUrl ?? '',
-      });
-    } catch (e) {
-      debugPrint('iOS 27 result activity update unavailable: $e');
-    }
+    try { await _activity.result(title: title, artist: artist, redirecting: redirecting, expectedRevision: activityRevision); }
+    catch (e) { debugPrint('Live Activity result unavailable: $e'); }
   }
 
-  static Future<void> endRecognitionActivity({
-    String phase = 'idle',
-  }) async {
+  static Future<void> endRecognitionActivity({String phase = 'idle', int? activityRevision}) async {
     if (!isAvailable) return;
-    try {
-      await _recztIOS27Channel.invokeMethod('endRecognitionActivity', {
-        'phase': phase,
-      });
-    } catch (e) {
-      debugPrint('iOS 27 Live Activity end unavailable: $e');
-    }
+    try { await _activity.finish(phase, expectedRevision: activityRevision); }
+    catch (e) { debugPrint('Live Activity end unavailable: $e'); }
+  }
+
+  static Future<void> setActivityForeground(bool foreground) async {
+    if (!isAvailable) return;
+    try { if (foreground) { await _activity.resume(); } else { await _activity.suspend(); } }
+    catch (e) { debugPrint('Live Activity lifecycle unavailable: $e'); }
   }
 
   static Future<void> syncRecognitionSettings({
@@ -1226,6 +1203,30 @@ void main() async {
 // --------------------------------------------------------------------
 final Map<String, Map<String, String>> localizedStrings = {
   'en': {
+    "seasonal_lab": "Seasonal Theme Lab",
+    "seasonal_testing": "TESTING",
+    "seasonal_preview_info": "All seasonal looks are unlocked for preview. Date-based availability will be added after the designs are approved.",
+    "seasonal_save_hint": "Save to preview the full animated look throughout Reczt.",
+    "season_standard": "Standard Reczt",
+    "season_autumn": "Autumn",
+    "season_halloween": "Halloween",
+    "season_thanksgiving": "Thanksgiving",
+    "season_winter": "Winter Snow",
+    "season_christmas": "Christmas Lights",
+    "season_spring": "Spring Bloom",
+    "season_easter": "Easter Pastels",
+    "edition_autumn": "GOLDEN HOUR EDITION",
+    "edition_halloween": "MIDNIGHT EDITION",
+    "edition_thanksgiving": "HARVEST EDITION",
+    "edition_winter": "SNOWFALL EDITION",
+    "edition_christmas": "HOLIDAY LIGHTS EDITION",
+    "edition_spring": "BLOOM EDITION",
+    "edition_easter": "PASTEL EDITION",
+    "activity_found": "Song found!",
+    "activity_redirecting": "Directing you now!",
+    "activity_found_hint": "Open Reczt for your song",
+    "activity_no_match_hint": "Try again in Reczt",
+    "activity_queued": "Saved for later",
     "mi_title": "Music Intelligence",
     "mi_empty": "Identify songs to build this summary.",
     "mi_key": "Key",
@@ -1400,6 +1401,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Other',
   },
   'es': {
+    "seasonal_lab": "Laboratorio de temas de temporada",
+    "seasonal_testing": "PRUEBAS",
+    "seasonal_preview_info": "Todos los temas de temporada están disponibles para probarlos. Las fechas de disponibilidad se añadirán cuando se aprueben los diseños.",
+    "seasonal_save_hint": "Guarda para probar el diseño animado en todo Reczt.",
+    "season_standard": "Reczt estándar",
+    "season_autumn": "Otoño",
+    "season_halloween": "Halloween",
+    "season_thanksgiving": "Acción de Gracias",
+    "season_winter": "Nieve de invierno",
+    "season_christmas": "Luces de Navidad",
+    "season_spring": "Flores de primavera",
+    "season_easter": "Pascua en tonos pastel",
+    "edition_autumn": "EDICIÓN HORA DORADA",
+    "edition_halloween": "EDICIÓN MEDIANOCHE",
+    "edition_thanksgiving": "EDICIÓN COSECHA",
+    "edition_winter": "EDICIÓN NEVADA",
+    "edition_christmas": "EDICIÓN LUCES NAVIDEÑAS",
+    "edition_spring": "EDICIÓN FLORACIÓN",
+    "edition_easter": "EDICIÓN PASTEL",
+    "activity_found": "¡Canción encontrada!",
+    "activity_redirecting": "¡Te llevamos ahora!",
+    "activity_found_hint": "Abre Reczt para ver tu canción",
+    "activity_no_match_hint": "Vuelve a intentarlo en Reczt",
+    "activity_queued": "Guardado para más tarde",
     "mi_title": "Inteligencia musical",
     "mi_empty": "Identifica canciones para crear este resumen.",
     "mi_key": "Tono",
@@ -1571,6 +1596,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Otro',
   },
   'fr': {
+    "seasonal_lab": "Atelier des thèmes saisonniers",
+    "seasonal_testing": "TEST",
+    "seasonal_preview_info": "Tous les thèmes saisonniers sont disponibles en aperçu. Leurs dates de disponibilité seront ajoutées une fois les designs approuvés.",
+    "seasonal_save_hint": "Enregistrez pour découvrir le thème animé dans tout Reczt.",
+    "season_standard": "Reczt classique",
+    "season_autumn": "Automne",
+    "season_halloween": "Halloween",
+    "season_thanksgiving": "Thanksgiving",
+    "season_winter": "Neige hivernale",
+    "season_christmas": "Lumières de Noël",
+    "season_spring": "Fleurs de printemps",
+    "season_easter": "Pâques pastel",
+    "edition_autumn": "ÉDITION HEURE DORÉE",
+    "edition_halloween": "ÉDITION MINUIT",
+    "edition_thanksgiving": "ÉDITION RÉCOLTE",
+    "edition_winter": "ÉDITION CHUTE DE NEIGE",
+    "edition_christmas": "ÉDITION LUMIÈRES DE NOËL",
+    "edition_spring": "ÉDITION FLORAISON",
+    "edition_easter": "ÉDITION PASTEL",
+    "activity_found": "Chanson trouvée !",
+    "activity_redirecting": "Redirection en cours !",
+    "activity_found_hint": "Ouvrez Reczt pour voir votre chanson",
+    "activity_no_match_hint": "Réessayez dans Reczt",
+    "activity_queued": "Enregistré pour plus tard",
     "mi_title": "Intelligence musicale",
     "mi_empty": "Identifiez des chansons pour créer ce résumé.",
     "mi_key": "Tonalité",
@@ -1742,6 +1791,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Autre',
   },
   'de': {
+    "seasonal_lab": "Labor für saisonale Designs",
+    "seasonal_testing": "TEST",
+    "seasonal_preview_info": "Alle saisonalen Designs sind zur Vorschau freigeschaltet. Verfügbarkeitszeiträume folgen nach der Freigabe der Designs.",
+    "seasonal_save_hint": "Speichere, um das animierte Design in ganz Reczt anzusehen.",
+    "season_standard": "Reczt Standard",
+    "season_autumn": "Herbst",
+    "season_halloween": "Halloween",
+    "season_thanksgiving": "Erntedank",
+    "season_winter": "Winterschnee",
+    "season_christmas": "Weihnachtslichter",
+    "season_spring": "Frühlingsblüten",
+    "season_easter": "Osterpastell",
+    "edition_autumn": "GOLDENE-STUNDE-EDITION",
+    "edition_halloween": "MITTERNACHTSEDITION",
+    "edition_thanksgiving": "ERNTEEDITION",
+    "edition_winter": "SCHNEEFALLEDITION",
+    "edition_christmas": "WEIHNACHTSLICHTER-EDITION",
+    "edition_spring": "BLÜTENEDITION",
+    "edition_easter": "PASTELLEDITION",
+    "activity_found": "Lied gefunden!",
+    "activity_redirecting": "Du wirst weitergeleitet!",
+    "activity_found_hint": "Öffne Reczt für dein Lied",
+    "activity_no_match_hint": "Versuche es erneut in Reczt",
+    "activity_queued": "Für später gespeichert",
     "mi_title": "Musikintelligenz",
     "mi_empty": "Erkenne Songs, um diese Übersicht aufzubauen.",
     "mi_key": "Tonart",
@@ -1913,6 +1986,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Andere',
   },
   'it': {
+    "seasonal_lab": "Laboratorio dei temi stagionali",
+    "seasonal_testing": "TEST",
+    "seasonal_preview_info": "Tutti i temi stagionali sono disponibili in anteprima. I periodi di disponibilità saranno aggiunti dopo l’approvazione dei design.",
+    "seasonal_save_hint": "Salva per provare il tema animato in tutta Reczt.",
+    "season_standard": "Reczt standard",
+    "season_autumn": "Autunno",
+    "season_halloween": "Halloween",
+    "season_thanksgiving": "Ringraziamento",
+    "season_winter": "Neve invernale",
+    "season_christmas": "Luci di Natale",
+    "season_spring": "Fiori di primavera",
+    "season_easter": "Pasqua pastello",
+    "edition_autumn": "EDIZIONE ORA DORATA",
+    "edition_halloween": "EDIZIONE MEZZANOTTE",
+    "edition_thanksgiving": "EDIZIONE RACCOLTO",
+    "edition_winter": "EDIZIONE NEVICATA",
+    "edition_christmas": "EDIZIONE LUCI NATALIZIE",
+    "edition_spring": "EDIZIONE FIORITURA",
+    "edition_easter": "EDIZIONE PASTELLO",
+    "activity_found": "Brano trovato!",
+    "activity_redirecting": "Ti stiamo reindirizzando!",
+    "activity_found_hint": "Apri Reczt per vedere il brano",
+    "activity_no_match_hint": "Riprova in Reczt",
+    "activity_queued": "Salvato per dopo",
     "mi_title": "Intelligenza musicale",
     "mi_empty": "Identifica brani per creare questo riepilogo.",
     "mi_key": "Tonalità",
@@ -2084,6 +2181,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Altro',
   },
   'pt': {
+    "seasonal_lab": "Laboratório de temas sazonais",
+    "seasonal_testing": "TESTE",
+    "seasonal_preview_info": "Todos os temas sazonais estão disponíveis para prévia. As datas de disponibilidade serão adicionadas após a aprovação dos designs.",
+    "seasonal_save_hint": "Salve para experimentar o tema animado em todo o Reczt.",
+    "season_standard": "Reczt padrão",
+    "season_autumn": "Outono",
+    "season_halloween": "Halloween",
+    "season_thanksgiving": "Ação de Graças",
+    "season_winter": "Neve de inverno",
+    "season_christmas": "Luzes de Natal",
+    "season_spring": "Flores de primavera",
+    "season_easter": "Páscoa em tons pastel",
+    "edition_autumn": "EDIÇÃO HORA DOURADA",
+    "edition_halloween": "EDIÇÃO MEIA-NOITE",
+    "edition_thanksgiving": "EDIÇÃO COLHEITA",
+    "edition_winter": "EDIÇÃO NEVASCA",
+    "edition_christmas": "EDIÇÃO LUZES NATALINAS",
+    "edition_spring": "EDIÇÃO FLORAÇÃO",
+    "edition_easter": "EDIÇÃO PASTEL",
+    "activity_found": "Música encontrada!",
+    "activity_redirecting": "Redirecionando agora!",
+    "activity_found_hint": "Abra o Reczt para ver sua música",
+    "activity_no_match_hint": "Tente novamente no Reczt",
+    "activity_queued": "Salvo para depois",
     "mi_title": "Inteligência musical",
     "mi_empty": "Identifique músicas para criar este resumo.",
     "mi_key": "Tom",
@@ -2255,6 +2376,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Outro',
   },
   'ja': {
+    "seasonal_lab": "季節テーマラボ",
+    "seasonal_testing": "テスト中",
+    "seasonal_preview_info": "すべての季節テーマをプレビューできます。デザインの承認後に公開期間が設定されます。",
+    "seasonal_save_hint": "保存すると、Reczt全体でアニメーション付きのテーマを試せます。",
+    "season_standard": "標準のReczt",
+    "season_autumn": "秋",
+    "season_halloween": "ハロウィン",
+    "season_thanksgiving": "感謝祭",
+    "season_winter": "冬の雪",
+    "season_christmas": "クリスマスの灯り",
+    "season_spring": "春の花",
+    "season_easter": "イースターのパステル",
+    "edition_autumn": "ゴールデンアワー版",
+    "edition_halloween": "ミッドナイト版",
+    "edition_thanksgiving": "収穫祭版",
+    "edition_winter": "降雪版",
+    "edition_christmas": "ホリデーライト版",
+    "edition_spring": "花咲く季節版",
+    "edition_easter": "パステル版",
+    "activity_found": "曲が見つかりました！",
+    "activity_redirecting": "移動しています！",
+    "activity_found_hint": "Recztで曲を確認",
+    "activity_no_match_hint": "Recztでもう一度お試しください",
+    "activity_queued": "後で処理するために保存済み",
     "mi_title": "音楽インテリジェンス",
     "mi_empty": "曲を識別すると、この概要が作成されます。",
     "mi_key": "キー",
@@ -2427,6 +2572,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'その他',
   },
   'ko': {
+    "seasonal_lab": "계절 테마 실험실",
+    "seasonal_testing": "테스트 중",
+    "seasonal_preview_info": "모든 계절 테마를 미리 볼 수 있습니다. 디자인이 승인되면 공개 기간이 추가됩니다.",
+    "seasonal_save_hint": "저장하면 Reczt 전체에서 움직이는 테마를 미리 볼 수 있어요.",
+    "season_standard": "기본 Reczt",
+    "season_autumn": "가을",
+    "season_halloween": "할로윈",
+    "season_thanksgiving": "추수감사절",
+    "season_winter": "겨울 눈",
+    "season_christmas": "크리스마스 조명",
+    "season_spring": "봄꽃",
+    "season_easter": "파스텔 부활절",
+    "edition_autumn": "골든 아워 에디션",
+    "edition_halloween": "미드나이트 에디션",
+    "edition_thanksgiving": "수확 에디션",
+    "edition_winter": "눈 내리는 에디션",
+    "edition_christmas": "홀리데이 조명 에디션",
+    "edition_spring": "꽃 피는 에디션",
+    "edition_easter": "파스텔 에디션",
+    "activity_found": "노래를 찾았어요!",
+    "activity_redirecting": "지금 이동합니다!",
+    "activity_found_hint": "Reczt에서 노래 확인하기",
+    "activity_no_match_hint": "Reczt에서 다시 시도해 주세요",
+    "activity_queued": "나중을 위해 저장됨",
     "mi_title": "음악 인텔리전스",
     "mi_empty": "곡을 인식하면 요약이 만들어져요.",
     "mi_key": "조성",
@@ -2599,6 +2768,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '기타',
   },
   'zh': {
+    "seasonal_lab": "季节主题实验室",
+    "seasonal_testing": "测试中",
+    "seasonal_preview_info": "所有季节主题均可预览。设计获批后将添加开放日期。",
+    "seasonal_save_hint": "保存后即可在整个 Reczt 中预览完整的动态主题。",
+    "season_standard": "标准 Reczt",
+    "season_autumn": "秋日",
+    "season_halloween": "万圣节",
+    "season_thanksgiving": "感恩节",
+    "season_winter": "冬日飘雪",
+    "season_christmas": "圣诞彩灯",
+    "season_spring": "春日花开",
+    "season_easter": "复活节粉彩",
+    "edition_autumn": "金色时刻版",
+    "edition_halloween": "午夜版",
+    "edition_thanksgiving": "丰收版",
+    "edition_winter": "飘雪版",
+    "edition_christmas": "节日彩灯版",
+    "edition_spring": "繁花版",
+    "edition_easter": "粉彩版",
+    "activity_found": "找到歌曲了！",
+    "activity_redirecting": "正在为你跳转！",
+    "activity_found_hint": "打开 Reczt 查看歌曲",
+    "activity_no_match_hint": "请在 Reczt 中重试",
+    "activity_queued": "已保存，稍后处理",
     "mi_title": "音乐智能",
     "mi_empty": "识别歌曲以生成此摘要。",
     "mi_key": "调性",
@@ -2771,6 +2964,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '其他',
   },
   'hi': {
+    "seasonal_lab": "मौसमी थीम प्रयोगशाला",
+    "seasonal_testing": "परीक्षण",
+    "seasonal_preview_info": "सभी मौसमी थीम का पूर्वावलोकन उपलब्ध है। डिज़ाइन स्वीकृत होने के बाद उपलब्धता की तारीखें जोड़ी जाएँगी।",
+    "seasonal_save_hint": "पूरे Reczt में एनिमेटेड थीम देखने के लिए सहेजें।",
+    "season_standard": "मानक Reczt",
+    "season_autumn": "पतझड़",
+    "season_halloween": "हैलोवीन",
+    "season_thanksgiving": "थैंक्सगिविंग",
+    "season_winter": "सर्दियों की बर्फ़",
+    "season_christmas": "क्रिसमस की रोशनी",
+    "season_spring": "वसंत के फूल",
+    "season_easter": "ईस्टर के हल्के रंग",
+    "edition_autumn": "सुनहरे पल संस्करण",
+    "edition_halloween": "मध्यरात्रि संस्करण",
+    "edition_thanksgiving": "फ़सल संस्करण",
+    "edition_winter": "बर्फ़बारी संस्करण",
+    "edition_christmas": "त्योहार की रोशनी संस्करण",
+    "edition_spring": "खिलते फूल संस्करण",
+    "edition_easter": "हल्के रंग संस्करण",
+    "activity_found": "गाना मिल गया!",
+    "activity_redirecting": "अभी ले जा रहे हैं!",
+    "activity_found_hint": "गाना देखने के लिए Reczt खोलें",
+    "activity_no_match_hint": "Reczt में फिर से कोशिश करें",
+    "activity_queued": "बाद के लिए सहेजा गया",
     "mi_title": "संगीत इंटेलिजेंस",
     "mi_empty": "यह सारांश बनाने के लिए गाने पहचानें।",
     "mi_key": "स्वर",
@@ -2943,6 +3160,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'अन्य',
   },
   'ru': {
+    "seasonal_lab": "Лаборатория сезонных тем",
+    "seasonal_testing": "ТЕСТ",
+    "seasonal_preview_info": "Все сезонные темы доступны для просмотра. Даты доступности появятся после утверждения дизайна.",
+    "seasonal_save_hint": "Сохраните, чтобы увидеть анимированную тему во всём Reczt.",
+    "season_standard": "Стандартный Reczt",
+    "season_autumn": "Осень",
+    "season_halloween": "Хэллоуин",
+    "season_thanksgiving": "День благодарения",
+    "season_winter": "Зимний снег",
+    "season_christmas": "Рождественские огни",
+    "season_spring": "Весеннее цветение",
+    "season_easter": "Пасхальная пастель",
+    "edition_autumn": "ЗОЛОТОЙ ЧАС",
+    "edition_halloween": "ПОЛУНОЧЬ",
+    "edition_thanksgiving": "УРОЖАЙ",
+    "edition_winter": "СНЕГОПАД",
+    "edition_christmas": "ПРАЗДНИЧНЫЕ ОГНИ",
+    "edition_spring": "ЦВЕТЕНИЕ",
+    "edition_easter": "ПАСТЕЛЬ",
+    "activity_found": "Песня найдена!",
+    "activity_redirecting": "Перенаправляем вас!",
+    "activity_found_hint": "Откройте Reczt, чтобы увидеть песню",
+    "activity_no_match_hint": "Попробуйте ещё раз в Reczt",
+    "activity_queued": "Сохранено на потом",
     "mi_title": "Музыкальная аналитика",
     "mi_empty": "Распознавайте песни, чтобы создать сводку.",
     "mi_key": "Тональность",
@@ -3115,6 +3356,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Другое',
   },
   'tr': {
+    "seasonal_lab": "Mevsimsel Tema Laboratuvarı",
+    "seasonal_testing": "TEST",
+    "seasonal_preview_info": "Tüm mevsimsel temalar önizlemeye açıktır. Tasarımlar onaylandıktan sonra kullanılabilirlik tarihleri eklenecektir.",
+    "seasonal_save_hint": "Animasyonlu temayı Reczt genelinde önizlemek için kaydedin.",
+    "season_standard": "Standart Reczt",
+    "season_autumn": "Sonbahar",
+    "season_halloween": "Cadılar Bayramı",
+    "season_thanksgiving": "Şükran Günü",
+    "season_winter": "Kış Karı",
+    "season_christmas": "Noel Işıkları",
+    "season_spring": "Bahar Çiçekleri",
+    "season_easter": "Pastel Paskalya",
+    "edition_autumn": "ALTIN SAAT SÜRÜMÜ",
+    "edition_halloween": "GECE YARISI SÜRÜMÜ",
+    "edition_thanksgiving": "HASAT SÜRÜMÜ",
+    "edition_winter": "KAR YAĞIŞI SÜRÜMÜ",
+    "edition_christmas": "BAYRAM IŞIKLARI SÜRÜMÜ",
+    "edition_spring": "ÇİÇEKLENME SÜRÜMÜ",
+    "edition_easter": "PASTEL SÜRÜMÜ",
+    "activity_found": "Şarkı bulundu!",
+    "activity_redirecting": "Şimdi yönlendiriliyorsunuz!",
+    "activity_found_hint": "Şarkınız için Reczt’i açın",
+    "activity_no_match_hint": "Reczt’te yeniden deneyin",
+    "activity_queued": "Sonrası için kaydedildi",
     "mi_title": "Müzik zekâsı",
     "mi_empty": "Bu özeti oluşturmak için şarkı tanıyın.",
     "mi_key": "Ton",
@@ -3287,6 +3552,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Diğer',
   },
   'ar': {
+    "seasonal_lab": "مختبر السمات الموسمية",
+    "seasonal_testing": "قيد الاختبار",
+    "seasonal_preview_info": "جميع السمات الموسمية متاحة للمعاينة. ستُضاف تواريخ الإتاحة بعد اعتماد التصاميم.",
+    "seasonal_save_hint": "احفظ لمعاينة السمة المتحركة في جميع أنحاء Reczt.",
+    "season_standard": "Reczt القياسي",
+    "season_autumn": "الخريف",
+    "season_halloween": "الهالوين",
+    "season_thanksgiving": "عيد الشكر",
+    "season_winter": "ثلج الشتاء",
+    "season_christmas": "أضواء الميلاد",
+    "season_spring": "أزهار الربيع",
+    "season_easter": "ألوان الفصح الهادئة",
+    "edition_autumn": "إصدار الساعة الذهبية",
+    "edition_halloween": "إصدار منتصف الليل",
+    "edition_thanksgiving": "إصدار الحصاد",
+    "edition_winter": "إصدار تساقط الثلوج",
+    "edition_christmas": "إصدار أضواء الأعياد",
+    "edition_spring": "إصدار التفتح",
+    "edition_easter": "إصدار الألوان الهادئة",
+    "activity_found": "تم العثور على الأغنية!",
+    "activity_redirecting": "جارٍ توجيهك الآن!",
+    "activity_found_hint": "افتح Reczt لعرض أغنيتك",
+    "activity_no_match_hint": "حاول مرة أخرى في Reczt",
+    "activity_queued": "تم الحفظ لوقت لاحق",
     "mi_title": "الذكاء الموسيقي",
     "mi_empty": "تعرّف على الأغاني لإنشاء هذا الملخص.",
     "mi_key": "المقام",
@@ -3459,6 +3748,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'أخرى',
   },
   'nl': {
+    "seasonal_lab": "Laboratorium voor seizoensthema’s",
+    "seasonal_testing": "TEST",
+    "seasonal_preview_info": "Alle seizoensthema’s zijn beschikbaar als voorbeeld. Beschikbaarheidsdatums volgen zodra de ontwerpen zijn goedgekeurd.",
+    "seasonal_save_hint": "Sla op om het geanimeerde thema overal in Reczt te bekijken.",
+    "season_standard": "Standaard Reczt",
+    "season_autumn": "Herfst",
+    "season_halloween": "Halloween",
+    "season_thanksgiving": "Thanksgiving",
+    "season_winter": "Wintersneeuw",
+    "season_christmas": "Kerstlichtjes",
+    "season_spring": "Lentebloesem",
+    "season_easter": "Pastel Pasen",
+    "edition_autumn": "GOUDEN-UUREDITIE",
+    "edition_halloween": "MIDDERNACHTEDITIE",
+    "edition_thanksgiving": "OOGSTEDITIE",
+    "edition_winter": "SNEEUWVALEDITIE",
+    "edition_christmas": "FEESTLICHTJESEDITIE",
+    "edition_spring": "BLOESEMEDITIE",
+    "edition_easter": "PASTELEDITIE",
+    "activity_found": "Nummer gevonden!",
+    "activity_redirecting": "Je wordt nu doorgestuurd!",
+    "activity_found_hint": "Open Reczt voor je nummer",
+    "activity_no_match_hint": "Probeer opnieuw in Reczt",
+    "activity_queued": "Bewaard voor later",
     "mi_title": "Muziekintelligentie",
     "mi_empty": "Herken nummers om dit overzicht op te bouwen.",
     "mi_key": "Toonsoort",
@@ -3631,6 +3944,30 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Overig',
   },
   'pl': {
+    "seasonal_lab": "Laboratorium motywów sezonowych",
+    "seasonal_testing": "TEST",
+    "seasonal_preview_info": "Wszystkie motywy sezonowe są dostępne do podglądu. Daty dostępności zostaną dodane po zatwierdzeniu projektów.",
+    "seasonal_save_hint": "Zapisz, aby zobaczyć animowany motyw w całym Reczt.",
+    "season_standard": "Standardowy Reczt",
+    "season_autumn": "Jesień",
+    "season_halloween": "Halloween",
+    "season_thanksgiving": "Święto Dziękczynienia",
+    "season_winter": "Zimowy śnieg",
+    "season_christmas": "Świąteczne lampki",
+    "season_spring": "Wiosenne kwiaty",
+    "season_easter": "Wielkanocne pastele",
+    "edition_autumn": "EDYCJA ZŁOTEJ GODZINY",
+    "edition_halloween": "EDYCJA PÓŁNOCNA",
+    "edition_thanksgiving": "EDYCJA ŻNIWNA",
+    "edition_winter": "EDYCJA ŚNIEŻNA",
+    "edition_christmas": "EDYCJA ŚWIĄTECZNYCH ŚWIATEŁ",
+    "edition_spring": "EDYCJA KWIATOWA",
+    "edition_easter": "EDYCJA PASTELOWA",
+    "activity_found": "Znaleziono utwór!",
+    "activity_redirecting": "Przekierowujemy!",
+    "activity_found_hint": "Otwórz Reczt, aby zobaczyć utwór",
+    "activity_no_match_hint": "Spróbuj ponownie w Reczt",
+    "activity_queued": "Zapisano na później",
     "mi_title": "Inteligencja muzyczna",
     "mi_empty": "Rozpoznawaj utwory, aby utworzyć podsumowanie.",
     "mi_key": "Tonacja",
@@ -3718,7 +4055,7 @@ final Map<String, Map<String, String>> localizedStrings = {
     'step9_desc': 'Używaj QuickShare na stronach Analytics i Historia, aby udostępniać pojedyncze utwory lub całą stronę Analytics na ulubionych platformach.',
     'got it': 'Zrozumiano!',
     'Outdoors': 'Na zewnątrz',
-    'no_valid_match': 'Geen geldige match voldoet aan de dynamische vertrouwensscore. Probeer het opnieuw!',
+    'no_valid_match': 'Żadne poprawne dopasowanie nie osiągnęło dynamicznego progu pewności. Spróbuj ponownie!',
     'theme_title': 'Temat koloru aplikacji',
     'theme_purple': 'Głęboki fiolet',
     'theme_blue': 'Oceaniczny niebieski',
@@ -3908,26 +4245,8 @@ enum RecztSeason {
 extension RecztSeasonDetails on RecztSeason {
   String get storageId => name;
 
-  String get displayName {
-    switch (this) {
-      case RecztSeason.standard:
-        return 'Standard Reczt';
-      case RecztSeason.autumn:
-        return 'Autumn';
-      case RecztSeason.halloween:
-        return 'Halloween';
-      case RecztSeason.thanksgiving:
-        return 'Thanksgiving';
-      case RecztSeason.winter:
-        return 'Winter Snow';
-      case RecztSeason.christmas:
-        return 'Christmas Lights';
-      case RecztSeason.spring:
-        return 'Spring Bloom';
-      case RecztSeason.easter:
-        return 'Easter Pastels';
-    }
-  }
+  String get displayNameKey => 'season_$name';
+  String displayName(String language) => recztText(language, displayNameKey);
 
   String get emoji {
     switch (this) {
@@ -3950,26 +4269,10 @@ extension RecztSeasonDetails on RecztSeason {
     }
   }
 
-  String get editionLabel {
-    switch (this) {
-      case RecztSeason.standard:
-        return '';
-      case RecztSeason.autumn:
-        return 'GOLDEN HOUR EDITION';
-      case RecztSeason.halloween:
-        return 'MIDNIGHT EDITION';
-      case RecztSeason.thanksgiving:
-        return 'HARVEST EDITION';
-      case RecztSeason.winter:
-        return 'SNOWFALL EDITION';
-      case RecztSeason.christmas:
-        return 'HOLIDAY LIGHTS EDITION';
-      case RecztSeason.spring:
-        return 'BLOOM EDITION';
-      case RecztSeason.easter:
-        return 'PASTEL EDITION';
-    }
-  }
+  String get editionKey => 'edition_$name';
+  String editionLabel(String language) => this == RecztSeason.standard
+      ? '' : recztText(language, editionKey);
+
 }
 
 RecztSeason _recztSeasonFromId(String? value) {
@@ -4104,6 +4407,19 @@ _RecztSeasonStyle _recztSeasonStyle(RecztSeason season) {
   }
 }
 
+String recztText(String language, String key) =>
+    localizedStrings[language]?[key] ?? localizedStrings['en']?[key] ?? key;
+
+/// Follows Reczt's preference even when it differs from the device language.
+class RecztLanguageScope extends InheritedWidget {
+  const RecztLanguageScope({super.key, required this.language, required super.child});
+  final String language;
+  static String of(BuildContext context, {String fallback = 'en'}) => context
+      .dependOnInheritedWidgetOfExactType<RecztLanguageScope>()?.language ?? fallback;
+  @override
+  bool updateShouldNotify(RecztLanguageScope oldWidget) => oldWidget.language != language;
+}
+
 class RecztSeasonalScope extends InheritedWidget {
   final RecztSeason season;
 
@@ -4163,6 +4479,14 @@ ThemeData _buildRecztTheme({
       surface: cardColor,
       onSurface: onCard,
     ),
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: SeasonalPageTransitionsBuilder(),
+      TargetPlatform.iOS: SeasonalPageTransitionsBuilder(),
+      TargetPlatform.macOS: SeasonalPageTransitionsBuilder(),
+      TargetPlatform.windows: SeasonalPageTransitionsBuilder(),
+      TargetPlatform.linux: SeasonalPageTransitionsBuilder(),
+      TargetPlatform.fuchsia: SeasonalPageTransitionsBuilder(),
+    }),
     scaffoldBackgroundColor: Colors.transparent,
     cardColor: cardColor.withValues(alpha: isDark ? 0.90 : 0.88),
     dividerColor: primary.withValues(alpha: 0.20),
@@ -5447,7 +5771,7 @@ class _SeasonalEditionBadge extends StatelessWidget {
         ],
       ),
       child: Text(
-        '${season.emoji}  ${season.editionLabel}',
+        '${season.emoji}  ${season.editionLabel(RecztLanguageScope.of(context))}',
         style: TextStyle(
           fontSize: 10,
           letterSpacing: 1.1,
@@ -5869,9 +6193,15 @@ class _MyAppState extends State<MyApp> {
       themeMode: ThemeMode.system,
       builder: (context, child) {
         final content = child ?? const SizedBox.shrink();
-        return RecztSeasonalScope(
-          season: seasonalTheme,
-          child: _SeasonalAppBackground(season: seasonalTheme, child: content),
+        return RecztLanguageScope(
+          language: currentLang,
+          child: Directionality(
+            textDirection: currentLang == 'ar' ? TextDirection.rtl : TextDirection.ltr,
+            child: RecztSeasonalScope(
+              season: seasonalTheme,
+              child: _SeasonalAppBackground(season: seasonalTheme, child: content),
+            ),
+          ),
         );
       },
       home: widget.home ?? const AudioRecorderScreen(),
@@ -6455,8 +6785,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   }
   
   String _getDisplayStatusText() {
-    if (_customStatusText != null) {
-      return _customStatusText!;
+    if (_customStatusKey != null) {
+      final key = _customStatusKey!;
+      if (key.startsWith('voice:')) return _voiceT(key.substring(6));
+      final message = t(key);
+      return key == 'server_error' && _statusHttpCode != null
+          ? '$message: $_statusHttpCode' : message;
     }
     if (_isRecording) {
       if (!_voiceDetected && _voiceWaitSeconds < _maxVoiceWaitSeconds) {
@@ -6497,6 +6831,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   @override
   void dispose() {
     SceneEnergyPolicy.instance.setBusy(false);
+    unawaited(_RecztIOS27Bridge.setActivityForeground(false));
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
     _enhancedSearchTimer?.cancel();
@@ -6516,7 +6851,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      unawaited(_RecztIOS27Bridge.setActivityForeground(false));
+    }
     if (state == AppLifecycleState.resumed) {
+      unawaited(_RecztIOS27Bridge.setActivityForeground(true));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_checkAndStartSiriRecording().then((_) =>
             _showHalloweenAnnouncementIfNeeded()));
@@ -6713,7 +7053,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   };
 
   String _statusTextKey = 'initial_status';
-  String? _customStatusText;
+  String? _customStatusKey;
+  int? _statusHttpCode;
 
   String? _songTitle;
   String? _artist;
@@ -6747,7 +7088,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     _enhancedSearchTimer = Timer(const Duration(seconds: 4), () {
       if (!mounted || !_isLoading || _isRecording) return;
       setState(() {
-        _customStatusText = t('enhanced_search');
+        _customStatusKey = 'enhanced_search';
       });
     });
   }
@@ -6918,10 +7259,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   bool _sceneBusy = false;
   bool _startupDialogsFinished = false;
   bool _halloweenAnnouncementScheduled = false;
+  bool _halloweenPreviewPending = false;
   Future<void> _showHalloweenAnnouncementIfNeeded() async {
     if (!mounted ||
         !_startupDialogsFinished ||
-        !HalloweenEventCampaign.inWindow(DateTime.now()) ||
+        (!_halloweenPreviewPending && !HalloweenEventCampaign.inWindow(DateTime.now())) ||
         ModalRoute.of(context)?.isCurrent != true ||
         _halloweenAnnouncementScheduled ||
         _isRecording ||
@@ -6950,14 +7292,21 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       prefs,
       DateTime.now(),
       standard: true,
+      preview: _halloweenPreviewPending,
     );
     if (!claimed) { _halloweenAnnouncementScheduled = false; return; }
+    _halloweenPreviewPending = false;
     if (!mounted) return;
-    final preview = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => HalloweenAnnouncement(t: t, language: _selectedLanguage),
-    );
+    bool? preview;
+    try {
+      preview = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => HalloweenAnnouncement(t: t, language: _selectedLanguage),
+      );
+    } finally {
+      _halloweenAnnouncementScheduled = false;
+    }
     if (preview == true && mounted) {
       await _savePreferences(
         _preferredMusicApp,
@@ -6999,8 +7348,12 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     String lang,
     Color seedColor,
     bool autoPlay,
-    RecztSeason seasonalPreview,
-  ) async {
+    RecztSeason seasonalPreview, {
+    bool previewHalloween = false,
+  }) async {
+    if (previewHalloween && seasonalPreview == RecztSeason.standard) {
+      _halloweenPreviewPending = true;
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('preferred_music_app', musicApp);
     await prefs.setString('preferred_language', lang);
@@ -7030,11 +7383,14 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
   Future<void> _showPreferencesDialog() async {
     bool savingPreferences = false;
+    bool selectedStandardPreview = false;
     String tempApp = _preferredMusicApp;
     String tempLang = _selectedLanguage;
     Color tempColor = _themeSeedColor;
     bool tempAutoPlay = _autoPlayEnabled;
     RecztSeason tempSeason = _seasonalPreview;
+
+    String settingsT(String key) => recztText(tempLang, key);
 
     await showDialog(
       context: context,
@@ -7042,13 +7398,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         return StatefulBuilder(
           builder: (context, setModalState) {
             return AlertDialog(
-              title: Text(t('settings_title')),
+              title: Text(settingsT('settings_title')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(t('pref_music_app'),
+                    Text(settingsT('pref_music_app'),
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     RadioListTile<String>(
@@ -7065,13 +7421,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                     ),
                     const Divider(),
                     SwitchListTile(
-                      title: Text(t('auto_play_title')),
+                      title: Text(settingsT('auto_play_title')),
                       value: tempAutoPlay,
                       onChanged: (val) => setModalState(() => tempAutoPlay = val),
                     ),
                     const Divider(),
                     const SizedBox(height: 8),
-                    Text(t('pref_lang'),
+                    Text(settingsT('pref_lang'),
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     DropdownButton<String>(
@@ -7091,7 +7447,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                     ),
                     const Divider(),
                     const SizedBox(height: 8),
-                    Text(t('theme_title'),
+                    Text(settingsT('theme_title'),
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     DropdownButton<Color>(
@@ -7102,10 +7458,10 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                             orElse: () => Colors.deepPurple,
                           ),
                       items: [
-                        DropdownMenuItem(value: Colors.deepPurple, child: Text(t('theme_purple'))),
-                        DropdownMenuItem(value: Colors.blue, child: Text(t('theme_blue'))),
-                        DropdownMenuItem(value: Colors.teal, child: Text(t('theme_emerald'))),
-                        DropdownMenuItem(value: Colors.orange, child: Text(t('theme_orange'))),
+                        DropdownMenuItem(value: Colors.deepPurple, child: Text(settingsT('theme_purple'))),
+                        DropdownMenuItem(value: Colors.blue, child: Text(settingsT('theme_blue'))),
+                        DropdownMenuItem(value: Colors.teal, child: Text(settingsT('theme_emerald'))),
+                        DropdownMenuItem(value: Colors.orange, child: Text(settingsT('theme_orange'))),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -7119,7 +7475,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                       children: [
                         Expanded(
                           child: Text(
-                            'Seasonal Theme Lab',
+                            settingsT('seasonal_lab'),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -7129,16 +7485,16 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                             color: Theme.of(context).colorScheme.secondaryContainer,
                             borderRadius: BorderRadius.circular(999),
                           ),
-                          child: const Text(
-                            'TESTING',
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.7),
+                          child: Text(
+                            settingsT('seasonal_testing'),
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 0.7),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'All seasonal looks are unlocked for preview. Date-based availability will be added after the designs are approved.',
+                      settingsT('seasonal_preview_info'),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
@@ -7150,12 +7506,15 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                       items: RecztSeason.values.map((season) {
                         return DropdownMenuItem<RecztSeason>(
                           value: season,
-                          child: Text('${season.emoji}  ${season.displayName}'),
+                          child: Text('${season.emoji}  ${season.displayName(tempLang)}'),
                         );
                       }).toList(),
                       onChanged: (val) {
                         if (val != null) {
-                          setModalState(() => tempSeason = val);
+                          setModalState(() {
+                            tempSeason = val;
+                            selectedStandardPreview = val == RecztSeason.standard;
+                          });
                         }
                       },
                     ),
@@ -7172,7 +7531,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                           ),
                         ),
                         child: Text(
-                          '${tempSeason.emoji} ${tempSeason.editionLabel}\nSave to preview the full animated look throughout Reczt.',
+                          '${tempSeason.emoji} ${tempSeason.editionLabel(tempLang)}\n${settingsT('seasonal_save_hint')}',
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -7181,7 +7540,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                     const SizedBox(height: 4),
                     Center(
                       child: Text(
-                        t('legal_privacy'),
+                        settingsT('legal_privacy'),
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
@@ -7206,13 +7565,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                             ),
                             onPressed: () {
                               _showLegalDocument(
-                                title: t('privacy_policy'),
+                                title: settingsT('privacy_policy'),
                                 body: _recztPrivacyPolicyText,
                                 onlineUrl: recztPrivacyPolicyUrl,
                               );
                             },
                             child: Text(
-                              t('privacy_policy'),
+                              settingsT('privacy_policy'),
                               style: const TextStyle(fontSize: 11),
                             ),
                           ),
@@ -7228,13 +7587,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                             ),
                             onPressed: () {
                               _showLegalDocument(
-                                title: t('terms_of_use'),
+                                title: settingsT('terms_of_use'),
                                 body: _recztTermsOfUseText,
                                 onlineUrl: recztTermsOfUseUrl,
                               );
                             },
                             child: Text(
-                              t('terms_of_use'),
+                              settingsT('terms_of_use'),
                               style: const TextStyle(fontSize: 11),
                             ),
                           ),
@@ -7255,7 +7614,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                               );
                             },
                             child: Text(
-                              t('open_source_licenses'),
+                              settingsT('open_source_licenses'),
                               style: const TextStyle(fontSize: 11),
                             ),
                           ),
@@ -7268,20 +7627,21 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(t('cancel')),
+                  child: Text(settingsT('cancel')),
                 ),
                 ElevatedButton(
                   onPressed: savingPreferences ? null : () async {
                     setModalState(() => savingPreferences = true);
                     try {
                       await _savePreferences(tempApp, tempLang, tempColor,
-                          tempAutoPlay, tempSeason);
+                          tempAutoPlay, tempSeason,
+                          previewHalloween: selectedStandardPreview);
                       if (context.mounted) { Navigator.pop(context); }
                     } finally {
                       if (context.mounted) { setModalState(() => savingPreferences = false); }
                     }
                   },
-                  child: Text(t('save')),
+                  child: Text(settingsT('save')),
                 ),
               ],
             );
@@ -7541,6 +7901,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         setState(() {
           _voiceWaitSeconds++;
         });
+        unawaited(_RecztIOS27Bridge.updateRecognitionActivity(
+            phase: 'listening', secondsRemaining: _secondsRemaining));
         return;
       }
 
@@ -7548,6 +7910,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         setState(() {
           _secondsRemaining--;
         });
+        unawaited(_RecztIOS27Bridge.updateRecognitionActivity(
+            phase: 'listening', secondsRemaining: _secondsRemaining));
       }
       if (_secondsRemaining <= 0) {
         timer.cancel();
@@ -7726,7 +8090,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     if (mounted) {
       setState(() {
-        _customStatusText = _voiceT('listening');
+        _customStatusKey = 'voice:listening';
       });
     }
 
@@ -7969,7 +8333,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           _micLevel = 0.0;
           _isLoading = true;
           _statusTextKey = 'searching';
-          _customStatusText = null;
+          _customStatusKey = null;
         });
       }
       unawaited(
@@ -7986,9 +8350,9 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
           if (mounted) {
             setState(() {
               _isLoading = false;
-              _customStatusText = queuedPath != null
-                  ? t('offline_saved')
-                  : t('connection_failed');
+              _customStatusKey = queuedPath != null
+                  ? 'offline_saved'
+                  : 'connection_failed';
             });
           }
           unawaited(
@@ -8008,7 +8372,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         if (mounted) {
           setState(() {
             _isLoading = false;
-            _customStatusText = t('error_empty_path');
+            _customStatusKey = 'error_empty_path';
           });
         }
         unawaited(_playErrorCue());
@@ -8021,7 +8385,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _customStatusText = t('error_stopping');
+          _customStatusKey = 'error_stopping';
         });
       }
       unawaited(_playErrorCue());
@@ -8045,7 +8409,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     if (mounted) {
       setState(() {
         _isLoading = true;
-        _customStatusText = null;
+        _customStatusKey = null;
         _statusTextKey = 'searching';
       });
     }
@@ -8062,6 +8426,8 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     String path, {
     bool isFromOfflineQueue = false,
   }) async {
+    final activityRevision = _RecztIOS27Bridge.activityRevision;
+    String terminalPhase = 'noMatch';
     final uri = Uri.parse(_backendUrl);
     final request = http.MultipartRequest('POST', uri);
     request.fields['language'] = _selectedLanguage;
@@ -8106,12 +8472,13 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       }
 
       if (response.statusCode != 200) {
+        terminalPhase = 'error';
         final bool retryable =
             response.statusCode >= 500 || response.statusCode == 429;
         if (mounted) {
           setState(() {
-            _customStatusText =
-                '${t('server_error')}: ${response.statusCode}';
+            _customStatusKey = 'server_error';
+            _statusHttpCode = response.statusCode;
             if (!isFromOfflineQueue) {
               _lastFailedAudioPath = retryable ? path : null;
             }
@@ -8133,7 +8500,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         final bool retryable = data['retryable'] == true;
         if (mounted) {
           setState(() {
-            _customStatusText = t('error_no_lyrics');
+            _customStatusKey = 'error_no_lyrics';
             if (!isFromOfflineQueue && retryable) {
               // Keep the exact clip so the existing Retry button can resubmit it
               // without forcing the user to sing again.
@@ -8197,7 +8564,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
             _spotifyUrl = null;
             _appleMusicUrl = null;
             _topGuesses = <_SongMatchCandidate>[];
-            _customStatusText = t('error_no_lyrics');
+            _customStatusKey = 'error_no_lyrics';
           });
         }
         unawaited(_playErrorCue());
@@ -8230,7 +8597,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
                 _topGuesses = <_SongMatchCandidate>[];
                 _pendingGuessAudioPath = null;
                 _lastFailedAudioPath = preservedPath;
-                _customStatusText = t('no_valid_match');
+                _customStatusKey = 'no_valid_match';
               });
             } else {
               _lastFailedAudioPath = preservedPath;
@@ -8248,6 +8615,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
             await _finalizeCandidate(
               visibleChoices[spokenChoice],
               audioPath: preservedPath,
+              activityRevision: activityRevision,
               isFromOfflineQueue: false,
               allowAutoPlay: true,
             );
@@ -8264,7 +8632,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
               _appleMusicUrl = null;
               _topGuesses = visibleChoices;
               _pendingGuessAudioPath = preservedPath;
-              _customStatusText = _voiceT('failed');
+              _customStatusKey = 'voice:failed';
             });
           }
           return true;
@@ -8281,7 +8649,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
               _appleMusicUrl = null;
               _topGuesses = candidates.take(3).toList();
               _pendingGuessAudioPath = preservedPath;
-              _customStatusText = t('top_guesses_subtitle');
+              _customStatusKey = 'top_guesses_subtitle';
             });
           }
           return true;
@@ -8292,6 +8660,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       await _finalizeCandidate(
         candidates.first,
         audioPath: preservedPath,
+        activityRevision: activityRevision,
         isFromOfflineQueue: isFromOfflineQueue,
         allowAutoPlay: _autoPlayEnabled && !isFromOfflineQueue,
       );
@@ -8301,18 +8670,20 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       }
       return true;
     } on TimeoutException {
+      terminalPhase = 'error';
       if (mounted) {
         setState(() {
           if (!isFromOfflineQueue) {
             _isLoading = false;
             _lastFailedAudioPath = path;
           }
-          _customStatusText = t('search_timed_out');
+          _customStatusKey = 'search_timed_out';
         });
       }
       unawaited(_playErrorCue());
       return false;
     } catch (e) {
+      terminalPhase = 'error';
       debugPrint('Recognition request failed: $e');
       if (mounted) {
         setState(() {
@@ -8320,12 +8691,15 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
             _isLoading = false;
             _lastFailedAudioPath = path;
           }
-          _customStatusText = t('connection_failed');
+          _customStatusKey = 'connection_failed';
         });
       }
       unawaited(_playErrorCue());
       return false;
     } finally {
+      if (!isFromOfflineQueue) {
+        unawaited(_RecztIOS27Bridge.endRecognitionActivity(phase: terminalPhase, activityRevision: activityRevision));
+      }
       _cancelEnhancedSearchIndicator();
     }
   }
@@ -8339,7 +8713,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       setState(() {
         _isLoading = true;
         _topGuesses = <_SongMatchCandidate>[];
-        _customStatusText = null;
+        _customStatusKey = null;
       });
     }
 
@@ -8363,6 +8737,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     required bool isFromOfflineQueue,
     required bool allowAutoPlay,
     bool notifyQueuedMatch = true,
+    int? activityRevision,
   }) async {
     final String title = candidate.title;
     final String rawCandidateArtist =
@@ -8382,9 +8757,18 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         _lastResultWasOffline = isFromOfflineQueue;
         _topGuesses = <_SongMatchCandidate>[];
         _statusTextKey = 'match_found';
-        _customStatusText = null;
+        _customStatusKey = null;
         _isLoading = false;
       });
+    }
+
+    if (!isFromOfflineQueue && activityRevision != null) {
+      final directing = allowAutoPlay && _autoPlayEnabled &&
+          ((_preferredMusicApp == 'apple_music' && (candidate.appleMusicUrl?.isNotEmpty ?? false)) ||
+           (_preferredMusicApp != 'apple_music' && (candidate.spotifyUrl?.isNotEmpty ?? false)));
+      await _RecztIOS27Bridge.showRecognitionResult(
+        title: title, artist: displayArtist, redirecting: directing,
+        activityRevision: activityRevision);
     }
 
     // Hands-free mode should feel immediate. Once Reczt has accepted the match,
@@ -8466,14 +8850,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       genre: genre,
       latitude: _sessionLocation?.latitude,
       longitude: _sessionLocation?.longitude,
-    );
-
-    unawaited(
-      _RecztIOS27Bridge.showRecognitionResult(
-        title: title,
-        artist: displayArtist,
-        artworkUrl: albumArt,
-      ),
     );
 
     unawaited(
@@ -8744,7 +9120,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     if (!await _audioRecorder.hasPermission()) {
       if (mounted) {
         setState(() {
-          _customStatusText = t('mic_denied');
+          _customStatusKey = 'mic_denied';
         });
       }
       return;
@@ -8792,7 +9168,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         _appleMusicUrl = null;
         _lastResultWasOffline = false;
         _sessionLocation = null;
-        _customStatusText = null;
+        _customStatusKey = null;
       });
 
       unawaited(
@@ -8811,7 +9187,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       if (mounted) {
         setState(() {
           _isRecording = false;
-          _customStatusText = t('connection_failed');
+          _customStatusKey = 'connection_failed';
         });
       }
       await _deleteLocalFile(filePath);
@@ -8994,6 +9370,7 @@ final christmasTextShadow = isChristmas
                           Navigator.push(
                             context,
                             MaterialPageRoute(
+                              allowSnapshotting: seasonalTheme == RecztSeason.standard,
                               builder: (context) => AnalyticsPage(lang: _selectedLanguage),
                             ),
                           );
@@ -9013,6 +9390,7 @@ final christmasTextShadow = isChristmas
                           Navigator.push(
                             context,
                             MaterialPageRoute(
+                              allowSnapshotting: seasonalTheme == RecztSeason.standard,
                               builder: (context) => HistoryPage(lang: _selectedLanguage),
                             ),
                           );
@@ -9559,10 +9937,13 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   String get preferredPlatform =>
       _preferredApp == 'apple_music' ? 'Apple Music' : 'Spotify';
 
-  String t(String key) {
-    return localizedStrings[widget.lang]?[key] ??
-        localizedStrings['en']?[key] ??
-        key;
+  String? _pageLanguage;
+  String t(String key) => recztText(_pageLanguage ?? widget.lang, key);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _pageLanguage = RecztLanguageScope.of(context, fallback: widget.lang);
   }
 
   String _genreLabel(String rawGenre) {
@@ -12202,10 +12583,13 @@ class _HistoryPageState extends State<HistoryPage> {
   String? _currentlyPlayingPath;
   bool _isPlayingClip = false;
 
-  String t(String key) {
-    return localizedStrings[widget.lang]?[key] ??
-        localizedStrings['en']?[key] ??
-        key;
+  String? _pageLanguage;
+  String t(String key) => recztText(_pageLanguage ?? widget.lang, key);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _pageLanguage = RecztLanguageScope.of(context, fallback: widget.lang);
   }
 
   @override

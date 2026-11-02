@@ -218,12 +218,25 @@ class ChristmasSkatingFigure extends StatelessWidget {
   final Map<String, ui.Image> images;
   final ui.ImageShader? scarf, bodyTexture;
   @override
-  Widget build(BuildContext context) => images.isEmpty
-      ? const SizedBox.shrink()
-      : Transform.flip(
-          flipX: pose.facing < 0,
-          child: CustomPaint(
-              painter: _SkaterPainter(pose, images, scarf!, bodyTexture)));
+  Widget build(BuildContext context) {
+    if (images.isEmpty) return const SizedBox.shrink();
+    Widget facing(bool left) => Transform.flip(
+        flipX: left,
+        child: CustomPaint(
+            painter: _SkaterPainter(pose, images, scarf!, bodyTexture)));
+    final blend = pose.facingBlend;
+    if (blend <= 0) return facing(true);
+    if (blend >= 1) return facing(false);
+    // A short, route-driven dissolve through the turn avoids an instantaneous
+    // mirror jump. Only this small sprite is composited, never the whole scene.
+    return Transform.scale(
+      scaleX: .94 + .06 * (2 * blend - 1).abs(),
+      child: Stack(fit: StackFit.expand, children: [
+        Opacity(opacity: 1 - blend, child: facing(true)),
+        Opacity(opacity: blend, child: facing(false)),
+      ]),
+    );
+  }
 }
 
 class _SnowmanReflection extends CustomPainter {
@@ -272,12 +285,10 @@ class _SkaterPainter extends CustomPainter {
     for (final rear in [true, false]) {
       final weight = rear ? back : front;
       final pivot = rear ? const Offset(123, 275) : const Offset(239, 313);
-      final hip = (rear ? const Offset(171, 306) : const Offset(235, 302)) +
-          Offset(push * 10, 0);
-      // Bring the raised boot to the ice once, then alternate tiny pushes.
-      // Both blades share a contact plane instead of the old high marching kick.
-      final rest = rear ? const Offset(62, 66) : const Offset(-12, -7);
-      final shift = rest + Offset((rear ? -10 : 9) * weight, -7 * weight);
+      final hip = rear ? const Offset(141, 306) : const Offset(235, 302);
+      // Restore the earlier painted boot placement and restrained motion.
+      final rest = rear ? const Offset(8, 43) : const Offset(-3, -7);
+      final shift = rest + Offset((rear ? -8 : 7) * weight, -5 * weight);
       final ankle = pivot + shift;
       final leg = Path()
         ..moveTo(hip.dx, hip.dy)
@@ -305,7 +316,7 @@ class _SkaterPainter extends CustomPainter {
       canvas.restore();
     }
     canvas.save();
-    canvas.translate(push * 10, -math.sin(pose.stridePhase * 2).abs() * .6);
+    canvas.translate(push * .9, -math.sin(pose.stridePhase * 2).abs() * .6);
     _scarf(canvas);
     if (pose.blink > .001 && bodyTexture != null) {
       final points = _bodyUV;

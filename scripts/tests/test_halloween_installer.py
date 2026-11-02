@@ -14,6 +14,14 @@ FILES = [
     'lib/seasonal/halloween_characters.dart', 'lib/seasonal/halloween_carvings.dart',
     'lib/main.dart',
     'lib/seasonal/music_intelligence_card.dart',
+    'lib/seasonal/recognition_activity_session.dart',
+    'lib/seasonal/seasonal_page_transition.dart',
+    'ios/RecztControl/Assets.xcassets/RecztChristmasGarland.imageset/Contents.json',
+    'ios/RecztControl/Assets.xcassets/RecztChristmasGarland.imageset/paint.png',
+    'ios/RecztControl/Assets.xcassets/RecztHalloweenGarland.imageset/Contents.json',
+    'ios/RecztControl/Assets.xcassets/RecztHalloweenGarland.imageset/paint.png',
+    'test/recognition_activity_session_test.dart',
+    'test/seasonal_localization_navigation_test.dart',
     'ios/RecztControl/RecztControlBundle.swift',
     'ios/RecztControl/RecztOpenIntent.swift',
     'ios/RecztControl/Assets.xcassets/RecztPumpkinClassic.imageset/Contents.json',
@@ -57,6 +65,7 @@ FILES = [
     'ios/Runner/iOS 27 System Integration/RecztLiveActivityManager.swift',
     'ios/Runner/iOS 27 System Integration/RecztSharedStore.swift',
     'ios/Runner/iOS 27 System Integration/RecztIOS27Bridge.swift',
+    'ios/Runner/iOS 27 System Integration/RecztRecognitionCoordinator.swift',
     'ios/RunnerTests/RunnerTests.swift',
     'test/christmas_rig_render_test.dart',
     'test/music_intelligence_card_test.dart',
@@ -94,7 +103,6 @@ class HalloweenInstallerTests(unittest.TestCase):
         (self.target / 'ios/Runner.xcworkspace').mkdir(parents=True)
         self.write(self.target / 'ios/Flutter/Generated.xcconfig', f'FLUTTER_APPLICATION_PATH={self.target}\n')
         self.protected = ['assets/seasonal/christmas/christmas_background_clean.png',
-            'ios/Runner/iOS 27 System Integration/RecztRecognitionCoordinator.swift',
             'ios/Pods/keep', 'ios/Runner.xcodeproj/project.pbxproj']
         for name in self.protected:
             self.write(self.target / name, 'preserve: ' + name)

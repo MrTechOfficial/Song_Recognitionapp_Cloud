@@ -68,4 +68,21 @@ class RunnerTests: XCTestCase {
     XCTAssertNil(try JSONDecoder().decode(RecztRecognitionAttributes.ContentState.self, from: legacy).listeningEndsAt)
   }
 
+  func testActivityUsesAppLanguageAndLocalizedOutcomesWithoutDeviceLocale() throws {
+    var state = RecztRecognitionAttributes.ContentState.listening(
+      secondsRemaining: 8, source: "app", language: "es")
+    state.redirecting = true
+    let restored = try JSONDecoder().decode(RecztRecognitionAttributes.ContentState.self,
+      from: JSONEncoder().encode(state))
+    XCTAssertEqual(restored.language, "es")
+    XCTAssertEqual(restored.redirecting, true)
+    XCTAssertEqual(RecztRecognitionAttributes.localizedText("activity_found", language: "es-MX"), "¡Canción encontrada!")
+    XCTAssertEqual(RecztRecognitionAttributes.localizedText("activity_redirecting", language: "fr"), "Redirection en cours !")
+    XCTAssertEqual(RecztRecognitionAttributes.localizedText("activity_found", language: "unknown"), "Song found!")
+    XCTAssertEqual(RecztRecognitionAttributes.dictionaries.count, 15)
+    for values in RecztRecognitionAttributes.dictionaries.values {
+      XCTAssertFalse(values["activity_no_match_hint", default: ""].isEmpty)
+    }
+  }
+
 }

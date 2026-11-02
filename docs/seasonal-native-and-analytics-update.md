@@ -1,5 +1,8 @@
 # Seasonal finishing pass, live countdown and compact analytics
 
+The subsequent language/navigation refinements are documented in
+[seasonal-language-and-navigation-update.md](seasonal-language-and-navigation-update.md).
+
 This update follows the small Halloween corrections, clearer skating support,
 painted native characters, compact Music Intelligence, and one foreground
 Control Center control.

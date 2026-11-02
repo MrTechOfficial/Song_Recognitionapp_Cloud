@@ -12,8 +12,10 @@ class HalloweenEventCampaign {
   }
 
   static Future<bool> claim(SharedPreferences prefs, DateTime now,
-      {required bool standard}) async {
-    if (!standard || !inWindow(now) || prefs.getBool(seenKey) == true) {
+      {required bool standard, bool preview = false}) async {
+    if (!standard) return false;
+    if (preview) return true;
+    if (!inWindow(now) || prefs.getBool(seenKey) == true) {
       return false;
     }
     return prefs.setBool(seenKey, true);

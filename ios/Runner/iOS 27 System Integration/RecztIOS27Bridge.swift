@@ -1,7 +1,9 @@
 import Flutter
 import Foundation
+import UIKit
 
 final class RecztIOS27Bridge {
+    private static var lifecycleObservers: [NSObjectProtocol] = []
     private static var channel: FlutterMethodChannel?
 
     static func register(with messenger: FlutterBinaryMessenger) {
@@ -10,6 +12,19 @@ final class RecztIOS27Bridge {
             binaryMessenger: messenger
         )
         self.channel = channel
+        Task { await RecztLiveActivityManager.shared.clearOrphanedAppActivities() }
+        lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        lifecycleObservers = [
+            NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+                Task { await RecztLiveActivityManager.shared.setAppForeground(false) }
+            },
+            NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+                Task { await RecztLiveActivityManager.shared.setAppForeground(true) }
+            },
+            NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+                Task { await RecztLiveActivityManager.shared.setAppForeground(false) }
+            }
+        ]
 
         channel.setMethodCallHandler { call, result in
             switch call.method {
@@ -43,10 +58,11 @@ final class RecztIOS27Bridge {
                 }
                 let phase = (args["phase"] as? String) ?? "listening"
                 let remaining = (args["secondsRemaining"] as? NSNumber)?.intValue
+                guard let sessionID = args["sessionID"] as? String else { result(nil); return }
                 Task {
                     await RecztLiveActivityManager.shared.update(
                         phase: phase,
-                        secondsRemaining: remaining
+                        secondsRemaining: remaining, sessionID: sessionID
                     )
                     await returnToFlutter(result, nil)
                 }
@@ -56,12 +72,14 @@ final class RecztIOS27Bridge {
                     result(nil)
                     return
                 }
-                let title = (args["title"] as? String) ?? "Song found"
+                guard let sessionID = args["sessionID"] as? String else { result(nil); return }
+                let redirecting = (args["redirecting"] as? Bool) ?? false
+                let title = (args["title"] as? String) ?? "Reczt"
                 let artist = (args["artist"] as? String) ?? ""
                 Task {
                     await RecztLiveActivityManager.shared.showResult(
                         title: title,
-                        artist: artist
+                        artist: artist, redirecting: redirecting, sessionID: sessionID
                     )
                     await returnToFlutter(result, nil)
                 }
@@ -69,10 +87,11 @@ final class RecztIOS27Bridge {
             case "endRecognitionActivity":
                 let args = call.arguments as? [String: Any]
                 let phase = (args?["phase"] as? String) ?? "idle"
+                guard let sessionID = args?["sessionID"] as? String else { result(nil); return }
                 Task {
                     await RecztLiveActivityManager.shared.finish(
                         phase: phase,
-                        message: nil
+                        message: nil, sessionID: sessionID
                     )
                     await returnToFlutter(result, nil)
                 }
@@ -93,7 +112,23 @@ final class RecztIOS27Bridge {
                     settings.backendURL = backend
                 }
                 RecztSharedStore.shared.saveRecognitionSettings(settings)
-                result(nil)
+                let language = settings.language
+                Task {
+                    await RecztLiveActivityManager.shared.refreshLanguage(language)
+                    await returnToFlutter(result, nil)
+                }
+
+            case "dismissAppRecognitionActivities":
+                Task {
+                    await RecztLiveActivityManager.shared.setAppForeground(false)
+                    await returnToFlutter(result, nil)
+                }
+
+            case "resumeAppRecognitionActivities":
+                Task {
+                    await RecztLiveActivityManager.shared.setAppForeground(true)
+                    await returnToFlutter(result, nil)
+                }
 
             case "syncSongHistory":
                 guard let args = call.arguments as? [String: Any],

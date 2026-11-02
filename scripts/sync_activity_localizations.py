@@ -1,7 +1,7 @@
 """Export native Live Activity copy from Reczt's canonical Flutter dictionaries.
 
 Run with --check to detect stale/missing translations without writing files.
-Embedding in the existing widget source avoids modifying a user's Xcode project
+Embedding in the existing shared attributes source avoids modifying a user's Xcode project
 or relying on an unregistered localization resource during a ZIP installation.
 """
 import argparse
@@ -11,12 +11,14 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-WIDGET = ROOT / 'ios/RecztControl/RecztRecognitionLiveActivity.swift'
+WIDGET = ROOT / 'ios/Runner/iOS 27 System Integration/RecztRecognitionAttributes.swift'
 BEGIN = '    // BEGIN GENERATED ACTIVITY DICTIONARIES'
 END = '    // END GENERATED ACTIVITY DICTIONARIES'
 KEYS = ['listening', 'searching', 'match_found', 'mic_denied',
         'activity_no_match', 'activity_ended', 'activity_error',
-        'activity_listening_hint', 'activity_search_hint', 'activity_seconds_remaining']
+        'activity_listening_hint', 'activity_search_hint', 'activity_seconds_remaining',
+        'activity_found', 'activity_redirecting', 'activity_found_hint',
+        'activity_no_match_hint', 'activity_queued']
 
 
 def generated():
