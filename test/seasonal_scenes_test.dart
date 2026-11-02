@@ -17,6 +17,19 @@ Widget host(Widget child, {bool reduceMotion = false, bool ticker = true}) =>
     );
 
 void main() {
+  test('opening glide switches support while continuing in the same direction',
+      () {
+    final route = ChristmasSkatingRoute(const Rect.fromLTWH(0, 0, 941, 1672));
+    final support = <bool>{};
+    for (var i = 0; i <= 160; i++) {
+      final pose = route.sample(i / 20);
+      expect(pose.facing, lessThan(0));
+      support.add(pose.rearSupports);
+    }
+    expect(support.length, 2);
+    expect(route.sample(7.14).blink, greaterThan(.95));
+    expect(route.sample(7.14, animateEyes: false).blink, 0);
+  });
   test('lake route uses depth and stays within the visible ice', () {
     for (final size in [
       const Size(320, 568),

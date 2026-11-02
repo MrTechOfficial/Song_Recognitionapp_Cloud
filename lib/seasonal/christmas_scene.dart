@@ -31,7 +31,7 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   static const _root = 'assets/seasonal/christmas';
   late final SceneFrameClock _clock;
   final _rig = <String, ui.Image>{};
-  ui.ImageShader? _scarf;
+  ui.ImageShader? _scarf, _body;
   bool _rigLoading = false;
   late final List<_Snowflake> _flakes;
   ChristmasSkatingRoute? _route;
@@ -63,7 +63,7 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   Future<void> _loadRig() async {
     final owned = <String, ui.Image>{};
     var installed = false;
-    ui.ImageShader? scarf;
+    ui.ImageShader? scarf, body;
     try {
       for (final name in [
         'body_rig',
@@ -83,7 +83,10 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
       }
       scarf = ui.ImageShader(owned['scarf_tail']!, TileMode.clamp,
           TileMode.clamp, Matrix4.identity().storage);
+      body = ui.ImageShader(owned['body_rig']!, TileMode.clamp, TileMode.clamp,
+          Matrix4.identity().storage);
       setState(() {
+        _body = body;
         _rig.addAll(owned);
         _scarf = scarf;
       });
@@ -93,6 +96,7 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
     } finally {
       if (!installed) {
         scarf?.dispose();
+        body?.dispose();
         for (final image in owned.values) {
           image.dispose();
         }
@@ -113,6 +117,7 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
   void dispose() {
     _clock.dispose();
     _scarf?.dispose();
+    _body?.dispose();
     for (final image in _rig.values) {
       image.dispose();
     }
@@ -126,7 +131,8 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
       _route = ChristmasSkatingRoute(visible);
       _visible = visible;
     }
-    return _route!.sample(seconds);
+    return _route!
+        .sample(seconds, animateEyes: motionEnabled && _clock.policy.fps > 0);
   }
 
   @override
@@ -161,8 +167,8 @@ class _ChristmasSceneState extends SeasonalSceneState<ChristmasScene> {
 
   Widget _snowman(SnowmanSkatingPose pose) {
     final width = pose.width;
-    Widget body() =>
-        ChristmasSkatingFigure(pose: pose, images: _rig, scarf: _scarf);
+    Widget body() => ChristmasSkatingFigure(
+        pose: pose, images: _rig, scarf: _scarf, bodyTexture: _body);
     return Stack(children: [
       Positioned(
           left: pose.feet.dx - pose.shadowWidth / 2,
@@ -206,16 +212,18 @@ class ChristmasSkatingFigure extends StatelessWidget {
       {super.key,
       required this.pose,
       required this.images,
-      required this.scarf});
+      required this.scarf,
+      this.bodyTexture});
   final SnowmanSkatingPose pose;
   final Map<String, ui.Image> images;
-  final ui.ImageShader? scarf;
+  final ui.ImageShader? scarf, bodyTexture;
   @override
   Widget build(BuildContext context) => images.isEmpty
       ? const SizedBox.shrink()
       : Transform.flip(
           flipX: pose.facing < 0,
-          child: CustomPaint(painter: _SkaterPainter(pose, images, scarf!)));
+          child: CustomPaint(
+              painter: _SkaterPainter(pose, images, scarf!, bodyTexture)));
 }
 
 class _SnowmanReflection extends CustomPainter {
@@ -241,10 +249,11 @@ class _SnowmanReflection extends CustomPainter {
 }
 
 class _SkaterPainter extends CustomPainter {
-  const _SkaterPainter(this.pose, this.images, this.scarf);
+  const _SkaterPainter(this.pose, this.images, this.scarf, this.bodyTexture);
   final SnowmanSkatingPose pose;
   final Map<String, ui.Image> images;
   final ui.ImageShader scarf;
+  final ui.ImageShader? bodyTexture;
   void layer(Canvas canvas, String name) {
     canvas.drawImage(
         images[name]!, Offset.zero, Paint()..filterQuality = FilterQuality.low);
@@ -263,11 +272,12 @@ class _SkaterPainter extends CustomPainter {
     for (final rear in [true, false]) {
       final weight = rear ? back : front;
       final pivot = rear ? const Offset(123, 275) : const Offset(239, 313);
-      final hip = rear ? const Offset(141, 306) : const Offset(235, 302);
+      final hip = (rear ? const Offset(171, 306) : const Offset(235, 302)) +
+          Offset(push * 10, 0);
       // Bring the raised boot to the ice once, then alternate tiny pushes.
       // Both blades share a contact plane instead of the old high marching kick.
-      final rest = rear ? const Offset(8, 43) : const Offset(-3, -7);
-      final shift = rest + Offset((rear ? -8 : 7) * weight, -5 * weight);
+      final rest = rear ? const Offset(62, 66) : const Offset(-12, -7);
+      final shift = rest + Offset((rear ? -10 : 9) * weight, -7 * weight);
       final ankle = pivot + shift;
       final leg = Path()
         ..moveTo(hip.dx, hip.dy)
@@ -295,13 +305,98 @@ class _SkaterPainter extends CustomPainter {
       canvas.restore();
     }
     canvas.save();
-    canvas.translate(push * .9, -math.sin(pose.stridePhase * 2).abs() * .6);
+    canvas.translate(push * 10, -math.sin(pose.stridePhase * 2).abs() * .6);
     _scarf(canvas);
-    layer(canvas, 'body_rig');
+    if (pose.blink > .001 && bodyTexture != null) {
+      final points = _bodyUV;
+      final positions = [for (final p in points) _blinkVertex(p, pose.blink)];
+      final mesh = ui.Vertices(ui.VertexMode.triangles, positions,
+          textureCoordinates: points, indices: _bodyIndices);
+      canvas.drawVertices(
+          mesh,
+          BlendMode.srcOver,
+          Paint()
+            ..shader = bodyTexture
+            ..filterQuality = FilterQuality.medium);
+      mesh.dispose();
+    } else {
+      layer(canvas, 'body_rig');
+    }
     canvas.restore();
     canvas.restore();
   }
 
+  static Offset _blinkVertex(Offset p, double blink) {
+    var result = p;
+    for (final center in [const Offset(249, 102), const Offset(270, 99)]) {
+      final dx = (p.dx - center.dx).abs(), dy = p.dy - center.dy;
+      if (dx < 8 && dy.abs() < 12) {
+        final weight = (1 - dx / 8) * (1 - dy.abs() / 14);
+        result = Offset(result.dx, result.dy - dy * blink * weight);
+      }
+    }
+    return result;
+  }
+
+  static const _bodyX = <double>[
+    0,
+    60,
+    120,
+    180,
+    220,
+    232,
+    236,
+    240,
+    244,
+    248,
+    252,
+    256,
+    260,
+    264,
+    268,
+    272,
+    276,
+    280,
+    284,
+    290,
+    320,
+    360,
+    400
+  ];
+  static const _bodyY = <double>[
+    0,
+    40,
+    80,
+    88,
+    92,
+    96,
+    100,
+    104,
+    108,
+    112,
+    116,
+    140,
+    180,
+    240,
+    300,
+    350,
+    400
+  ];
+  static final _bodyUV = [
+    for (final y in _bodyY)
+      for (final x in _bodyX) Offset(x, y)
+  ];
+  static final _bodyIndices = <int>[
+    for (var y = 0; y < _bodyY.length - 1; y++)
+      for (var x = 0; x < _bodyX.length - 1; x++) ...[
+        y * _bodyX.length + x,
+        y * _bodyX.length + x + 1,
+        (y + 1) * _bodyX.length + x,
+        y * _bodyX.length + x + 1,
+        (y + 1) * _bodyX.length + x + 1,
+        (y + 1) * _bodyX.length + x
+      ]
+  ];
   static final uv = <Offset>[
     for (var y = 0; y <= 10; y++)
       for (var x = 0; x <= 10; x++) Offset(x * 40.0, y * 40.0)
@@ -586,7 +681,7 @@ class ChristmasRoofSnowPainter extends CustomPainter {
       canvas.save();
       canvas.translate(snow.position.dx, snow.position.dy);
       canvas.rotate(snow.rotation);
-      canvas.scale(.62);
+      canvas.scale(.44);
       final chunk = Path()
         ..moveTo(-27, 3)
         ..quadraticBezierTo(-29, -6, -19, -9)

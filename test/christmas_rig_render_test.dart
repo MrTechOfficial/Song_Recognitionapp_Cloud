@@ -8,7 +8,7 @@ import 'package:song_recognition_app/seasonal/christmas_scene.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final images = <String, ui.Image>{};
-  late ui.ImageShader scarf;
+  late ui.ImageShader scarf, body;
   setUpAll(() async {
     for (final name in [
       'body_rig',
@@ -26,17 +26,20 @@ void main() {
         codec.dispose();
       }
     }
+    body = ui.ImageShader(images['body_rig']!, TileMode.clamp, TileMode.clamp,
+        Matrix4.identity().storage);
     scarf = ui.ImageShader(images['scarf_tail']!, TileMode.clamp,
         TileMode.clamp, Matrix4.identity().storage);
   });
   tearDownAll(() {
     scarf.dispose();
+    body.dispose();
     for (final im in images.values) {
       im.dispose();
     }
   });
-  Future<ByteData> render(
-      WidgetTester tester, double stride, double flutter) async {
+  Future<ByteData> render(WidgetTester tester, double stride, double flutter,
+      [double blink = 0]) async {
     final key = GlobalKey();
     final pose = SnowmanSkatingPose(
         feet: const Offset(0, 0),
@@ -48,7 +51,8 @@ void main() {
         depth: 1,
         speed: 1,
         stridePhase: stride,
-        scarfPhase: flutter);
+        scarfPhase: flutter,
+        blink: blink);
     await tester.pumpWidget(Directionality(
         textDirection: TextDirection.ltr,
         child: Center(
@@ -60,7 +64,10 @@ void main() {
                     child: ColoredBox(
                         color: const Color(0xFF1E2E4E),
                         child: ChristmasSkatingFigure(
-                            pose: pose, images: images, scarf: scarf)))))));
+                            pose: pose,
+                            images: images,
+                            scarf: scarf,
+                            bodyTexture: body)))))));
     await tester.pump();
     return (await tester.runAsync(() async {
       final im = await (key.currentContext!.findRenderObject()
@@ -75,7 +82,7 @@ void main() {
   }
 
   testWidgets(
-      'separate skates move in alternate pushes with a small decoded budget',
+      'support switches with a fixed facing, while the other boot pushes gently',
       (tester) async {
     expect(images.values.every((im) => im.width == 400 && im.height == 400),
         isTrue);
@@ -110,6 +117,25 @@ void main() {
       return Offset(xSum / count, ySum / count);
     }
 
+    int soleBottom(ByteData data, bool rear) {
+      var bottom = 0;
+      for (var y = 335; y < 395; y++) {
+        for (var x = rear ? 50 : 185; x < (rear ? 180 : 335); x++) {
+          final i = (y * 400 + x) * 4;
+          if (data.getUint8(i) < 40 &&
+              data.getUint8(i + 1) < 42 &&
+              data.getUint8(i + 2) < 55) {
+            bottom = y;
+          }
+        }
+      }
+      return bottom;
+    }
+
+    expect((soleBottom(rest, true) - soleBottom(rest, false)).abs(),
+        lessThanOrEqualTo(4),
+        reason:
+            'Both blades reach the ice; the rear skate must not stay raised');
     for (final rear in [true, false]) {
       final planted = bladeCenter(rest, rear);
       final pushed = bladeCenter(rear ? left : right, rear);
@@ -141,6 +167,31 @@ void main() {
     }
     expect(tailChanged, greaterThan(150));
     expect(headChanged, 0);
+  });
+
+  testWidgets(
+      'snowman eyelids close occasionally without changing travel direction',
+      (tester) async {
+    final open = await render(tester, 0, 0, 0);
+    final closed = await render(tester, 0, 0, 1);
+    int coalPixels(ByteData pixels) {
+      var count = 0;
+      for (var y = 90; y < 113; y++) {
+        for (var x = 237; x < 280; x++) {
+          final i = (y * 400 + x) * 4;
+          if (pixels.getUint8(i) < 50 &&
+              pixels.getUint8(i + 1) < 50 &&
+              pixels.getUint8(i + 2) < 50) {
+            count++;
+          }
+        }
+      }
+      return count;
+    }
+
+    expect(coalPixels(closed), lessThan(coalPixels(open) * .9));
+    expect(SnowmanSkatingPose.blinkAt(7.14), greaterThan(.95));
+    expect(SnowmanSkatingPose.blinkAt(8), 0);
   });
 
   testWidgets('the real roof painter creates a visible pile left of the cabin',

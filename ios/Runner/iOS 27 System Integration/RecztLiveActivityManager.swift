@@ -62,7 +62,10 @@ actor RecztLiveActivityManager {
             title: title ?? old.title,
             artist: artist ?? old.artist,
             secondsRemaining: secondsRemaining ?? old.secondsRemaining,
-            source: source ?? old.source
+            source: source ?? old.source,
+            listeningEndsAt: phase == "listening"
+                ? (old.listeningEndsAt ?? Date().addingTimeInterval(Double(max(0, secondsRemaining ?? old.secondsRemaining))))
+                : nil
         )
         await activity.update(ActivityContent(state: state, staleDate: nil))
     }

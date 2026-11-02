@@ -50,7 +50,7 @@ class HalloweenTimeline {
       nextBlink = 4,
       nextTree = 1,
       nextBat = 2,
-      nextFace = 38,
+      nextFace = 18,
       faceUntil = 0,
       nextFlicker = 16;
   double direction = 1, treeAmplitude = 12;
@@ -123,12 +123,12 @@ class HalloweenTimeline {
     }
     if (face != 0 && time >= faceUntil) {
       _changeFace(0);
-      nextFace = time + between(35, 55);
+      nextFace = time + between(16, 26);
     }
     if (face == 0 && time >= nextFace) {
       _changeFace(lastFace == 1 ? 2 : 1);
       lastFace = face;
-      faceUntil = time + between(4.5, 5.5);
+      faceUntil = time + (face == 1 ? between(2.5, 3.2) : between(3.5, 4.5));
     }
     if (candle.finish(time)) nextFlicker = time + between(28, 45);
     if (!candle.active && time >= nextFlicker) candle.begin(time, .95);
@@ -142,6 +142,6 @@ class HalloweenTimeline {
     if (!candle.active) return 0;
     final p = candle.phase(time);
     return math.sin(p * math.pi) *
-        (.12 + .16 * math.pow(math.sin(p * math.pi * 3), 2));
+        (.28 + .36 * math.pow(math.sin(p * math.pi * 3), 2));
   }
 }

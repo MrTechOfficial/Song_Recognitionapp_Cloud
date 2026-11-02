@@ -8,7 +8,6 @@ struct RecztControlBundle: WidgetBundle {
         RecztRecognitionLiveActivityWidget()
 
         if #available(iOS 27.0, *) {
-            RecztIdentifySongControl()
             RecztQuickIdentifyWidget()
         }
     }

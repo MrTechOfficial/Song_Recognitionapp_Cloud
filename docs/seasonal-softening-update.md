@@ -1,5 +1,8 @@
 # Seasonal motion refinement and Dynamic Island characters
 
+Latest: [native/analytics finishing pass](seasonal-native-and-analytics-update.md).
+The parameters below describe the preceding revision.
+
 This revision follows the requested gentler Halloween motion, painted pumpkin
 morph, subtle alternating skating, left-side cabin snow pile, festive event card,
 and matching seasonal Dynamic Island characters.

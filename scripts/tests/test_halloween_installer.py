@@ -13,6 +13,19 @@ FILES = [
     'lib/seasonal/halloween_scene_v2.dart', 'lib/seasonal/halloween_motion.dart',
     'lib/seasonal/halloween_characters.dart', 'lib/seasonal/halloween_carvings.dart',
     'lib/main.dart',
+    'lib/seasonal/music_intelligence_card.dart',
+    'ios/RecztControl/RecztControlBundle.swift',
+    'ios/RecztControl/RecztOpenIntent.swift',
+    'ios/RecztControl/Assets.xcassets/RecztPumpkinClassic.imageset/Contents.json',
+    'ios/RecztControl/Assets.xcassets/RecztPumpkinClassic.imageset/paint.png',
+    'ios/RecztControl/Assets.xcassets/RecztSnowmanBody.imageset/Contents.json',
+    'ios/RecztControl/Assets.xcassets/RecztSnowmanBody.imageset/paint.png',
+    'ios/RecztControl/Assets.xcassets/RecztSnowmanFrontSkate.imageset/Contents.json',
+    'ios/RecztControl/Assets.xcassets/RecztSnowmanFrontSkate.imageset/paint.png',
+    'ios/RecztControl/Assets.xcassets/RecztSnowmanRearSkate.imageset/Contents.json',
+    'ios/RecztControl/Assets.xcassets/RecztSnowmanRearSkate.imageset/paint.png',
+    'ios/RecztControl/Assets.xcassets/RecztSnowmanScarf.imageset/Contents.json',
+    'ios/RecztControl/Assets.xcassets/RecztSnowmanScarf.imageset/paint.png',
     'lib/seasonal/halloween_timeline.dart',
     'lib/seasonal/halloween_bats.dart',
     'lib/seasonal/halloween_event.dart',
@@ -46,6 +59,7 @@ FILES = [
     'ios/Runner/iOS 27 System Integration/RecztIOS27Bridge.swift',
     'ios/RunnerTests/RunnerTests.swift',
     'test/christmas_rig_render_test.dart',
+    'test/music_intelligence_card_test.dart',
     'test/widget_test.dart',
     'test/scene_energy_test.dart',
     'test/halloween_event_test.dart',
@@ -61,7 +75,7 @@ FILES = [
     'test/halloween_rig_render_test.dart',
 ]
 EXISTING = {FILES[0], 'lib/main.dart', 'test/seasonal_scenes_test.dart', 'test/widget_test.dart',
-    *[name for name in FILES if name.startswith('ios/') or name.startswith('lib/seasonal/christmas_')]}
+    *[name for name in FILES if (name.startswith('ios/') and '.imageset/' not in name) or name.startswith('lib/seasonal/christmas_')]}
 
 
 class HalloweenInstallerTests(unittest.TestCase):
@@ -185,6 +199,7 @@ class HalloweenInstallerTests(unittest.TestCase):
         # this catches a helper omitted from both the script and FILES above.
         for source in (ROOT / 'lib/seasonal').glob('*.dart'):
             self.write(self.source / 'lib/seasonal' / source.name, source.read_text())
+        self.write(self.source / 'lib/seasonal/music_intelligence_card.dart', (ROOT / 'lib/seasonal/music_intelligence_card.dart').read_text())
         self.write(self.source / 'lib/main.dart', (ROOT / 'lib/main.dart').read_text())
         # An older working project can be missing both extracted Christmas
         # helpers. Resolve the real main.dart import graph after installing.

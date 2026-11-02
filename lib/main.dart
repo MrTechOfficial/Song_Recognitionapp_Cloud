@@ -23,6 +23,7 @@ import 'seasonal/halloween_scene_v2.dart';
 import 'seasonal/christmas_scene.dart';
 import 'seasonal/seasonal_scene_support.dart';
 import 'seasonal/halloween_event.dart';
+import 'seasonal/music_intelligence_card.dart';
 import 'seasonal/scene_frame_clock.dart';
 
 
@@ -1225,6 +1226,17 @@ void main() async {
 // --------------------------------------------------------------------
 final Map<String, Map<String, String>> localizedStrings = {
   'en': {
+    "mi_title": "Music Intelligence",
+    "mi_empty": "Identify songs to build this summary.",
+    "mi_key": "Key",
+    "mi_sound": "Sound",
+    "mi_pace": "Pace",
+    "mi_samples": "Sample Music Intelligence",
+    "mi_sample_note": "Illustrative data only. These samples are not saved to your history.",
+    "mi_vocals": "Vocals",
+    "mi_drums": "Drums",
+    "mi_bass": "Bass",
+    "mi_bpm": "BPM",
     "activity_no_match": "No match",
     "activity_ended": "Recognition ended",
     "activity_error": "Recognition unavailable",
@@ -1388,6 +1400,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Other',
   },
   'es': {
+    "mi_title": "Inteligencia musical",
+    "mi_empty": "Identifica canciones para crear este resumen.",
+    "mi_key": "Tono",
+    "mi_sound": "Sonido",
+    "mi_pace": "Ritmo",
+    "mi_samples": "Ejemplos de inteligencia musical",
+    "mi_sample_note": "Datos ilustrativos. Estos ejemplos no se guardan en tu historial.",
+    "mi_vocals": "Voces",
+    "mi_drums": "Batería",
+    "mi_bass": "Bajo",
+    "mi_bpm": "BPM",
     "activity_no_match": "Sin coincidencias",
     "activity_ended": "Reconocimiento finalizado",
     "activity_error": "Reconocimiento no disponible",
@@ -1548,6 +1571,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Otro',
   },
   'fr': {
+    "mi_title": "Intelligence musicale",
+    "mi_empty": "Identifiez des chansons pour créer ce résumé.",
+    "mi_key": "Tonalité",
+    "mi_sound": "Son",
+    "mi_pace": "Rythme",
+    "mi_samples": "Exemples d’intelligence musicale",
+    "mi_sample_note": "Données illustratives. Ces exemples ne sont pas enregistrés dans votre historique.",
+    "mi_vocals": "Voix",
+    "mi_drums": "Batterie",
+    "mi_bass": "Basse",
+    "mi_bpm": "BPM",
     "activity_no_match": "Aucune correspondance",
     "activity_ended": "Reconnaissance terminée",
     "activity_error": "Reconnaissance indisponible",
@@ -1708,6 +1742,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Autre',
   },
   'de': {
+    "mi_title": "Musikintelligenz",
+    "mi_empty": "Erkenne Songs, um diese Übersicht aufzubauen.",
+    "mi_key": "Tonart",
+    "mi_sound": "Klang",
+    "mi_pace": "Tempo",
+    "mi_samples": "Beispiele zur Musikintelligenz",
+    "mi_sample_note": "Nur Beispieldaten. Diese Beispiele werden nicht in deinem Verlauf gespeichert.",
+    "mi_vocals": "Gesang",
+    "mi_drums": "Schlagzeug",
+    "mi_bass": "Bass",
+    "mi_bpm": "BPM",
     "activity_no_match": "Kein Treffer",
     "activity_ended": "Erkennung beendet",
     "activity_error": "Erkennung nicht verfügbar",
@@ -1868,6 +1913,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Andere',
   },
   'it': {
+    "mi_title": "Intelligenza musicale",
+    "mi_empty": "Identifica brani per creare questo riepilogo.",
+    "mi_key": "Tonalità",
+    "mi_sound": "Suono",
+    "mi_pace": "Ritmo",
+    "mi_samples": "Esempi di intelligenza musicale",
+    "mi_sample_note": "Dati illustrativi. Questi esempi non vengono salvati nella cronologia.",
+    "mi_vocals": "Voce",
+    "mi_drums": "Batteria",
+    "mi_bass": "Basso",
+    "mi_bpm": "BPM",
     "activity_no_match": "Nessuna corrispondenza",
     "activity_ended": "Riconoscimento terminato",
     "activity_error": "Riconoscimento non disponibile",
@@ -2028,6 +2084,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Altro',
   },
   'pt': {
+    "mi_title": "Inteligência musical",
+    "mi_empty": "Identifique músicas para criar este resumo.",
+    "mi_key": "Tom",
+    "mi_sound": "Som",
+    "mi_pace": "Ritmo",
+    "mi_samples": "Exemplos de inteligência musical",
+    "mi_sample_note": "Dados ilustrativos. Estes exemplos não são salvos no seu histórico.",
+    "mi_vocals": "Vozes",
+    "mi_drums": "Bateria",
+    "mi_bass": "Baixo",
+    "mi_bpm": "BPM",
     "activity_no_match": "Nenhuma correspondência",
     "activity_ended": "Reconhecimento encerrado",
     "activity_error": "Reconhecimento indisponível",
@@ -2188,6 +2255,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Outro',
   },
   'ja': {
+    "mi_title": "音楽インテリジェンス",
+    "mi_empty": "曲を識別すると、この概要が作成されます。",
+    "mi_key": "キー",
+    "mi_sound": "音色",
+    "mi_pace": "ペース",
+    "mi_samples": "音楽データのサンプル",
+    "mi_sample_note": "表示例です。サンプルは履歴に保存されません。",
+    "mi_vocals": "ボーカル",
+    "mi_drums": "ドラム",
+    "mi_bass": "ベース",
+    "mi_bpm": "BPM",
     "activity_no_match": "一致する曲がありません",
     "activity_ended": "認識が終了しました",
     "activity_error": "認識を利用できません",
@@ -2349,6 +2427,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'その他',
   },
   'ko': {
+    "mi_title": "음악 인텔리전스",
+    "mi_empty": "곡을 인식하면 요약이 만들어져요.",
+    "mi_key": "조성",
+    "mi_sound": "음색",
+    "mi_pace": "페이스",
+    "mi_samples": "음악 데이터 예시",
+    "mi_sample_note": "설명을 위한 예시입니다. 기록에 저장되지 않습니다.",
+    "mi_vocals": "보컬",
+    "mi_drums": "드럼",
+    "mi_bass": "베이스",
+    "mi_bpm": "BPM",
     "activity_no_match": "일치하는 곡이 없어요",
     "activity_ended": "인식이 종료됐어요",
     "activity_error": "인식을 사용할 수 없어요",
@@ -2510,6 +2599,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '기타',
   },
   'zh': {
+    "mi_title": "音乐智能",
+    "mi_empty": "识别歌曲以生成此摘要。",
+    "mi_key": "调性",
+    "mi_sound": "音色",
+    "mi_pace": "节奏",
+    "mi_samples": "音乐智能示例",
+    "mi_sample_note": "仅为示例数据，不会保存到你的历史记录。",
+    "mi_vocals": "人声",
+    "mi_drums": "鼓",
+    "mi_bass": "贝斯",
+    "mi_bpm": "BPM",
     "activity_no_match": "未找到匹配歌曲",
     "activity_ended": "识别已结束",
     "activity_error": "暂时无法识别",
@@ -2671,6 +2771,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': '其他',
   },
   'hi': {
+    "mi_title": "संगीत इंटेलिजेंस",
+    "mi_empty": "यह सारांश बनाने के लिए गाने पहचानें।",
+    "mi_key": "स्वर",
+    "mi_sound": "ध्वनि",
+    "mi_pace": "गति",
+    "mi_samples": "संगीत डेटा के उदाहरण",
+    "mi_sample_note": "ये केवल उदाहरण हैं। इन्हें आपके इतिहास में सहेजा नहीं जाता।",
+    "mi_vocals": "गायन",
+    "mi_drums": "ड्रम",
+    "mi_bass": "बास",
+    "mi_bpm": "BPM",
     "activity_no_match": "कोई मेल नहीं मिला",
     "activity_ended": "पहचान समाप्त हुई",
     "activity_error": "पहचान उपलब्ध नहीं है",
@@ -2832,6 +2943,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'अन्य',
   },
   'ru': {
+    "mi_title": "Музыкальная аналитика",
+    "mi_empty": "Распознавайте песни, чтобы создать сводку.",
+    "mi_key": "Тональность",
+    "mi_sound": "Звучание",
+    "mi_pace": "Темп",
+    "mi_samples": "Примеры музыкальной аналитики",
+    "mi_sample_note": "Это примеры данных. Они не сохраняются в вашей истории.",
+    "mi_vocals": "Вокал",
+    "mi_drums": "Ударные",
+    "mi_bass": "Бас",
+    "mi_bpm": "BPM",
     "activity_no_match": "Совпадений нет",
     "activity_ended": "Распознавание завершено",
     "activity_error": "Распознавание недоступно",
@@ -2993,6 +3115,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Другое',
   },
   'tr': {
+    "mi_title": "Müzik zekâsı",
+    "mi_empty": "Bu özeti oluşturmak için şarkı tanıyın.",
+    "mi_key": "Ton",
+    "mi_sound": "Ses",
+    "mi_pace": "Tempo",
+    "mi_samples": "Örnek müzik verileri",
+    "mi_sample_note": "Bunlar örnek verilerdir. Geçmişinize kaydedilmez.",
+    "mi_vocals": "Vokal",
+    "mi_drums": "Davul",
+    "mi_bass": "Bas",
+    "mi_bpm": "BPM",
     "activity_no_match": "Eşleşme yok",
     "activity_ended": "Tanıma sona erdi",
     "activity_error": "Tanıma kullanılamıyor",
@@ -3154,6 +3287,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Diğer',
   },
   'ar': {
+    "mi_title": "الذكاء الموسيقي",
+    "mi_empty": "تعرّف على الأغاني لإنشاء هذا الملخص.",
+    "mi_key": "المقام",
+    "mi_sound": "الصوت",
+    "mi_pace": "الإيقاع",
+    "mi_samples": "أمثلة الذكاء الموسيقي",
+    "mi_sample_note": "هذه بيانات توضيحية فقط ولا تُحفظ في سجلك.",
+    "mi_vocals": "غناء",
+    "mi_drums": "طبول",
+    "mi_bass": "جهير",
+    "mi_bpm": "BPM",
     "activity_no_match": "لا يوجد تطابق",
     "activity_ended": "انتهى التعرف",
     "activity_error": "التعرف غير متاح",
@@ -3315,6 +3459,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'أخرى',
   },
   'nl': {
+    "mi_title": "Muziekintelligentie",
+    "mi_empty": "Herken nummers om dit overzicht op te bouwen.",
+    "mi_key": "Toonsoort",
+    "mi_sound": "Klank",
+    "mi_pace": "Tempo",
+    "mi_samples": "Voorbeelden van muziekgegevens",
+    "mi_sample_note": "Alleen voorbeeldgegevens. Deze worden niet in je geschiedenis opgeslagen.",
+    "mi_vocals": "Zang",
+    "mi_drums": "Drums",
+    "mi_bass": "Bas",
+    "mi_bpm": "BPM",
     "activity_no_match": "Geen overeenkomst",
     "activity_ended": "Herkenning beëindigd",
     "activity_error": "Herkenning niet beschikbaar",
@@ -3476,6 +3631,17 @@ final Map<String, Map<String, String>> localizedStrings = {
     'other': 'Overig',
   },
   'pl': {
+    "mi_title": "Inteligencja muzyczna",
+    "mi_empty": "Rozpoznawaj utwory, aby utworzyć podsumowanie.",
+    "mi_key": "Tonacja",
+    "mi_sound": "Brzmienie",
+    "mi_pace": "Tempo",
+    "mi_samples": "Przykładowe dane muzyczne",
+    "mi_sample_note": "To tylko przykłady. Nie są zapisywane w Twojej historii.",
+    "mi_vocals": "Wokal",
+    "mi_drums": "Perkusja",
+    "mi_bass": "Bas",
+    "mi_bpm": "BPM",
     "activity_no_match": "Brak dopasowania",
     "activity_ended": "Rozpoznawanie zakończone",
     "activity_error": "Rozpoznawanie niedostępne",
@@ -11268,44 +11434,6 @@ void _showShareCardModal(BuildContext context) {
     },
   );
 }
-  Widget _buildMusicIntelligenceStat({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return SizedBox(
-      width: 118,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 10,
-              color: Colors.grey,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final themeColor = Theme.of(context).colorScheme.primary;
@@ -11584,100 +11712,12 @@ void _showShareCardModal(BuildContext context) {
                 // Analytics page; it intentionally does not create a new page.
                 _buildClearableAnalyticsCard(
                   sectionKey: 'music_intelligence',
-                  sectionLabel: 'Music Intelligence',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.graphic_eq, size: 18, color: themeColor),
-                          const SizedBox(width: 7),
-                          Text(
-                            'MUSIC INTELLIGENCE',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: themeColor,
-                            ),
-                          ),
-                          const Spacer(),
-                          Flexible(
-                            child: Text(
-                              _musicAnalyzedCount == 0
-                                  ? 'Builds as you identify songs'
-                                  : '$_musicAnalyzedCount songs analyzed',
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      if (_musicAnalyzedCount == 0)
-                        const Text(
-                          'On iOS 27, Reczt can privately analyze catalog previews on device for tempo, key, pace, instruments, and loudness.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.35,
-                            color: Colors.grey,
-                          ),
-                        )
-                      else
-                        Wrap(
-                          alignment: WrapAlignment.spaceEvenly,
-                          runAlignment: WrapAlignment.center,
-                          spacing: 10,
-                          runSpacing: 12,
-                          children: [
-                            _buildMusicIntelligenceStat(
-                              icon: Icons.speed,
-                              value: _averageBpm == null
-                                  ? '—'
-                                  : _averageBpm!.toStringAsFixed(0),
-                              label: 'Avg BPM',
-                              color: themeColor,
-                            ),
-                            _buildMusicIntelligenceStat(
-                              icon: Icons.music_note,
-                              value: _dominantMusicalKey.isEmpty
-                                  ? '—'
-                                  : _dominantMusicalKey,
-                              label: 'Top key',
-                              color: themeColor,
-                            ),
-                            _buildMusicIntelligenceStat(
-                              icon: Icons.multitrack_audio,
-                              value: _dominantInstrument.isEmpty
-                                  ? '—'
-                                  : _dominantInstrument,
-                              label: 'Dominant sound',
-                              color: themeColor,
-                            ),
-                            _buildMusicIntelligenceStat(
-                              icon: Icons.bolt,
-                              value: _averagePace == null
-                                  ? '—'
-                                  : _averagePace!.toStringAsFixed(0),
-                              label: 'Avg pace',
-                              color: themeColor,
-                            ),
-                          ],
-                        ),
-                      if (_musicAnalyzedCount > 0 && _averageLoudness != null) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          'Average loudness ${_averageLoudness!.toStringAsFixed(1)} LUFS',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                  sectionLabel: t('mi_title'),
+                  child: CompactMusicIntelligence(t: t, count: _musicAnalyzedCount,
+                    bpm: _averageBpm, musicalKey: _dominantMusicalKey,
+                    instrument: _dominantInstrument, pace: _averagePace,
+                    loudness: _averageLoudness,
+                    onSamples: () => showMusicIntelligenceSamples(context, t)),
                 ),
                 const SizedBox(height: 12),
 

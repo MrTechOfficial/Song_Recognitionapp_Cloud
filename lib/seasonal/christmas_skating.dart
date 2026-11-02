@@ -13,10 +13,20 @@ class SnowmanSkatingPose {
       required this.depth,
       required this.speed,
       this.stridePhase = 0,
-      this.scarfPhase = 0});
+      this.scarfPhase = 0,
+      this.blink = 0});
   final Offset feet;
   final double width, lean, facing, strideBlend, lift, depth, speed;
   final double stridePhase, scarfPhase;
+  final double blink;
+  bool get rearSupports => math.sin(stridePhase) < 0;
+  static double blinkAt(double seconds) {
+    final age = ((seconds - 7) % 17 + 17) % 17;
+    return age < .28
+        ? math.pow(math.sin(age / .28 * math.pi), 2).toDouble()
+        : 0;
+  }
+
   bool get moving => speed > .1;
   // Kept for callers inspecting orientation; the renderer never flattens the PNG edge-on.
   double get yaw => facing < 0 ? math.pi : 0;
@@ -71,7 +81,9 @@ class ChristmasSkatingRoute {
     }
   }
   static const double period = 96;
-  static const double startingPhase = 64;
+  // Begin the long near-shore pass: support changes several times before the
+  // first turn, making the alternating gliding foot visible in one direction.
+  static const double startingPhase = 56;
   static const _samples = 768;
   static const _durations = [18.0, 20.0, 10.0, 8.0, 10.0, 10.0, 10.0, 10.0];
   final Rect visible;
@@ -106,7 +118,7 @@ class ChristmasSkatingRoute {
         _velocityAtNode(next) * _durations[i] * (u3 - u2);
   }
 
-  SnowmanSkatingPose sample(double elapsed) {
+  SnowmanSkatingPose sample(double elapsed, {bool animateEyes = true}) {
     // Open on a larger near-shore pass instead of hiding the first half minute
     // of skating behind the environment cards. The route remains clock-only.
     final t = ((elapsed + startingPhase) % period + period) % period;
@@ -135,6 +147,7 @@ class ChristmasSkatingRoute {
       speed: speed,
       stridePhase: cycle * math.pi,
       scarfPhase: elapsed * math.pi * 2 / 2,
+      blink: animateEyes ? SnowmanSkatingPose.blinkAt(elapsed) : 0,
     );
   }
 }

@@ -131,10 +131,14 @@ private struct RecztActivityTrailing: View {
         Group {
             if state.phase == "listening" && state.secondsRemaining > 0 {
                 HStack(spacing: 3) {
-                    if !compact { Image(systemName: "timer").font(.caption) }
-                    Text("\(state.secondsRemaining)").monospacedDigit().contentTransition(.numericText())
+                    if !compact { Image(systemName: "timer").font(.caption).accessibilityHidden(true) }
+                    if let end = state.listeningEndsAt {
+                        Text(timerInterval: min(Date(), end)...end, countsDown: true, showsHours: false)
+                            .monospacedDigit().frame(width: compact ? 32 : 48, alignment: .trailing)
+                    } else {
+                        Image(systemName: "waveform.badge.mic")
+                    }
                 }.font(compact ? .caption2 : .headline)
-                    .accessibilityLabel(copy.seconds(state.secondsRemaining))
             } else if state.phase == "found" {
                 Image(systemName: compact ? "checkmark" : "checkmark.circle.fill")
                     .accessibilityLabel(copy.headline(state))
@@ -185,81 +189,28 @@ private struct RecztCharacterMark: View, Animatable {
         set { step = newValue }
     }
     var body: some View {
-        Canvas { context, size in
-            context.scaleBy(x: size.width / 40, y: size.height / 40)
-            if style == .halloween { pumpkin(&context) } else { snowman(&context) }
-        }
-    }
-    private func pumpkin(_ context: inout GraphicsContext) {
-        let ink = Color(red: 0.22, green: 0.10, blue: 0.19)
-        let body = Path(ellipseIn: CGRect(x: 5, y: 12, width: 30, height: 25))
-        context.fill(body, with: .linearGradient(Gradient(colors: [Color(red: 0.94, green: 0.49, blue: 0.20), Color(red: 0.65, green: 0.25, blue: 0.12)]), startPoint: CGPoint(x: 12, y: 12), endPoint: CGPoint(x: 31, y: 37)))
-        context.stroke(body, with: .color(ink), lineWidth: 1)
-        for x in [12.0, 20, 28] {
-            var rib = Path(); rib.move(to: CGPoint(x: 20, y: 13))
-            rib.addQuadCurve(to: CGPoint(x: 20, y: 36), control: CGPoint(x: x + (x - 20) * 0.5, y: 24))
-            context.stroke(rib, with: .color(ink.opacity(0.22)), lineWidth: 0.8)
-        }
-        var stem = Path(); stem.move(to: CGPoint(x: 19, y: 13))
-        stem.addQuadCurve(to: CGPoint(x: 24, y: 7), control: CGPoint(x: 17, y: 5))
-        context.stroke(stem, with: .color(Color(red: 0.48, green: 0.59, blue: 0.37)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-        let glance = sin(step * 0.8) * 0.45
-        let open = max(0.16, 1 - pow(max(0, sin(step * 0.75)), 10) * 0.84)
-        for x in [13.0, 26] {
-            var eye = Path(); eye.move(to: CGPoint(x: x + glance, y: 21 - 3 * open))
-            eye.addLine(to: CGPoint(x: x - 3.5 + glance, y: 22 + 2 * open))
-            eye.addLine(to: CGPoint(x: x + 3.5 + glance, y: 22 + 2 * open)); eye.closeSubpath()
-            context.fill(eye, with: .color(Color(red: 1, green: 0.85, blue: 0.40)))
-        }
-        var grin = Path(); grin.move(to: CGPoint(x: 11, y: 28))
-        grin.addQuadCurve(to: CGPoint(x: 29, y: 28), control: CGPoint(x: 20, y: celebrating ? 41 : 38))
-        grin.addQuadCurve(to: CGPoint(x: 11, y: 28), control: CGPoint(x: 20, y: 32)); grin.closeSubpath()
-        context.fill(grin, with: .color(Color(red: 1, green: 0.82, blue: 0.35)))
-        // A tiny connected bat folds its wings above the painted pumpkin.
-        let lift = sin(step * 1.1) * 2
-        var bat = Path(); bat.move(to: CGPoint(x: 30, y: 6))
-        bat.addQuadCurve(to: CGPoint(x: 22, y: 5 - lift), control: CGPoint(x: 25, y: 1 - lift))
-        bat.addQuadCurve(to: CGPoint(x: 29, y: 10), control: CGPoint(x: 23, y: 12))
-        bat.addLine(to: CGPoint(x: 32, y: 10))
-        bat.addQuadCurve(to: CGPoint(x: 39, y: 5 + lift), control: CGPoint(x: 38, y: 12))
-        bat.addQuadCurve(to: CGPoint(x: 30, y: 6), control: CGPoint(x: 35, y: 1 + lift)); bat.closeSubpath()
-        context.fill(bat, with: .color(Color(red: 0.65, green: 0.48, blue: 0.76)))
-        context.fill(Path(ellipseIn: CGRect(x: 29, y: 4, width: 3, height: 7)), with: .color(ink))
-    }
-    private func snowman(_ context: inout GraphicsContext) {
-        let snow = Color(red: 0.94, green: 0.97, blue: 1)
-        let red = Color(red: 0.78, green: 0.14, blue: 0.21)
-        let ink = Color(red: 0.10, green: 0.19, blue: 0.28)
-        let sway = sin(step * 0.9) * 0.5
-        let scarf = sin(step * 1.2) * 1.7
-        var arms = Path(); arms.move(to: CGPoint(x: 12, y: 25))
-        arms.addLine(to: CGPoint(x: 3, y: 19 - sway)); arms.addLine(to: CGPoint(x: 3, y: 16 - sway))
-        arms.move(to: CGPoint(x: 29, y: 25)); arms.addLine(to: CGPoint(x: 36, y: 21 + sway))
-        context.stroke(arms, with: .color(Color(red: 0.70, green: 0.47, blue: 0.27)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
-        context.fill(Path(ellipseIn: CGRect(x: 9 + sway, y: 18, width: 23, height: 19)), with: .color(snow))
-        context.fill(Path(ellipseIn: CGRect(x: 14 + sway, y: 7, width: 15, height: 15)), with: .color(snow))
-        var tail = Path(); tail.move(to: CGPoint(x: 25, y: 21))
-        tail.addQuadCurve(to: CGPoint(x: 37, y: 21 + scarf), control: CGPoint(x: 31, y: 18))
-        tail.addLine(to: CGPoint(x: 35, y: 26 + scarf)); tail.addLine(to: CGPoint(x: 25, y: 25)); tail.closeSubpath()
-        context.fill(tail, with: .color(red))
-        context.fill(Path(roundedRect: CGRect(x: 13 + sway, y: 20, width: 17, height: 4), cornerRadius: 1), with: .color(red))
-        var hat = Path(); hat.move(to: CGPoint(x: 13 + sway, y: 9))
-        hat.addQuadCurve(to: CGPoint(x: 25 + sway, y: 1), control: CGPoint(x: 15, y: -1))
-        hat.addQuadCurve(to: CGPoint(x: 31 + sway, y: 9), control: CGPoint(x: 31, y: 2)); hat.closeSubpath()
-        context.fill(hat, with: .color(red))
-        context.fill(Path(roundedRect: CGRect(x: 12 + sway, y: 8, width: 19, height: 3), cornerRadius: 1.5), with: .color(.white))
-        context.fill(Path(ellipseIn: CGRect(x: 23 + sway, y: 0, width: 5, height: 5)), with: .color(.white))
-        var nose = Path(); nose.move(to: CGPoint(x: 27 + sway, y: 14))
-        nose.addLine(to: CGPoint(x: 34 + sway, y: 16)); nose.addLine(to: CGPoint(x: 27 + sway, y: 17)); nose.closeSubpath()
-        context.fill(nose, with: .color(Color(red: 0.97, green: 0.65, blue: 0.27)))
-        for point in [CGPoint(x: 24 + sway, y: 13), CGPoint(x: 20 + sway, y: 28), CGPoint(x: 20 + sway, y: 32)] {
-            context.fill(Path(ellipseIn: CGRect(x: point.x, y: point.y, width: 1.7, height: 1.7)), with: .color(ink))
-        }
-        for (index, x) in [15.0, 25].enumerated() {
-            let lift = max(0, sin(step * 1.1 + Double(index) * .pi)) * 0.8
-            var blade = Path(); blade.move(to: CGPoint(x: x - 3, y: 38 - lift))
-            blade.addQuadCurve(to: CGPoint(x: x + 6, y: 37 - lift), control: CGPoint(x: x + 3, y: 40 - lift))
-            context.stroke(blade, with: .color(Color(red: 0.74, green: 0.86, blue: 0.96)), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+        GeometryReader { geometry in
+            let side = min(geometry.size.width, geometry.size.height)
+            let sway = sin(step * 0.8)
+            ZStack {
+                if style == .halloween {
+                    Image("RecztPumpkinClassic").resizable().scaledToFit()
+                        .rotationEffect(.degrees(sway * 1.5))
+                        .offset(y: celebrating ? -side * 0.025 : 0)
+                } else {
+                    ZStack {
+                        Image("RecztSnowmanRearSkate").resizable().scaledToFit()
+                            .rotationEffect(.radians(0.27 - max(0, sway) * 0.065), anchor: UnitPoint(x: 0.3075, y: 0.6875))
+                            .offset(x: side * CGFloat(0.155 - max(0, sway) * 0.025), y: side * CGFloat(0.165 - max(0, sway) * 0.0175))
+                        Image("RecztSnowmanFrontSkate").resizable().scaledToFit()
+                            .rotationEffect(.radians(max(0, -sway) * 0.055), anchor: UnitPoint(x: 0.5975, y: 0.7825))
+                            .offset(x: side * CGFloat(-0.03 + max(0, -sway) * 0.0225), y: side * CGFloat(-0.0175 - max(0, -sway) * 0.0175))
+                        Image("RecztSnowmanScarf").resizable().scaledToFit()
+                            .rotationEffect(.degrees(sway * 3), anchor: UnitPoint(x: 0.46, y: 0.36))
+                        Image("RecztSnowmanBody").resizable().scaledToFit()
+                    }.rotationEffect(.degrees(sway * 1.1), anchor: .bottom)
+                }
+            }.frame(width: side, height: side)
         }
     }
 }

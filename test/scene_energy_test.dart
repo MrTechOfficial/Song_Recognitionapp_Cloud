@@ -43,8 +43,10 @@ void main() {
       () {
     final scene = HalloweenTimeline(seed: 42);
     var flickerFrames = 0, otherFaceFrames = 0, looks = 0, blinks = 0;
+    var peakDim = 0.0;
     for (var i = 0; i < 14400; i++) {
       scene.advance(i / 24);
+      if (scene.eyeDim > peakDim) peakDim = scene.eyeDim;
       if (scene.eyeDim > 0) {
         flickerFrames++;
       }
@@ -61,7 +63,8 @@ void main() {
       expect(scene.sways.leavesReleased, scene.sways.completed ~/ 9);
     }
     expect(flickerFrames / 14400, lessThan(.04));
-    expect(otherFaceFrames / 14400, lessThan(.12));
+    expect(otherFaceFrames / 14400, inInclusiveRange(.10, .22));
+    expect(peakDim, inInclusiveRange(.50, .64));
     expect(looks, greaterThan(0));
     expect(blinks, greaterThan(0));
     expect(scene.sways.leavesReleased, inInclusiveRange(3, 7));

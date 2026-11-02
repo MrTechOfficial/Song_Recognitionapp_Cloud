@@ -13,6 +13,19 @@ reczt_files=(
   "lib/seasonal/halloween_characters.dart"
   "lib/seasonal/halloween_carvings.dart"
   "lib/main.dart"
+  "lib/seasonal/music_intelligence_card.dart"
+  "ios/RecztControl/RecztControlBundle.swift"
+  "ios/RecztControl/RecztOpenIntent.swift"
+  "ios/RecztControl/Assets.xcassets/RecztPumpkinClassic.imageset/Contents.json"
+  "ios/RecztControl/Assets.xcassets/RecztPumpkinClassic.imageset/paint.png"
+  "ios/RecztControl/Assets.xcassets/RecztSnowmanBody.imageset/Contents.json"
+  "ios/RecztControl/Assets.xcassets/RecztSnowmanBody.imageset/paint.png"
+  "ios/RecztControl/Assets.xcassets/RecztSnowmanFrontSkate.imageset/Contents.json"
+  "ios/RecztControl/Assets.xcassets/RecztSnowmanFrontSkate.imageset/paint.png"
+  "ios/RecztControl/Assets.xcassets/RecztSnowmanRearSkate.imageset/Contents.json"
+  "ios/RecztControl/Assets.xcassets/RecztSnowmanRearSkate.imageset/paint.png"
+  "ios/RecztControl/Assets.xcassets/RecztSnowmanScarf.imageset/Contents.json"
+  "ios/RecztControl/Assets.xcassets/RecztSnowmanScarf.imageset/paint.png"
   "lib/seasonal/halloween_timeline.dart"
   "lib/seasonal/halloween_bats.dart"
   "lib/seasonal/halloween_event.dart"
@@ -46,6 +59,7 @@ reczt_files=(
   "ios/Runner/iOS 27 System Integration/RecztIOS27Bridge.swift"
   "ios/RunnerTests/RunnerTests.swift"
   "test/christmas_rig_render_test.dart"
+  "test/music_intelligence_card_test.dart"
   "test/widget_test.dart"
   "test/scene_energy_test.dart"
   "test/halloween_event_test.dart"
@@ -133,6 +147,9 @@ else
 fi
 for reczt_file in "${reczt_files[@]}"; do
   case "$reczt_file" in
+    ios/RecztControl/Assets.xcassets/Reczt*.imageset/*)
+      # New images inside the existing, already registered asset catalog.
+      ;;
     ios/*)
       if [ ! -f "$reczt_project/$reczt_file" ]; then
         echo "Existing native file missing: $reczt_file. No files have been changed."

@@ -54,4 +54,18 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(restored.environment, "outdoors")
   }
 
+  func testListeningStateHasARealDeadlineAndLegacyContentStillDecodes() throws {
+    let before = Date()
+    let state = RecztRecognitionAttributes.ContentState.listening(secondsRemaining: 10, source: "app")
+    let after = Date()
+    XCTAssertNotNil(state.listeningEndsAt)
+    XCTAssertGreaterThanOrEqual(state.listeningEndsAt!, before.addingTimeInterval(10))
+    XCTAssertLessThanOrEqual(state.listeningEndsAt!, after.addingTimeInterval(10))
+    let restored = try JSONDecoder().decode(RecztRecognitionAttributes.ContentState.self,
+      from: JSONEncoder().encode(state))
+    XCTAssertEqual(restored.listeningEndsAt, state.listeningEndsAt)
+    let legacy = Data(#"{"phase":"listening","title":"Reczt","artist":"","secondsRemaining":10,"source":"app"}"#.utf8)
+    XCTAssertNil(try JSONDecoder().decode(RecztRecognitionAttributes.ContentState.self, from: legacy).listeningEndsAt)
+  }
+
 }

@@ -1366,7 +1366,7 @@ final class AppleMusicPlaylistBridge {
         
         RecztIOS27Bridge.register(with: messenger)
         RecztSceneEnergyBridge.register(with: messenger)
-        let iconRevision = "waveform-mic-2026"
+        let iconRevision = "painted-single-control-2026-v3"
         if UserDefaults.standard.string(forKey: "recztWidgetIconRevision") != iconRevision {
             WidgetCenter.shared.reloadAllTimelines()
             if #available(iOS 18.0, *) { ControlCenter.shared.reloadAllControls() }
@@ -1383,12 +1383,12 @@ final class AppleMusicPlaylistBridge {
         siriChannel.setMethodCallHandler { call, result in
             switch call.method {
             case "checkSiriTrigger":
-                let launchedFromSiri =
-                    UserDefaults.standard.bool(
-                        forKey: "flutter.launchedFromSiri"
-                    )
+                let controlDefaults = UserDefaults(suiteName: RecztSharedConstants.appGroupID)
+                let launchedFromSiri = UserDefaults.standard.bool(forKey: "flutter.launchedFromSiri")
+                    || controlDefaults?.bool(forKey: "reczt.control.startRecording") == true
 
                 if launchedFromSiri {
+                    controlDefaults?.removeObject(forKey: "reczt.control.startRecording")
                     UserDefaults.standard.set(
                         false,
                         forKey: "flutter.launchedFromSiri"

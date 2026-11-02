@@ -11,9 +11,9 @@ class HalloweenSwayCounter {
 
 class HalloweenMotion {
   // The body is painted into the 406 x 696 illustration, not screen-relative.
-  static const neck = Offset(338, 673);
+  static const neck = Offset(336, 673);
   static const skullPivot = Offset(45, 72);
-  static const skullScale = .79;
+  static const skullScale = .75;
   static final skullRect = Rect.fromLTWH(neck.dx - skullPivot.dx * skullScale,
       neck.dy - skullPivot.dy * skullScale, 84 * skullScale, 88 * skullScale);
 

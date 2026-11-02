@@ -291,7 +291,7 @@ class _HalloweenWorld extends CustomPainter {
                     (staticScene ? 0 : math.sin(t / 13 + i) * 2),
                 i < 2 ? (i == 0 ? 285 : 235) : 406,
                 i < 2 ? (i == 0 ? 41 : 33) : HalloweenSky.heights[i]),
-            opacity: [.65, .65, .77, .45, .30, .16][i]);
+            opacity: [.65, .65, .77, .45, .24, .14][i]);
       }
     }
     if (!staticScene) {
@@ -303,13 +303,13 @@ class _HalloweenWorld extends CustomPainter {
     _tree(canvas, staticScene || !scene.tree.active ? 0 : scene.tree.phase(t));
     // Ground fog stays below the menu, down among the graves and fence.
     for (var i = 0; i < 3; i++) {
-      final dx = staticScene ? 0 : math.sin(t / 31 + i * 1.4) * 47;
+      final dx = staticScene ? 0 : math.sin(t / 24 + i * 1.4) * 47;
       image(
           canvas,
           'fog_${i == 0 ? 'far' : 'near'}_clean',
           Rect.fromLTWH(visible.left - 90 + dx, [568.0, 612.0, 650.0][i],
               visible.width + 180, 42),
-          opacity: [.065, .075, .035][i]);
+          opacity: [.045, .045, .035][i]);
     }
     if (!staticScene && scene.bats.active) {
       final age = t - scene.bats.start;

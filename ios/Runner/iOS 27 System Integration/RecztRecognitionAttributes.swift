@@ -9,6 +9,7 @@ struct RecztRecognitionAttributes: ActivityAttributes {
         var artist: String
         var secondsRemaining: Int
         var source: String
+        var listeningEndsAt: Date? = nil
 
         static func listening(secondsRemaining: Int, source: String) -> Self {
             .init(
@@ -16,7 +17,8 @@ struct RecztRecognitionAttributes: ActivityAttributes {
                 title: "Listening…",
                 artist: "Sing or hum a song",
                 secondsRemaining: secondsRemaining,
-                source: source
+                source: source,
+                listeningEndsAt: Date().addingTimeInterval(Double(max(0, secondsRemaining)))
             )
         }
     }

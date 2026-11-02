@@ -44,7 +44,7 @@ class ChristmasRoofSnowState {
 class ChristmasWeather {
   static const loopSeconds = 384;
   static const roofBank = Offset(733, 731);
-  static const roofStart = Offset(821, 591), roofEave = Offset(743, 666);
+  static const roofStart = Offset(771, 639), roofEave = Offset(743, 666);
   // Artwork-space centers of the seven bulbs, including the partially cropped
   // bulbs at the sides. Use the same cover transform as the background.
   static const lightPositions = [
@@ -110,7 +110,7 @@ class ChristmasWeather {
       final fall = (age - 1.25) / 1.15;
       return ChristmasRoofSnowState(
           position: Offset(eave.dx + (bank.dx - eave.dx) * fall,
-              eave.dy + (bank.dy - eave.dy) * fall * fall),
+              eave.dy + (bank.dy - eave.dy) * (.55 * fall + .45 * fall * fall)),
           rotation: -.65 - fall * .3,
           opacity: 1,
           scatter: 0);
