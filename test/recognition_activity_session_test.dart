@@ -39,20 +39,56 @@ void main() {
     expect(args['redirecting'], true);
   });
 
-  test('simultaneous success and final cleanup publish only one terminal outcome', () async {
+  test(
+      'simultaneous success and final cleanup publish only one terminal outcome',
+      () async {
     await session.start({'source': 'app'});
     await Future.wait([
       session.result(title: 'Song', artist: 'Artist'),
       session.finish('error'),
     ]);
-    expect(calls.where((c) => ['showRecognitionResult', 'endRecognitionActivity'].contains(c.method)), hasLength(1));
+    expect(
+        calls.where((c) => ['showRecognitionResult', 'endRecognitionActivity']
+            .contains(c.method)),
+        hasLength(1));
     expect(calls.last.method, 'showRecognitionResult');
   });
 
-  test('leaving the app clears the run and resume never starts another Island',
+  test(
+      'backgrounding preserves an active run through its result without restarting it',
       () async {
     await session.start({'source': 'app'});
     await session.suspend();
+    await session.update('searching');
+    await session.result(title: 'Song', artist: 'Artist');
+    await session.resume();
+    await session.result(title: 'Late song', artist: 'Artist');
+    expect(calls.map((c) => c.method), [
+      'startRecognitionActivity',
+      'backgroundAppRecognitionActivities',
+      'updateRecognitionActivity',
+      'showRecognitionResult',
+      'resumeAppRecognitionActivities'
+    ]);
+  });
+
+  test(
+      'backgrounding cannot start a new Island or interrupt the one already recording',
+      () async {
+    await session.start({'source': 'app'});
+    await session.suspend();
+    await session.start({'source': 'app'});
+    await session.update('listening', secondsRemaining: 6);
+    expect(calls.where((c) => c.method == 'startRecognitionActivity'),
+        hasLength(1));
+    expect(calls.last.method, 'updateRecognitionActivity');
+  });
+
+  test(
+      'explicit close cancels; resume and late metadata cannot revive the Island',
+      () async {
+    await session.start({'source': 'app'});
+    await session.cancel();
     await session.result(title: 'Song', artist: 'Artist');
     await session.update('searching');
     await session.resume();
@@ -64,7 +100,8 @@ void main() {
     ]);
   });
 
-  test('a start completing after backgrounding is ended by its own ID',
+  test(
+      'an existing start completing while backgrounded is kept for the same run',
       () async {
     final started = Completer<String>();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -75,6 +112,24 @@ void main() {
     final pending = session.start({'source': 'app'});
     await Future<void>.delayed(Duration.zero);
     await session.suspend();
+    started.complete('live-session');
+    await pending;
+    await session.update('listening', secondsRemaining: 7);
+    expect(calls.last.method, 'updateRecognitionActivity');
+    expect((calls.last.arguments as Map)['sessionID'], 'live-session');
+  });
+
+  test('a start completing after explicit cancellation is ended by its own ID',
+      () async {
+    final started = Completer<String>();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return call.method == 'startRecognitionActivity' ? started.future : null;
+    });
+    final pending = session.start({'source': 'app'});
+    await Future<void>.delayed(Duration.zero);
+    await session.cancel();
     started.complete('late-session');
     await pending;
     expect(calls.last.method, 'endRecognitionActivity');

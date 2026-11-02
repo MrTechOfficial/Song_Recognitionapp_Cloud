@@ -104,6 +104,12 @@ class _RecztIOS27Bridge {
     catch (e) { debugPrint('Live Activity lifecycle unavailable: $e'); }
   }
 
+  static Future<void> cancelRecognitionActivities() async {
+    if (!isAvailable) return;
+    try { await _activity.cancel(); }
+    catch (e) { debugPrint('Live Activity cancellation unavailable: $e'); }
+  }
+
   static Future<void> syncRecognitionSettings({
     required String language,
     required String environment,
@@ -6831,7 +6837,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
   @override
   void dispose() {
     SceneEnergyPolicy.instance.setBusy(false);
-    unawaited(_RecztIOS27Bridge.setActivityForeground(false));
+    unawaited(_RecztIOS27Bridge.cancelRecognitionActivities());
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
     _enhancedSearchTimer?.cancel();
@@ -6851,9 +6857,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
       unawaited(_RecztIOS27Bridge.setActivityForeground(false));
+    }
+    if (state == AppLifecycleState.detached) {
+      unawaited(_RecztIOS27Bridge.cancelRecognitionActivities());
     }
     if (state == AppLifecycleState.resumed) {
       unawaited(_RecztIOS27Bridge.setActivityForeground(true));
@@ -9369,7 +9377,7 @@ final christmasTextShadow = isChristmas
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
+                            RecztPageRoute(
                               allowSnapshotting: seasonalTheme == RecztSeason.standard,
                               builder: (context) => AnalyticsPage(lang: _selectedLanguage),
                             ),
@@ -9389,7 +9397,7 @@ final christmasTextShadow = isChristmas
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
+                            RecztPageRoute(
                               allowSnapshotting: seasonalTheme == RecztSeason.standard,
                               builder: (context) => HistoryPage(lang: _selectedLanguage),
                             ),

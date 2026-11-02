@@ -82,6 +82,35 @@ void main() {
   }
 
   testWidgets(
+      'turns retain one opaque painted snowman with no directional dissolve',
+      (tester) async {
+    for (final facing in [-1.0, -.1, 0.0, .1, 1.0]) {
+      final pose = SnowmanSkatingPose(
+          feet: Offset.zero,
+          width: 200,
+          lean: 0,
+          facing: facing,
+          strideBlend: 0,
+          lift: 0,
+          depth: 1,
+          speed: 1);
+      await tester.pumpWidget(Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+              width: 200,
+              height: 200,
+              child: ChristmasSkatingFigure(
+                  pose: pose,
+                  images: images,
+                  scarf: scarf,
+                  bodyTexture: body))));
+      expect(find.byType(CustomPaint), findsOneWidget);
+      expect(find.byType(Opacity), findsNothing);
+      expect(find.byType(FadeTransition), findsNothing);
+    }
+  });
+
+  testWidgets(
       'support switches with a fixed facing, while the other boot pushes gently',
       (tester) async {
     expect(images.values.every((im) => im.width == 400 && im.height == 400),

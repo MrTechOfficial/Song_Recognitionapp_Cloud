@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 
-/// Each callback belongs to one microphone run. Finishing/backgrounding clears
-/// that run, so late metadata/queue callbacks cannot recreate an Island.
+/// Each callback belongs to one microphone run. Only completion/cancellation
+/// retires it; backgrounding preserves it without permitting new starts.
 class RecognitionActivitySession {
   RecognitionActivitySession(this.channel);
   final MethodChannel channel;
@@ -19,7 +19,7 @@ class RecognitionActivitySession {
       final id = await channel.invokeMethod<String>(
           'startRecognitionActivity', arguments);
       if (id == null) return;
-      if (_foreground && revision == _revision) {
+      if (revision == _revision) {
         _sessionID = id;
       } else {
         await channel.invokeMethod<void>(
@@ -33,7 +33,7 @@ class RecognitionActivitySession {
   Future<String?> _current(int? expectedRevision) async {
     final expected = expectedRevision ?? _revision;
     await _starting;
-    return _foreground && expected == _revision ? _sessionID : null;
+    return expected == _revision ? _sessionID : null;
   }
 
   Future<void> update(String phase,
@@ -74,6 +74,13 @@ class RecognitionActivitySession {
   }
 
   Future<void> suspend() async {
+    _foreground = false;
+    // Backgrounding is not a cancellation. The existing microphone run must
+    // remain visible while a user looks at the Island or another app.
+    await channel.invokeMethod<void>('backgroundAppRecognitionActivities');
+  }
+
+  Future<void> cancel() async {
     _foreground = false;
     _revision++;
     _sessionID = null;

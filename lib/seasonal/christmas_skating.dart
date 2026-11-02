@@ -19,11 +19,6 @@ class SnowmanSkatingPose {
   final double width, lean, facing, strideBlend, lift, depth, speed;
   final double stridePhase, scarfPhase;
   final double blink;
-  double get facingBlend {
-    final t = ((facing + .35) / .7).clamp(0.0, 1.0);
-    return t * t * (3 - 2 * t);
-  }
-
   bool get rearSupports => math.sin(stridePhase) < 0;
   static double blinkAt(double seconds) {
     final age = ((seconds - 7) % 17 + 17) % 17;

@@ -1,7 +1,5 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'halloween_bats.dart';
 
 class HalloweenEventCampaign {
   static const seenKey = 'halloween_event_2026_seen';
@@ -43,11 +41,8 @@ class HalloweenAnnouncement extends StatelessWidget {
                   child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        const ExcludeSemantics(
-                            child: SizedBox(
-                                height: 132,
-                                width: 270,
-                                child: CustomPaint(painter: _EventSky()))),
+                        const HalloweenAnnouncementArtwork(),
+                        const SizedBox(height: 20),
                         Text(t('halloween_event_title'),
                             textAlign: TextAlign.center,
                             style: const TextStyle(
@@ -85,111 +80,39 @@ class HalloweenAnnouncement extends StatelessWidget {
                       ]))))));
 }
 
-class _EventSky extends CustomPainter {
-  const _EventSky();
+/// The same painted scene and pumpkin used by the seasonal design. Static
+/// image layers replace the former moon/bats/pumpkins CustomPainter.
+class HalloweenAnnouncementArtwork extends StatelessWidget {
+  const HalloweenAnnouncementArtwork({super.key});
   @override
-  void paint(Canvas canvas, Size size) {
-    final warm = Paint()..color = const Color(0xFFFFCB78);
-    canvas.drawCircle(Offset(size.width * .53, 53), 34, warm);
-    canvas.drawCircle(Offset(size.width * .53, 53), 42,
-        Paint()..color = const Color(0xFFFFBA65).withValues(alpha: .08));
-    for (final p in [
-      const Offset(121, 37),
-      const Offset(153, 60),
-      const Offset(139, 73)
-    ]) {
-      canvas.drawCircle(p, 5, Paint()..color = const Color(0xFFE7AC63));
-    }
-    paintHalloweenBat(canvas, const Offset(75, 48), 49, .5, -.12);
-    paintHalloweenBat(canvas, Offset(size.width - 42, 65), 35, -.4, .15);
-    for (final p in [
-      const Offset(28, 64),
-      const Offset(194, 14),
-      const Offset(221, 34),
-      const Offset(101, 76)
-    ]) {
-      canvas.drawCircle(p, 1.5, Paint()..color = const Color(0xFFE8C3F7));
-    }
-    // A bowed paper bunting and little ink pumpkins make this an event card,
-    // rather than just the old moon illustration. No recurring animation loop.
-    final cable = Path()
-      ..moveTo(6, 1)
-      ..quadraticBezierTo(size.width / 2, 32, size.width - 6, 1);
-    canvas.drawPath(
-        cable,
-        Paint()
-          ..color = const Color(0xFFC6A2DC)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3);
-    for (var i = 0; i < 9; i++) {
-      final x = 14 + i * (size.width - 28) / 8;
-      final y = math.sin((i + .3) / 8.6 * math.pi) * 15;
-      final flag = Path()
-        ..moveTo(x - 7, y)
-        ..lineTo(x + 7, y)
-        ..lineTo(x + 1, y + 14)
-        ..close();
-      canvas.drawPath(
-          flag,
-          Paint()
-            ..color =
-                i.isEven ? const Color(0xFFF0A356) : const Color(0xFF9B76B6));
-    }
-    for (final (x, scale, tilt) in [(49.0, 1.0, -.10), (209.0, .78, .09)]) {
-      canvas.save();
-      canvas.translate(x, 108);
-      canvas.rotate(tilt);
-      canvas.scale(scale);
-      canvas.drawOval(const Rect.fromLTWH(-23, -18, 46, 35),
-          Paint()..color = const Color(0xFFEF8E3D));
-      canvas.drawOval(const Rect.fromLTWH(-13, -18, 26, 35),
-          Paint()..color = const Color(0xFFFFA650));
-      canvas.drawPath(
-          Path()
-            ..moveTo(-2, -17)
-            ..quadraticBezierTo(-4, -27, 5, -25),
-          Paint()
-            ..color = const Color(0xFF9DAD70)
-            ..style = PaintingStyle.stroke
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = 4);
-      for (final eye in [-8.0, 8.0]) {
-        canvas.drawPath(
-            Path()
-              ..moveTo(eye, -9)
-              ..lineTo(eye - 4, -2)
-              ..lineTo(eye + 4, -2)
-              ..close(),
-            warm);
-      }
-      canvas.drawPath(
-          Path()
-            ..moveTo(-11, 4)
-            ..quadraticBezierTo(0, 17, 12, 4)
-            ..quadraticBezierTo(0, 9, -11, 4),
-          warm);
-      canvas.restore();
-    }
-    for (final point in [
-      const Offset(15, 76),
-      const Offset(251, 95),
-      const Offset(103, 108)
-    ]) {
-      canvas.drawLine(
-          point + const Offset(-3, 0),
-          point + const Offset(3, 0),
-          Paint()
-            ..color = const Color(0xFFD4B4E6)
-            ..strokeWidth = 1.3);
-      canvas.drawLine(
-          point + const Offset(0, -3),
-          point + const Offset(0, 3),
-          Paint()
-            ..color = const Color(0xFFD4B4E6)
-            ..strokeWidth = 1.3);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_EventSky old) => false;
+  Widget build(BuildContext context) => ExcludeSemantics(
+      child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+              height: 168,
+              width: double.infinity,
+              child: Stack(fit: StackFit.expand, children: [
+                Transform.scale(
+                    scale: 1.025,
+                    child: Image.asset(
+                        'assets/seasonal/halloween_v2/announcement_scene.png',
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        filterQuality: FilterQuality.medium)),
+                const DecoratedBox(
+                    decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Color(0xA6211330)]))),
+                Positioned(
+                    left: 12,
+                    bottom: -2,
+                    width: 112,
+                    height: 96,
+                    child: Image.asset(
+                        'assets/seasonal/halloween_v2/pumpkin_classic.png',
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium)),
+              ]))));
 }

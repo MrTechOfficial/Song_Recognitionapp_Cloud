@@ -40,8 +40,7 @@ actor RecztLiveActivityManager {
                 artist: String? = nil, source: String? = nil, sessionID: String? = nil) async {
         guard let activity = activeActivity(sessionID: sessionID) else { return }
         let old = activity.content.state
-        guard old.source != "app" || appIsForeground,
-              ["listening", "searching"].contains(old.phase) else { return }
+        guard ["listening", "searching"].contains(old.phase) else { return }
         let state = RecztRecognitionAttributes.ContentState(
             phase: phase, title: title ?? old.title, artist: artist ?? old.artist,
             secondsRemaining: secondsRemaining ?? old.secondsRemaining,
@@ -56,7 +55,7 @@ actor RecztLiveActivityManager {
                     redirecting: Bool = false, sessionID: String? = nil) async {
         guard let activity = activeActivity(sessionID: sessionID) else { return }
         let old = activity.content.state
-        guard old.source != "app" || appIsForeground else { return }
+        guard ["listening", "searching"].contains(old.phase) else { return }
         let state = RecztRecognitionAttributes.ContentState(
             phase: "found", title: title, artist: artist, secondsRemaining: 0,
             source: source ?? old.source,
@@ -69,8 +68,7 @@ actor RecztLiveActivityManager {
         guard let activity = activeActivity(sessionID: sessionID) else { return }
         if ["found", "noMatch", "error", "denied"].contains(activity.content.state.phase) &&
             !["cancelled", "idle"].contains(phase) { return }
-        if ["noMatch", "error", "denied"].contains(phase) &&
-            (activity.content.state.source != "app" || appIsForeground) {
+        if ["noMatch", "error", "denied"].contains(phase) {
             var state = activity.content.state
             state.phase = phase
             state.title = "Reczt"
@@ -94,16 +92,16 @@ actor RecztLiveActivityManager {
         let headline = RecztRecognitionAttributes.localizedText(titleKey, language: language)
         let hint = RecztRecognitionAttributes.localizedText(hintKey, language: language)
         // Alerting updates ask iOS to surface the result. Expansion is an iOS decision.
-        await activity.update(ActivityContent(state: state, staleDate: Date().addingTimeInterval(3)),
+        await activity.update(ActivityContent(state: state, staleDate: Date().addingTimeInterval(6)),
             alertConfiguration: AlertConfiguration(
                 title: LocalizedStringResource(stringLiteral: headline),
                 body: LocalizedStringResource(stringLiteral: hint), sound: .default))
         if state.source != "app" {
-            // An App Intent may be suspended as soon as it returns. End in
-            // that same task instead of depending on a later sleeping task.
-            await activity.end(ActivityContent(state: state, staleDate: nil),
-                dismissalPolicy: .after(Date().addingTimeInterval(3)))
-            if currentSessionID == activity.attributes.sessionID { currentSessionID = nil }
+            // Keep the native intent alive for its result window. Ending with
+            // .after only retains Lock Screen content; it removes the Island
+            // immediately, so wait first and end once the message was shown.
+            do { try await Task.sleep(for: .seconds(6)) } catch { }
+            await dismiss(sessionID: activity.attributes.sessionID)
             return
         }
         guard currentSessionID == activity.attributes.sessionID,
@@ -111,7 +109,7 @@ actor RecztLiveActivityManager {
         dismissalTask?.cancel()
         let id = activity.attributes.sessionID
         dismissalTask = Task {
-            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            do { try await Task.sleep(for: .seconds(6)) } catch { return }
             await self.dismiss(sessionID: id)
         }
     }
@@ -119,7 +117,14 @@ actor RecztLiveActivityManager {
     func setAppForeground(_ foreground: Bool) async {
         if appIsForeground != foreground { lifecycleRevision += 1 }
         appIsForeground = foreground
-        guard !foreground else { return }
+        // This gates *new* app requests. Existing listening/searching sessions
+        // continue until their actual result or explicit cancellation.
+    }
+
+    func cancelAppActivities() async {
+        appIsForeground = false
+        lifecycleRevision += 1
+        dismissalTask?.cancel()
         for activity in Activity<RecztRecognitionAttributes>.activities
             where activity.content.state.source == "app" {
             await dismiss(sessionID: activity.attributes.sessionID)
@@ -156,8 +161,12 @@ actor RecztLiveActivityManager {
             $0.activityState == .active || $0.activityState == .stale
         }
         if let id = sessionID ?? currentSessionID {
-            return activities.first(where: { $0.attributes.sessionID == id })
+            let exact = activities.first(where: { $0.attributes.sessionID == id })
+            // App callbacks always carry an ID. An older unscoped App Intent
+            // must never update/end a newer foreground microphone session.
+            if sessionID == nil && exact?.content.state.source == "app" { return nil }
+            return exact
         }
-        return sessionID == nil ? activities.first : nil
+        return sessionID == nil ? activities.first(where: { $0.content.state.source != "app" }) : nil
     }
 }

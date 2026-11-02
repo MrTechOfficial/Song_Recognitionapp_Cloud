@@ -220,22 +220,11 @@ class ChristmasSkatingFigure extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (images.isEmpty) return const SizedBox.shrink();
-    Widget facing(bool left) => Transform.flip(
-        flipX: left,
+    // One solid painted character throughout the route, including turns.
+    return Transform.flip(
+        flipX: pose.facing < 0,
         child: CustomPaint(
             painter: _SkaterPainter(pose, images, scarf!, bodyTexture)));
-    final blend = pose.facingBlend;
-    if (blend <= 0) return facing(true);
-    if (blend >= 1) return facing(false);
-    // A short, route-driven dissolve through the turn avoids an instantaneous
-    // mirror jump. Only this small sprite is composited, never the whole scene.
-    return Transform.scale(
-      scaleX: .94 + .06 * (2 * blend - 1).abs(),
-      child: Stack(fit: StackFit.expand, children: [
-        Opacity(opacity: 1 - blend, child: facing(true)),
-        Opacity(opacity: blend, child: facing(false)),
-      ]),
-    );
   }
 }
 

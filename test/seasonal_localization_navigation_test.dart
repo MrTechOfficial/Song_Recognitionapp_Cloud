@@ -17,7 +17,7 @@ class _Pages extends StatelessWidget {
         TextButton(
             onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(
+                RecztPageRoute<void>(
                     allowSnapshotting: false,
                     builder: (_) => const Scaffold(
                         body: Center(child: Text('History probe'))))),

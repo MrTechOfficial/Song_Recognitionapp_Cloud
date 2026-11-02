@@ -84,6 +84,25 @@ void main() {
     }
   });
   testWidgets(
+      'announcement artwork uses the real painted scene and pumpkin without a CustomPainter',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: HalloweenAnnouncementArtwork())));
+    expect(
+        find.descendant(
+            of: find.byType(HalloweenAnnouncementArtwork),
+            matching: find.byType(Image)),
+        findsNWidgets(2));
+    expect(
+        find.descendant(
+            of: find.byType(HalloweenAnnouncementArtwork),
+            matching: find.byType(CustomPaint)),
+        findsNothing);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
       'localized popup fits a small phone, supports RTL, and returns the chosen action',
       (tester) async {
     tester.view.physicalSize = const Size(320, 568);

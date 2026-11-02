@@ -1,5 +1,8 @@
 # Live language changes, shared scenery and seasonal Island details
 
+The subsequent gesture, Island lifetime and artwork corrections are in
+[seasonal-swipe-and-island-fix.md](seasonal-swipe-and-island-fix.md).
+
 This update follows `seasonal-native-and-analytics-update.md`.
 
 The seasonal picker, Theme Lab heading, testing badge, preview explanation,

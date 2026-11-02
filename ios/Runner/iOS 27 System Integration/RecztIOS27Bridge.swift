@@ -22,7 +22,7 @@ final class RecztIOS27Bridge {
                 Task { await RecztLiveActivityManager.shared.setAppForeground(true) }
             },
             NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: .main) { _ in
-                Task { await RecztLiveActivityManager.shared.setAppForeground(false) }
+                Task { await RecztLiveActivityManager.shared.cancelAppActivities() }
             }
         ]
 
@@ -77,11 +77,13 @@ final class RecztIOS27Bridge {
                 let title = (args["title"] as? String) ?? "Reczt"
                 let artist = (args["artist"] as? String) ?? ""
                 Task {
+                    let window = await beginResultWindow()
                     await RecztLiveActivityManager.shared.showResult(
                         title: title,
                         artist: artist, redirecting: redirecting, sessionID: sessionID
                     )
                     await returnToFlutter(result, nil)
+                    await finishResultWindow(window)
                 }
 
             case "endRecognitionActivity":
@@ -89,11 +91,16 @@ final class RecztIOS27Bridge {
                 let phase = (args?["phase"] as? String) ?? "idle"
                 guard let sessionID = args?["sessionID"] as? String else { result(nil); return }
                 Task {
+                    let window: UIBackgroundTaskIdentifier
+                    if ["noMatch", "error", "denied"].contains(phase) {
+                        window = await beginResultWindow()
+                    } else { window = .invalid }
                     await RecztLiveActivityManager.shared.finish(
                         phase: phase,
                         message: nil, sessionID: sessionID
                     )
                     await returnToFlutter(result, nil)
+                    await finishResultWindow(window)
                 }
 
             case "syncRecognitionSettings":
@@ -119,6 +126,12 @@ final class RecztIOS27Bridge {
                 }
 
             case "dismissAppRecognitionActivities":
+                Task {
+                    await RecztLiveActivityManager.shared.cancelAppActivities()
+                    await returnToFlutter(result, nil)
+                }
+
+            case "backgroundAppRecognitionActivities":
                 Task {
                     await RecztLiveActivityManager.shared.setAppForeground(false)
                     await returnToFlutter(result, nil)
@@ -169,6 +182,19 @@ final class RecztIOS27Bridge {
             default:
                 result(FlutterMethodNotImplemented)
             }
+        }
+    }
+
+    @MainActor
+    private static func beginResultWindow() -> UIBackgroundTaskIdentifier {
+        UIApplication.shared.beginBackgroundTask(withName: "Reczt result", expirationHandler: nil)
+    }
+
+    private static func finishResultWindow(_ window: UIBackgroundTaskIdentifier) async {
+        guard window != .invalid else { return }
+        do { try await Task.sleep(for: .seconds(7)) } catch { }
+        await MainActor.run {
+            if window != .invalid { UIApplication.shared.endBackgroundTask(window) }
         }
     }
 
