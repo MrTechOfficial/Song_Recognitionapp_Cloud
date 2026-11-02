@@ -1,4 +1,6 @@
 import os
+import contextvars
+import uuid
 import time
 import base64
 import hashlib
@@ -230,7 +232,7 @@ _VERSION_WORDS_RE = re.compile(
     re.IGNORECASE,
 )
 
-app = FastAPI(title="Reczt Song Recognition Engine", version="3.2")
+app = FastAPI(title="Reczt Song Recognition Engine", version="3.3")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOW_ORIGINS,
@@ -239,6 +241,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# A request budget is shared with provider worker threads. Catalog enrichment
+# must not leave the iPhone waiting behind SDK retries for several minutes.
+RECOGNITION_BUDGET_SECONDS = max(5.0, min(28.0, float(os.getenv("RECOGNITION_BUDGET_SECONDS", "28"))))
+_request_deadline = contextvars.ContextVar("reczt_request_deadline", default=None)
+
+class RecognitionBudgetExceeded(TimeoutError):
+    pass
+
+def remaining_budget() -> float:
+    deadline = _request_deadline.get()
+    return max(0.0, deadline - time.monotonic()) if deadline is not None else RECOGNITION_BUDGET_SECONDS
+
+def provider_timeout(connect: float = 2.5, read: float = 5.0) -> Tuple[float, float]:
+    remaining = remaining_budget()
+    if remaining < 0.25:
+        raise RecognitionBudgetExceeded()
+    connection = min(connect, max(0.05, remaining * 0.20))
+    return connection, min(read, max(0.05, remaining - connection))
+
+def submit_recognition_work(executor, function, *args):
+    context = contextvars.copy_context()
+    return executor.submit(context.run, function, *args)
 
 # =====================================================================
 # SMALL HELPERS
@@ -274,6 +299,8 @@ def normalize_score(value: Any, default: Optional[float] = None) -> Optional[flo
     try:
         score = float(value)
     except (TypeError, ValueError):
+        return default
+    if not math.isfinite(score) or score < 0 or score > 100:
         return default
     if score > 1.0:
         score /= 100.0
@@ -719,6 +746,25 @@ def trim_pcm_wav_silence(input_path: str, output_path: str, environment: str) ->
         shutil.copyfile(input_path, output_path)
 
 
+def wav_has_signal(path: str) -> Optional[bool]:
+    """Reject digital silence without imposing a loudness floor on quiet singers.
+
+    Unknown/malformed containers return None for the existing provider handling.
+    This is not a voice classifier; nonzero room noise still needs recognition.
+    """
+    try:
+        with wave.open(path, "rb") as audio:
+            width = audio.getsampwidth()
+            while True:
+                data = audio.readframes(8192)
+                if not data:
+                    return False
+                if (any(value != 128 for value in data) if width == 1 else any(data)):
+                    return True
+    except (wave.Error, OSError, EOFError):
+        return None
+
+
 def wav_duration_seconds(path: str) -> float:
     """Return PCM WAV duration, or 0.0 when the file cannot be inspected."""
     try:
@@ -942,21 +988,30 @@ def recognize_with_acrcloud(audio_path: str) -> Tuple[str, List[Dict[str, Any]]]
                 identify_url,
                 data=request_data,
                 files={"sample": ("reczt.wav", audio_file, "audio/wav")},
-                timeout=(4, ACR_TIMEOUT_SECONDS),
+                timeout=provider_timeout(4, ACR_TIMEOUT_SECONDS),
             )
+        if response.status_code == 429:
+            return "quota_exceeded", []
+        if response.status_code in (401, 403):
+            return "authentication_error", []
         response.raise_for_status()
         payload = response.json()
+    except (requests.Timeout, RecognitionBudgetExceeded):
+        return "timeout", []
     except Exception as exc:
-        print(f"[ACRCLOUD ERROR] {exc}")
-        return "error", []
+        print(f"[ACRCLOUD ERROR] type={type(exc).__name__}")
+        return "provider_error", []
 
-    status_code = payload.get("status", {}).get("code", -1)
+    try:
+        status_code = int(payload.get("status", {}).get("code", -1))
+    except (ValueError, TypeError):
+        status_code = -1
     if status_code == 3003:
         print("[ACRCLOUD QUOTA] requests limit exceeded")
         return "quota_exceeded", []
     if status_code != 0:
-        print(f"[ACRCLOUD NO MATCH] status={payload.get('status')}")
-        return "no_match", []
+        print(f"[ACRCLOUD STATUS] code={status_code}")
+        return ("no_match" if status_code == 1001 else "provider_error"), []
 
     metadata = payload.get("metadata") or {}
     if metadata.get("humming"):
@@ -975,8 +1030,8 @@ def recognize_with_acrcloud(audio_path: str) -> Tuple[str, List[Dict[str, Any]]]
         if not title or title_name_is_suspicious(title) or is_unwanted_version(title, artist):
             continue
 
-        default_score = 0.55 if kind == "humming" else 0.88
-        confidence = normalize_score(item.get("score"), default=default_score)
+        confidence = next((value for key in ("score", "confidence", "humming_score", "match_score")
+            if (value := normalize_score(item.get(key))) is not None), None)
         candidate = {
             "title": title,
             "artist": artist,
@@ -1142,14 +1197,20 @@ def recognize_with_acrcloud_consensus(
 
     stop_reason = "exhausted"
     quota_exceeded = False
+    started = time.monotonic()
+    provider_statuses = []
 
     for label, path in passes:
+        if remaining_budget() < 0.25 or (time.monotonic() - started >= 8 and groq_client and GENIUS_ACCESS_TOKEN):
+            stop_reason = "lyric_budget"
+            break
         try:
             kind, candidates = recognize_with_acrcloud(path)
         except Exception as exc:
             print(f"[ACR PASS ERROR] label={label} type={type(exc).__name__}")
             continue
 
+        provider_statuses.append(kind)
         for candidate in candidates:
             candidate["acr_pass_label"] = label
         pass_results.append((label, kind, candidates))
@@ -1159,6 +1220,9 @@ def recognize_with_acrcloud_consensus(
             stop_reason = "quota_exceeded"
             break
 
+        if kind in {"authentication_error", "provider_error", "timeout"}:
+            stop_reason = kind
+            break
         dominant_kind, aggregated, meta = _aggregate_acr_pass_results(pass_results)
         if acr_result_is_decisive(dominant_kind, aggregated, environment):
             stop_reason = "decisive"
@@ -1167,6 +1231,7 @@ def recognize_with_acrcloud_consensus(
     dominant_kind, aggregated, meta = _aggregate_acr_pass_results(pass_results)
     meta["quota_exceeded"] = quota_exceeded
     meta["adaptive_stop_reason"] = stop_reason
+    meta["provider_statuses"] = provider_statuses
     print(
         f"[ACR MULTIPASS] passes={meta['passes_attempted']} "
         f"candidate_passes={meta['passes_with_candidates']} "
@@ -1314,7 +1379,10 @@ def transcribe_with_groq(
 
     try:
         with open(audio_path, "rb") as audio_file:
-            transcript = groq_client.audio.transcriptions.create(
+            if remaining_budget() < 0.25:
+                raise RecognitionBudgetExceeded()
+            bounded_client = groq_client.with_options(timeout=min(12.0, remaining_budget()), max_retries=0)
+            transcript = bounded_client.audio.transcriptions.create(
                 model=model,
                 file=audio_file,
                 language=language,
@@ -1370,18 +1438,11 @@ def transcribe_with_groq(
 
 
 def transcript_looks_useful(text: str) -> bool:
-    words = [w for w in re.split(r"\s+", text.strip()) if w]
-    if len(words) < 2:
-        return False
     normalized = clean_text(text)
-    if len(normalized) < 7:
-        return False
-    # Keep hallucination protection, but allow short sung phrases through.
-    normalized_words = [clean_text(w) for w in words if clean_text(w)]
-    unique_ratio = len(set(normalized_words)) / max(1, len(normalized_words))
-    if len(words) <= 3:
-        return unique_ratio >= 0.50
-    return unique_ratio >= 0.28
+    words = normalized.split()
+    # Repeated multiword phrases are normal lyrics. A ratio-based uniqueness
+    # cutoff rejected repeated choruses; reject only tiny/single-token output.
+    return len(words) >= 3 and len(normalized) >= 10 and len(set(words)) >= 3
 
 
 def build_lyric_queries(lyrics: str) -> List[str]:
@@ -1411,6 +1472,7 @@ def build_lyric_queries(lyrics: str) -> List[str]:
 def genius_candidates_from_lyrics(
     lyrics: str,
     language: str,
+    diagnostics: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     if not GENIUS_ACCESS_TOKEN or not lyrics.strip():
         return []
@@ -1420,37 +1482,32 @@ def genius_candidates_from_lyrics(
 
     queries = build_lyric_queries(lyrics)
 
-    def search_query(
-        query_index: int,
-        query: str,
-    ) -> Tuple[int, List[Dict[str, Any]]]:
+    def search_query(query_index: int, query: str) -> Tuple[int, List[Dict[str, Any]], str]:
         try:
-            response = requests.get(
-                "https://api.genius.com/search",
-                params={"q": query},
-                headers=headers,
-                timeout=(2.5, 5),
-            )
+            response = requests.get("https://api.genius.com/search", params={"q": query},
+                headers=headers, timeout=provider_timeout(2.5, 5))
             if response.status_code != 200:
-                return query_index, []
+                return query_index, [], "http_" + str(response.status_code)
             hits = response.json().get("response", {}).get("hits", [])[:7]
-            return query_index, hits if isinstance(hits, list) else []
+            return query_index, hits if isinstance(hits, list) else [], "ok"
         except Exception as exc:
-            print(f"[GENIUS ERROR] {exc}")
-            return query_index, []
+            print(f"[GENIUS ERROR] type={type(exc).__name__}")
+            return query_index, [], "error"
 
-    query_results: List[Tuple[int, List[Dict[str, Any]]]] = []
+    query_results: List[Tuple[int, List[Dict[str, Any]], str]] = []
     with ThreadPoolExecutor(
         max_workers=min(4, max(1, len(queries)))
     ) as executor:
         futures = [
-            executor.submit(search_query, i, q)
+            submit_recognition_work(executor, search_query, i, q)
             for i, q in enumerate(queries)
         ]
         for future in as_completed(futures):
             query_results.append(future.result())
 
-    for query_index, hits in query_results:
+    if diagnostics is not None:
+        diagnostics.setdefault("genius_statuses", []).extend(status for _, _, status in query_results)
+    for query_index, hits, _ in query_results:
         for rank, hit in enumerate(hits):
             result = hit.get("result") or {}
             title = str(result.get("title") or "").strip()
@@ -1594,6 +1651,8 @@ def lyric_fallback_candidates(
         "used_secondary_audio": False,
         "turbo_useful": False,
         "accuracy_useful": False,
+        "transcription_statuses": [],
+        "genius_statuses": [],
     }
 
     if not groq_client or not GENIUS_ACCESS_TOKEN:
@@ -1608,6 +1667,7 @@ def lyric_fallback_candidates(
         GROQ_TURBO_MODEL,
     )
     meta["attempted_models"].append(GROQ_TURBO_MODEL)
+    meta["transcription_statuses"].append(turbo_result["status"])
 
     if turbo_result["status"] == "rate_limited":
         meta["rate_limited_models"].append(GROQ_TURBO_MODEL)
@@ -1618,6 +1678,7 @@ def lyric_fallback_candidates(
             turbo_candidates = genius_candidates_from_lyrics(
                 turbo_text,
                 language,
+                diagnostics=meta,
             )
 
     if _lyric_candidates_are_strong(turbo_candidates):
@@ -1633,13 +1694,14 @@ def lyric_fallback_candidates(
         accuracy_audio_path = secondary_audio_path
         meta["used_secondary_audio"] = True
 
-    if GROQ_ACCURACY_MODEL and GROQ_ACCURACY_MODEL != GROQ_TURBO_MODEL:
+    if GROQ_ACCURACY_MODEL and GROQ_ACCURACY_MODEL != GROQ_TURBO_MODEL and remaining_budget() >= 8:
         accuracy_result = transcribe_with_groq(
             accuracy_audio_path,
             language,
             GROQ_ACCURACY_MODEL,
         )
         meta["attempted_models"].append(GROQ_ACCURACY_MODEL)
+        meta["transcription_statuses"].append(accuracy_result["status"])
 
         if accuracy_result["status"] == "rate_limited":
             meta["rate_limited_models"].append(GROQ_ACCURACY_MODEL)
@@ -1650,6 +1712,7 @@ def lyric_fallback_candidates(
                 accuracy_candidates = genius_candidates_from_lyrics(
                     accuracy_text,
                     language,
+                    diagnostics=meta,
                 )
 
     attempted = set(meta["attempted_models"])
@@ -1694,7 +1757,7 @@ def get_spotify_access_token() -> Optional[str]:
                 "https://accounts.spotify.com/api/token",
                 auth=(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET),
                 data={"grant_type": "client_credentials"},
-                timeout=(2.5, 5),
+                timeout=provider_timeout(2.5, 5),
             )
             if response.status_code != 200:
                 print(f"[SPOTIFY AUTH] HTTP {response.status_code}")
@@ -1772,7 +1835,7 @@ def spotify_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
             "https://api.spotify.com/v1/search",
             params={"q": query, "type": "track", "limit": 10, "market": market},
             headers={"Authorization": f"Bearer {token}"},
-            timeout=(2.5, 5),
+            timeout=provider_timeout(2.5, 5),
         )
         if response.status_code != 200:
             return {
@@ -1832,7 +1895,7 @@ def apple_lookup(title: str, artist: str, language: str) -> Dict[str, Any]:
         response = requests.get(
             "https://itunes.apple.com/search",
             params={"term": query, "entity": "song", "limit": 12, "country": country},
-            timeout=(2.5, 5),
+            timeout=provider_timeout(2.5, 5),
         )
         if response.status_code != 200:
             return {}
@@ -1904,7 +1967,7 @@ def _spotify_title_only_candidates(title: str, language: str) -> List[Dict[str, 
             "https://api.spotify.com/v1/search",
             params={"q": base_title, "type": "track", "limit": 20, "market": market},
             headers={"Authorization": f"Bearer {token}"},
-            timeout=(2.5, 5),
+            timeout=provider_timeout(2.5, 5),
         )
         if response.status_code != 200:
             return []
@@ -1955,7 +2018,7 @@ def _apple_title_only_candidates(title: str, language: str) -> List[Dict[str, An
         response = requests.get(
             "https://itunes.apple.com/search",
             params={"term": base_title, "entity": "song", "limit": 25, "country": country},
-            timeout=(2.5, 5),
+            timeout=provider_timeout(2.5, 5),
         )
         if response.status_code != 200:
             return []
@@ -2001,8 +2064,8 @@ def title_only_catalog_consensus(title: str, language: str) -> Dict[str, Any]:
     if not title:
         return {}
     with ThreadPoolExecutor(max_workers=2) as executor:
-        spotify_future = executor.submit(_spotify_title_only_candidates, title, language)
-        apple_future = executor.submit(_apple_title_only_candidates, title, language)
+        spotify_future = submit_recognition_work(executor, _spotify_title_only_candidates, title, language)
+        apple_future = submit_recognition_work(executor, _apple_title_only_candidates, title, language)
         spotify_candidates = spotify_future.result()
         apple_candidates = apple_future.result()
 
@@ -2154,7 +2217,7 @@ def spotify_direct_canonical_lookup(
                 "https://api.spotify.com/v1/search",
                 params={"q": query, "type": "track", "limit": 10, "market": market},
                 headers={"Authorization": f"Bearer {token}"},
-                timeout=(2.5, 5),
+                timeout=provider_timeout(2.5, 5),
             )
             if response.status_code != 200:
                 body = (response.text or "").replace("\n", " ")[:500]
@@ -2242,7 +2305,7 @@ def apple_direct_canonical_lookup(
         response = requests.get(
             "https://itunes.apple.com/search",
             params={"term": query, "entity": "song", "limit": 25, "country": country},
-            timeout=(2.5, 5),
+            timeout=provider_timeout(2.5, 5),
         )
         if response.status_code != 200:
             return {}
@@ -2294,10 +2357,10 @@ def attach_direct_canonical_playback_links(
         return
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        spotify_future = executor.submit(
+        spotify_future = submit_recognition_work(executor,
             spotify_direct_canonical_lookup, title, artist, language
         )
-        apple_future = executor.submit(
+        apple_future = submit_recognition_work(executor,
             apple_direct_canonical_lookup, title, artist, language
         )
         spotify = spotify_future.result()
@@ -2626,13 +2689,13 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
     suspicious_artist = artist_name_is_suspicious(original_artist)
     catalog_lookup_artist = "" if suspicious_artist else original_artist
     with ThreadPoolExecutor(max_workers=2) as executor:
-        spotify_future = executor.submit(
+        spotify_future = submit_recognition_work(executor,
             spotify_lookup,
             original_title,
             catalog_lookup_artist,
             language,
         )
-        apple_future = executor.submit(
+        apple_future = submit_recognition_work(executor,
             apple_lookup,
             original_title,
             catalog_lookup_artist,
@@ -2733,8 +2796,8 @@ def enrich_candidate(candidate: Dict[str, Any], language: str) -> Dict[str, Any]
         original_kind = version_kind(original_title, original_artist)
         # Refresh normal title+artist catalog lookups for the repaired identity.
         with ThreadPoolExecutor(max_workers=2) as executor:
-            spotify_future = executor.submit(spotify_lookup, original_title, original_artist, language)
-            apple_future = executor.submit(apple_lookup, original_title, original_artist, language)
+            spotify_future = submit_recognition_work(executor, spotify_lookup, original_title, original_artist, language)
+            apple_future = submit_recognition_work(executor, apple_lookup, original_title, original_artist, language)
             spotify = spotify_future.result()
             apple = apple_future.result()
         spotify_quality = float(spotify.get("spotify_match_quality") or 0.0)
@@ -2929,7 +2992,7 @@ def enrich_candidates(candidates: List[Dict[str, Any]], language: str) -> List[D
     enriched_by_index: Dict[int, Dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=min(3, len(candidates))) as executor:
         future_to_index = {
-            executor.submit(enrich_candidate, candidate, language): index
+            submit_recognition_work(executor, enrich_candidate, candidate, language): index
             for index, candidate in enumerate(candidates)
         }
         for future in as_completed(future_to_index):
@@ -3084,7 +3147,7 @@ def merge_candidates(*groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def read_root() -> Dict[str, Any]:
     return {
         "status": "Reczt recognition backend online",
-        "version": "3.2",
+        "version": "3.3",
         "pipeline": "ACRCloud multi-pass consensus + Groq/Genius cross-check + balanced canonical-release selection + Spotify + Apple Music",
     }
 
@@ -3094,7 +3157,10 @@ def health_check() -> Dict[str, Any]:
     # Never expose secret values. This is intentionally only a configured/not
     # configured diagnostic so you can verify Render environment variables.
     return {
-        "status": "ok",
+        "status": "ok" if (acrcloud_configured() or (groq_client and GENIUS_ACCESS_TOKEN)) else "degraded",
+        "pipeline_version": "3.3",
+        "request_budget_seconds": RECOGNITION_BUDGET_SECONDS,
+        "recognition_modes": {"melody": acrcloud_configured(), "lyrics": bool(groq_client and GENIUS_ACCESS_TOKEN)},
         "services": {
             "acrcloud": acrcloud_configured(),
             "groq": bool(GROQ_API_KEY),
@@ -3126,6 +3192,9 @@ def recognize_audio(
             detail="Recognition services are not configured on the server.",
         )
 
+    request_id = uuid.uuid4().hex
+    started = time.monotonic()
+    budget_token = _request_deadline.set(started + RECOGNITION_BUDGET_SECONDS)
     with tempfile.TemporaryDirectory(prefix="reczt_") as temp_dir:
         raw_path = os.path.join(temp_dir, "raw.wav")
         processed_path = os.path.join(temp_dir, "processed.wav")
@@ -3135,7 +3204,11 @@ def recognize_audio(
                 shutil.copyfileobj(file.file, buffer)
 
             if not os.path.exists(raw_path) or os.path.getsize(raw_path) == 0:
-                return {"success": False, "message": "Empty audio upload."}
+                return {"success": False, "reason": "invalid_audio", "message": "Empty audio upload.", "retryable": False}
+
+            if wav_has_signal(raw_path) is False:
+                return {"success": False, "reason": "no_audio_signal", "retryable": True,
+                    "request_id": request_id, "message": "No audio signal was recorded."}
 
             # Preserve melody. Server preprocessing is deliberately limited to
             # silence trimming; recognition then compares full/raw/windowed views.
@@ -3196,23 +3269,21 @@ def recognize_audio(
             combined = merge_candidates(acr_candidates, lyric_candidates)
 
             if not combined:
-                if groq_meta.get("all_models_rate_limited"):
-                    raise HTTPException(
-                        status_code=429,
-                        detail=(
-                            "Recognition is temporarily rate-limited. "
-                            "Please retry shortly."
-                        ),
-                    )
-
-                return {
-                    "success": False,
-                    "message": (
-                        "Could not confidently recognize this song yet. "
-                        "Try another clear 8–12 second section."
-                    ),
-                    "retryable": True,
-                }
+                statuses = list(acr_meta.get("provider_statuses") or []) + list(groq_meta.get("transcription_statuses") or [])
+                genius_statuses = groq_meta.get("genius_statuses") or []
+                timed_out = remaining_budget() < 0.25
+                limited = "quota_exceeded" in statuses or groq_meta.get("all_models_rate_limited") or "http_429" in genius_statuses
+                failed = any(status in {"authentication_error", "provider_error", "timeout", "error", "unavailable"} for status in statuses)
+                failed = failed or bool(genius_statuses and all(status != "ok" for status in genius_statuses))
+                reason = "recognition_timeout" if timed_out else "provider_rate_limited" if limited else "provider_unavailable" if failed else "no_match"
+                return {"success": False, "reason": reason, "retryable": True,
+                    "request_id": request_id,
+                    "message": "Recognition service could not complete this request." if reason != "no_match" else "No confident song match was found.",
+                    "recognition_meta": {"pipeline_version": "3.3",
+                        "acr_statuses": list(acr_meta.get("provider_statuses") or []),
+                        "transcription_statuses": list(groq_meta.get("transcription_statuses") or []),
+                        "genius_statuses": genius_statuses,
+                        "duration_ms": round((time.monotonic() - started) * 1000)}}
 
             # Enrich enough choices for robust ranking, but cap catalog traffic.
             results = enrich_candidates(combined[:5], language)
@@ -3263,7 +3334,7 @@ def recognize_audio(
 
             if not results:
                 return {
-                    "success": False,
+                    "success": False, "reason": "low_confidence",
                     "message": "No usable recognition candidates remained.",
                     "retryable": True,
                 }
@@ -3318,7 +3389,7 @@ def recognize_audio(
                 )
                 if not derivative_can_be_shown_manually:
                     return {
-                        "success": False,
+                        "success": False, "reason": "low_confidence",
                         "message": (
                             "Reczt found only an alternate/remix version and could "
                             "not safely confirm the original recording. Try singing "
@@ -3362,7 +3433,7 @@ def recognize_audio(
                     or background_is_ambiguous
                 ):
                     return {
-                        "success": False,
+                        "success": False, "reason": "low_confidence",
                         "message": (
                             "Queued recording is not yet strong enough for "
                             "unattended recognition."
@@ -3389,7 +3460,7 @@ def recognize_audio(
 
                 if top_selection < base_floor and not has_plausible_alternative:
                     return {
-                        "success": False,
+                        "success": False, "reason": "low_confidence",
                         "message": (
                             "Recognition confidence was too low. Try the same "
                             "melody again a little more clearly."
@@ -3397,20 +3468,12 @@ def recognize_audio(
                         "retryable": True,
                     }
 
-            # Auto Play should speak "first or second" only when the secondary
-            # candidate is itself playable as a verified canonical track. The top
-            # recognized result is never removed, and no score/order is changed.
+            # Recognition order remains independent of catalog availability.
+            # Resolve canonical links for possible playback, but never replace
+            # a stronger melody match merely because a weaker song has a URL.
             client_results = results
             if auto_play_requested and results:
-                # Every candidate offered to the hands-free chooser must be
-                # independently playable. If at least one verified direct link
-                # exists, omit unverified choices rather than asking the user to
-                # select a song that cannot then Auto Play. If none can be
-                # verified, preserve the top recognition result for display.
-                # Collapse close same-title alternatives before requiring a
-                # verified playback URL. This lets a candidate from the expanded
-                # enrichment pool win the same-title tiebreak even if it was not
-                # initially in the top three playback-link lookups.
+                # Keep the existing same-title canonical-release tiebreak.
                 collapsed_results = collapse_same_title_autoplay_choices(results)
 
                 # Resolve playback for the actual choices we may return. Existing
@@ -3420,17 +3483,16 @@ def recognize_audio(
                     if not candidate.get("playback_link_verified"):
                         attach_direct_canonical_playback_links(candidate, language)
 
-                verified_results = [
-                    candidate
-                    for candidate in collapsed_results
-                    if candidate.get("playback_link_verified")
-                ]
-                client_results = verified_results or [collapsed_results[0]]
+                # Playback availability is not recognition evidence. Preserve
+                # the best match even when its catalog link is unavailable.
+                client_results = collapsed_results
 
+            top = client_results[0]
             # Backward-compatible top-level fields plus a scored candidate list.
             # recognition_meta intentionally contains no transcript/audio content.
             response: Dict[str, Any] = {
                 "success": True,
+                "request_id": request_id,
                 "title": top.get("title", ""),
                 "artist": top.get("artist", ""),
                 "spotify_url": top.get("spotify_url", ""),
@@ -3443,8 +3505,10 @@ def recognize_audio(
                 "recognition_type": top.get("recognition_type", acr_kind),
                 "results": client_results[:3],
                 "recognition_meta": {
-                    "pipeline_version": "3.2",
+                    "pipeline_version": "3.3",
                     "environment": environment,
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                    "acr_statuses": acr_meta.get("provider_statuses", []),
                     "acr_passes_attempted": acr_meta.get("passes_attempted", 0),
                     "acr_passes_with_candidates": acr_meta.get(
                         "passes_with_candidates",
@@ -3471,4 +3535,6 @@ def recognize_audio(
                 status_code=500,
                 detail="Recognition server error",
             ) from exc
+        finally:
+            _request_deadline.reset(budget_token)
 
