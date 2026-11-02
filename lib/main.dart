@@ -26,6 +26,7 @@ import 'seasonal/halloween_event.dart';
 import 'seasonal/music_intelligence_card.dart';
 import 'seasonal/scene_frame_clock.dart';
 import 'seasonal/seasonal_page_transition.dart';
+import 'recognition/recognition_policy.dart';
 import 'seasonal/recognition_activity_session.dart';
 
 
@@ -6569,11 +6570,9 @@ class _SongMatchCandidate {
     ]) {
       final dynamic value = item[key];
       if (value == null) continue;
-      final parsed =
-          value is num ? value.toDouble() : double.tryParse(value.toString());
+      final parsed = normalizeRecognitionScore(value);
       if (parsed != null) {
-        final normalizedScore = parsed > 1.0 ? parsed / 100.0 : parsed;
-        score = normalizedScore.clamp(0.0, 1.0).toDouble();
+        score = parsed;
         break;
       }
     }
@@ -6582,11 +6581,9 @@ class _SongMatchCandidate {
     for (final key in const ['selection_score', 'ranking_score']) {
       final dynamic value = item[key];
       if (value == null) continue;
-      final parsed =
-          value is num ? value.toDouble() : double.tryParse(value.toString());
+      final parsed = normalizeRecognitionScore(value);
       if (parsed != null) {
-        final normalizedScore = parsed > 1.0 ? parsed / 100.0 : parsed;
-        rankingScore = normalizedScore.clamp(0.0, 1.0).toDouble();
+        rankingScore = parsed;
         break;
       }
     }
@@ -6680,17 +6677,8 @@ List<Map<String, dynamic>> _extractRecognitionResults(Map<String, dynamic> data)
   return [data];
 }
 
-bool _backendResponseSucceeded(Map<String, dynamic> data) {
-  if (data['success'] == true) return true;
-  final status = data['status'];
-  if (status is Map) {
-    final code = status['code'];
-    if (code == 0 || code?.toString() == '0') return true;
-  }
-  return data['results'] is List ||
-      data['metadata'] is Map ||
-      data['humming'] is List;
-}
+bool _backendResponseSucceeded(Map<String, dynamic> data) =>
+    recognitionResponseSucceeded(data);
 
 
 bool _isSafeQueuedBackgroundMatch(
@@ -7828,20 +7816,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     }
   }
 
-  double get _dynamicConfidenceThreshold {
-    // ACRCloud humming scores are commonly returned on a 0-1 scale. We keep
-    // these thresholds intentionally moderate and only use them to decide
-    // whether to ASK the user among multiple guesses when Auto Play is off.
-    switch (_selectedMode) {
-      case EnvironmentMode.quiet:
-        return 0.58;
-      case EnvironmentMode.loud:
-        return 0.62;
-      case EnvironmentMode.Outdoors:
-        return 0.64;
-    }
-  }
-
   RecordConfig _recordConfigForCurrentEnvironment() {
     // Keep the existing environment-aware capture profile. The backend now
     // cross-checks raw-vs-trimmed audio and overlapping melodic windows, so we
@@ -7928,95 +7902,6 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
         }
       }
     });
-  }
-
-  bool _hasMeaningfulAmbiguity(List<_SongMatchCandidate> candidates) {
-    if (candidates.length < 2) return false;
-
-    final top = candidates[0].effectiveScore;
-    final second = candidates[1].effectiveScore;
-    if (top == null || second == null) return false;
-
-    // Do not interrupt hands-free playback for a second candidate that is
-    // itself weaker than the 28% hands-free acceptance floor.
-    if (second < 0.28) return false;
-
-    final gap = (top - second).abs();
-    return top < _dynamicConfidenceThreshold ||
-        (top < 0.92 && gap < 0.08);
-  }
-
-  bool _shouldOfferTopGuesses(List<_SongMatchCandidate> candidates) {
-    if (_autoPlayEnabled || candidates.isEmpty) return false;
-    final top = candidates.first.effectiveScore;
-    if (top == null) return false;
-
-    if (candidates.length > 1 && top < _dynamicConfidenceThreshold) {
-      return true;
-    }
-    return _hasMeaningfulAmbiguity(candidates);
-  }
-
-  int _candidateEvidenceCount(_SongMatchCandidate candidate) {
-    final raw = candidate.raw;
-    int parse(dynamic value) {
-      if (value is int) return value;
-      if (value is num) return value.round();
-      return int.tryParse(value?.toString() ?? '') ?? 0;
-    }
-
-    final evidence = parse(raw['evidence_count']);
-    final acrVotes = parse(raw['acr_pass_votes']);
-    return max(evidence, acrVotes);
-  }
-
-  /// Voice choice should be reserved for two genuinely plausible songs.
-  /// ACRCloud can occasionally return two unrelated low-confidence guesses; the
-  /// old flow would read those aloud simply because they were close to each other.
-  /// That feels much worse than admitting uncertainty, especially in Auto Play.
-  bool _shouldSpeakHandsFreeChoices(
-    List<_SongMatchCandidate> candidates,
-  ) {
-    if (candidates.length < 2) return false;
-
-    final top = candidates[0];
-    final second = candidates[1];
-    final topScore = top.effectiveScore;
-    final secondScore = second.effectiveScore;
-    if (topScore == null || secondScore == null) return false;
-
-    double topFloor;
-    double secondFloor;
-    switch (_selectedMode) {
-      case EnvironmentMode.quiet:
-        topFloor = 0.50;
-        secondFloor = 0.38;
-        break;
-      case EnvironmentMode.loud:
-        topFloor = 0.53;
-        secondFloor = 0.40;
-        break;
-      case EnvironmentMode.Outdoors:
-        topFloor = 0.55;
-        secondFloor = 0.42;
-        break;
-    }
-
-    // Independent agreement from multiple ACR passes / recognition sources is
-    // meaningful evidence, so supported candidates get a modest allowance.
-    if (_candidateEvidenceCount(top) >= 2) topFloor -= 0.04;
-    if (_candidateEvidenceCount(second) >= 2) secondFloor -= 0.025;
-
-    if (topScore < topFloor || secondScore < secondFloor) return false;
-
-    // Unknown-artist guesses need substantially stronger evidence before Reczt
-    // speaks them aloud as a real option.
-    if ((top.artist == 'Unknown Artist' && topScore < 0.70) ||
-        (second.artist == 'Unknown Artist' && secondScore < 0.66)) {
-      return false;
-    }
-
-    return true;
   }
 
   String get _voiceChoiceLocale {
@@ -8485,7 +8370,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
             response.statusCode >= 500 || response.statusCode == 429;
         if (mounted) {
           setState(() {
-            _customStatusKey = 'server_error';
+            _customStatusKey = [429, 503].contains(response.statusCode) ? 'activity_error' : 'server_error';
             _statusHttpCode = response.statusCode;
             if (!isFromOfflineQueue) {
               _lastFailedAudioPath = retryable ? path : null;
@@ -8505,10 +8390,11 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
       final data = Map<String, dynamic>.from(decoded);
 
       if (!_backendResponseSucceeded(data)) {
+        if (recognitionFailureKey(data) != 'no_valid_match') terminalPhase = 'error';
         final bool retryable = data['retryable'] == true;
         if (mounted) {
           setState(() {
-            _customStatusKey = 'error_no_lyrics';
+            _customStatusKey = recognitionFailureKey(data);
             if (!isFromOfflineQueue && retryable) {
               // Keep the exact clip so the existing Retry button can resubmit it
               // without forcing the user to sing again.
@@ -8572,47 +8458,43 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
             _spotifyUrl = null;
             _appleMusicUrl = null;
             _topGuesses = <_SongMatchCandidate>[];
-            _customStatusKey = 'error_no_lyrics';
+            _customStatusKey = 'no_valid_match';
           });
         }
         unawaited(_playErrorCue());
         return true;
       }
 
-      // Resolve ambiguity differently depending on interaction mode.
-      // Manual mode uses the tappable Top Guesses card.
-      // Auto Play remains hands-free: Reczt reads the top two choices aloud
-      // and listens for "first" or "second". If that fails, the card appears
-      // as a safe fallback instead of auto-playing a questionable match.
-      if (!isFromOfflineQueue) {
-        final ambiguous = _hasMeaningfulAmbiguity(candidates);
+      final decision = decideRecognition([
+        for (final c in candidates) RecognitionEvidence(
+          confidence: c.confidence, rankingScore: c.rankingScore,
+          knownArtist: c.artist != 'Unknown Artist',
+          canAutoPlay: !('${c.raw['source']}'.contains('groq_genius') && !('${c.raw['source']}'.contains('acrcloud'))),
+          evidenceCount: max(
+            int.tryParse('${c.raw['evidence_count']}') ?? 1,
+            int.tryParse('${c.raw['acr_pass_votes']}') ?? 1)),
+      ], autoPlay: _autoPlayEnabled, environment: _selectedMode.name);
 
-        if (_autoPlayEnabled && ambiguous) {
+      if (!isFromOfflineQueue && decision == RecognitionDecision.retry) {
+        final preservedPath = await _preserveAudioClip(path);
+        if (mounted) {
+          setState(() {
+            _songTitle = null;
+            _artist = null;
+            _spotifyUrl = null;
+            _appleMusicUrl = null;
+            _topGuesses = [];
+            _lastFailedAudioPath = preservedPath;
+            _customStatusKey = 'no_valid_match';
+          });
+        }
+        unawaited(_playErrorCue());
+        return true;
+      }
+      if (!isFromOfflineQueue) {
+        if (decision == RecognitionDecision.voiceChoice) {
           final preservedPath = await _preserveAudioClip(path);
           final visibleChoices = candidates.take(2).toList();
-
-          // Do not have the voice confidently read two garbage guesses merely
-          // because their scores happen to be close. Preserve the exact clip for
-          // Retry and tell the user we were not confident enough instead.
-          if (!_shouldSpeakHandsFreeChoices(visibleChoices)) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _songTitle = null;
-                _artist = null;
-                _spotifyUrl = null;
-                _appleMusicUrl = null;
-                _topGuesses = <_SongMatchCandidate>[];
-                _pendingGuessAudioPath = null;
-                _lastFailedAudioPath = preservedPath;
-                _customStatusKey = 'no_valid_match';
-              });
-            } else {
-              _lastFailedAudioPath = preservedPath;
-            }
-            unawaited(_playErrorCue());
-            return true;
-          }
 
           final spokenChoice =
               await _askHandsFreeSongChoice(visibleChoices);
@@ -8640,13 +8522,16 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
               _appleMusicUrl = null;
               _topGuesses = visibleChoices;
               _pendingGuessAudioPath = preservedPath;
+              _lastFailedAudioPath = preservedPath;
               _customStatusKey = 'voice:failed';
             });
           }
+          terminalPhase = 'needsConfirmation';
           return true;
         }
 
-        if (_shouldOfferTopGuesses(candidates)) {
+        if (decision == RecognitionDecision.manualChoice) {
+          terminalPhase = 'needsConfirmation';
           final preservedPath = await _preserveAudioClip(path);
           if (mounted) {
             setState(() {
@@ -8657,6 +8542,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
               _appleMusicUrl = null;
               _topGuesses = candidates.take(3).toList();
               _pendingGuessAudioPath = preservedPath;
+              _lastFailedAudioPath = preservedPath;
               _customStatusKey = 'top_guesses_subtitle';
             });
           }
@@ -8747,6 +8633,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     bool notifyQueuedMatch = true,
     int? activityRevision,
   }) async {
+    final autoplayAllowed = allowAutoPlay && candidate.raw['playback_link_verified'] != false;
     final String title = candidate.title;
     final String rawCandidateArtist =
         candidate.artist == 'Unknown Artist' ? '' : candidate.artist;
@@ -8771,7 +8658,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
     }
 
     if (!isFromOfflineQueue && activityRevision != null) {
-      final directing = allowAutoPlay && _autoPlayEnabled &&
+      final directing = autoplayAllowed && _autoPlayEnabled &&
           ((_preferredMusicApp == 'apple_music' && (candidate.appleMusicUrl?.isNotEmpty ?? false)) ||
            (_preferredMusicApp != 'apple_music' && (candidate.spotifyUrl?.isNotEmpty ?? false)));
       await _RecztIOS27Bridge.showRecognitionResult(
@@ -8781,7 +8668,7 @@ class _AudioRecorderScreenState extends State<AudioRecorderScreen> with WidgetsB
 
     // Hands-free mode should feel immediate. Once Reczt has accepted the match,
     // open the user's music app before doing nonessential artwork/analytics I/O.
-    if (allowAutoPlay && _autoPlayEnabled) {
+    if (autoplayAllowed && _autoPlayEnabled) {
       if (_preferredMusicApp == 'apple_music' &&
           candidate.appleMusicUrl != null &&
           candidate.appleMusicUrl!.isNotEmpty) {
@@ -13359,7 +13246,8 @@ class LanguageMatcher {
       album = rawAlbum.toString().toLowerCase();
     }
 
-    final combined = '$title $artist $album';
+    final canonicalized = trackData['canonicalized_from_version'] == true && trackData['version_kind'] == 'canonical';
+    final combined = canonicalized ? '$title $artist' : '$title $artist $album';
     const stronglyBlocked = <String>[
       'karaoke',
       'tribute',

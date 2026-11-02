@@ -17,31 +17,49 @@ struct RecztRecognitionLiveActivityWidget: Widget {
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     if style.seasonal {
-                        RecztAnimatedMark(style: style, state: context.state).frame(width: 38, height: 38)
+                        RecztAnimatedMark(style: style, state: context.state).frame(width: style == .christmas ? 42 : 38, height: style == .christmas ? 42 : 38)
                     } else {
                         RecztActivityStatus(state: context.state).font(.title2)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     RecztActivityTrailing(state: context.state, style: style, copy: copy, compact: false)
+                        .frame(height: style == .christmas ? 42 : nil)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(copy.headline(context.state)).font(.headline)
-                        .foregroundStyle(style.snow).lineLimit(1).minimumScaleFactor(0.75)
+                    if style != .christmas {
+                        Text(copy.headline(context.state)).font(.headline)
+                            .foregroundStyle(style.snow).lineLimit(1).minimumScaleFactor(0.75)
+                    }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: style.seasonal ? 6 : 3) {
-                        if style.seasonal {
+                    VStack(alignment: style == .christmas ? .leading : .center,
+                           spacing: style == .christmas ? 7 : style.seasonal ? 6 : 3) {
+                        if style == .halloween {
                             RecztActivityTrim(style: style, state: context.state)
                                 .frame(height: 30).accessibilityHidden(true)
+                        }
+                        // Christmas status gets a full-width row below the camera.
+                        if style == .christmas {
+                            Text(copy.headline(context.state)).font(.headline)
+                                .foregroundStyle(style.snow).lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         if context.state.phase == "found" {
                             Text(context.state.title).font(.subheadline.weight(.semibold))
                                 .foregroundStyle(style.snow).lineLimit(1)
                         }
                         Text(copy.subtitle(context.state)).font(.caption)
-                            .foregroundStyle(style.snow.opacity(0.75)).lineLimit(1)
-                    }.padding(.bottom, style.seasonal ? 4 : 0)
+                            .foregroundStyle(style.snow.opacity(0.75)).lineLimit(style == .christmas ? 2 : 1)
+                            .fixedSize(horizontal: false, vertical: style == .christmas)
+                        if style == .christmas {
+                            RecztActivityTrim(style: style, state: context.state)
+                                .frame(height: style == .christmas ? 22 : 24)
+                                .padding(.top, 2).accessibilityHidden(true)
+                        }
+                    }.frame(maxWidth: .infinity, alignment: style == .christmas ? .leading : .center)
+                        .padding(.horizontal, style == .christmas ? 3 : 0)
+                        .padding(.bottom, style == .christmas ? 7 : style.seasonal ? 4 : 0)
                         .environment(\.layoutDirection, copy.direction)
                 }
             } compactLeading: {
@@ -176,8 +194,19 @@ private struct RecztAnimatedMark: View {
         return state.phase == "found" ? -2 : state.phase == "searching" ? 0 : -4
     }
     var body: some View {
-        RecztCharacterMark(style: style, step: reduceMotion ? 0 : beat, celebrating: state.phase == "found")
+        let celebrating = state.phase == "found"
+        ZStack(alignment: .topTrailing) {
+            RecztCharacterMark(style: style, step: reduceMotion ? 0 : beat,
+                celebrating: celebrating, frowning: state.phase == "noMatch")
+                .scaleEffect(celebrating && !reduceMotion ? 1.07 : 1)
+                .offset(y: celebrating && !reduceMotion ? -1.5 : 0)
+            Image(systemName: style == .christmas ? "snowflake" : "sparkles")
+                .font(.system(size: 9, weight: .semibold)).foregroundStyle(style.accent)
+                .symbolEffect(.bounce, value: reduceMotion ? false : celebrating)
+                .opacity(celebrating ? 1 : 0)
+        }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.42), value: beat)
+            .animation(reduceMotion ? nil : .spring(response: 0.48, dampingFraction: 0.5), value: celebrating)
             .accessibilityHidden(true)
     }
 }
@@ -186,6 +215,7 @@ private struct RecztCharacterMark: View, Animatable {
     let style: RecztActivityStyle
     var step: Double
     let celebrating: Bool
+    let frowning: Bool
     var animatableData: Double {
         get { step }
         set { step = newValue }
@@ -196,8 +226,10 @@ private struct RecztCharacterMark: View, Animatable {
             let sway = sin(step * 0.8)
             ZStack {
                 if style == .halloween {
-                    Image("RecztPumpkinClassic").resizable().scaledToFit()
-                        .rotationEffect(.degrees(sway * 1.5))
+                    Group {
+                        if frowning { Image("RecztPumpkinSad").resizable().scaledToFit() }
+                        else { Image("RecztPumpkinClassic").resizable().scaledToFit() }
+                    }.rotationEffect(.degrees(sway * 1.5))
                         .offset(y: celebrating ? -side * 0.025 : 0)
                 } else {
                     ZStack {
@@ -209,7 +241,8 @@ private struct RecztCharacterMark: View, Animatable {
                             .offset(x: side * CGFloat(-0.03 + max(0, -sway) * 0.0225), y: side * CGFloat(-0.0175 - max(0, -sway) * 0.0175))
                         Image("RecztSnowmanScarf").resizable().scaledToFit()
                             .rotationEffect(.degrees(sway * 3), anchor: UnitPoint(x: 0.46, y: 0.36))
-                        Image("RecztSnowmanBody").resizable().scaledToFit()
+                        if frowning { Image("RecztSnowmanSadBody").resizable().scaledToFit() }
+                        else { Image("RecztSnowmanBody").resizable().scaledToFit() }
                     }.rotationEffect(.degrees(sway * 1.1), anchor: .bottom)
                 }
                 RecztSeasonalMotes(style: style, step: step)

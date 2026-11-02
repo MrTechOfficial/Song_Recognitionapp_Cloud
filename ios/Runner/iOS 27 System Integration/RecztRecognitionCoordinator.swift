@@ -230,6 +230,13 @@ actor RecztRecognitionCoordinator {
             throw RecztRecognitionError(message: "Reczt received an invalid recognition response.")
         }
 
+        if root["success"] as? Bool == false {
+            let reason = root["reason"] as? String ?? "no_match"
+            if ["provider_unavailable", "provider_rate_limited", "recognition_timeout"].contains(reason) {
+                throw RecztRecognitionError(message: RecztRecognitionAttributes.localizedText("activity_error", language: settings.language))
+            }
+            return []
+        }
         let items = extractRecognitionResults(root)
         return items
             .map(candidate(from:))
@@ -332,7 +339,7 @@ actor RecztRecognitionCoordinator {
     }
 
     private func normalizedScore(_ value: Double?) -> Double? {
-        guard var value else { return nil }
+        guard var value, value.isFinite, value >= 0, value <= 100 else { return nil }
         if value > 1 { value /= 100 }
         return min(max(value, 0), 1)
     }
