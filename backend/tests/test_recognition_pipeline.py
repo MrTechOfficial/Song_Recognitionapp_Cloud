@@ -91,14 +91,17 @@ class RecognitionPipelineTests(TestCase):
         with mock.patch.object(server,'acrcloud_configured',return_value=False),mock.patch.object(server,'groq_client',None):
             response=self.client.get('/health').json()
         self.assertEqual(response['status'],'degraded')
-        self.assertEqual(response['pipeline_version'],'3.3')
+        self.assertEqual(response['pipeline_version'],'3.4')
         self.assertNotIn('access_key',response)
 
     def run_api(self,acr_candidates,statuses=None,lyric_meta=None,verify=None):
-        meta={'provider_statuses':statuses or ['humming'],'passes_attempted':1,'top_votes':1}
-        candidates=[dict(c) for c in acr_candidates]
+        groups=[(label,'humming',[
+            dict(c,recognition_type='humming',acrcloud_rank=i+1)
+            for i,c in enumerate(acr_candidates)]) for label in ('full','window')]
+        kind,candidates,meta=server._aggregate_acr_pass_results(groups)
+        meta['provider_statuses']=statuses or ['humming']
         def enrich(items,language):
-            return [dict(item,selection_score=item['confidence']*.8,version_penalty=0,version_kind='canonical',evidence_count=1,acr_pass_votes=1) for item in items]
+            return [dict(item,selection_score=item['confidence']*.8,version_penalty=0,version_kind='canonical',evidence_count=1) for item in items]
         def links(candidate,language):
             candidate['playback_link_verified']=verify(candidate) if verify else True
             if candidate['playback_link_verified']:candidate['spotify_url']='https://open.spotify.com/track/example'
@@ -106,11 +109,11 @@ class RecognitionPipelineTests(TestCase):
             return self.client.post('/recognize',files={'file':('voice.wav',self.audio,'audio/wav')},data={'auto_play':'true'}).json()
 
     def test_humming_fixture_survives_catalog_score_weighting(self):
-        data=self.run_api([{'title':'Happy Birthday','artist':'Traditional','confidence':.80,'source':'acrcloud_humming'}, {'title':'Different Song','artist':'Another Singer','confidence':.36,'source':'acrcloud_humming'}])
+        data=self.run_api([{'title':'Happy Birthday','artist':'Traditional','confidence':.85,'source':'acrcloud_humming'}, {'title':'Different Song','artist':'Another Singer','confidence':.36,'source':'acrcloud_humming'}])
         self.assertTrue(data['success']);self.assertEqual(data['results'][0]['title'],'Happy Birthday')
-        self.assertEqual(data['confidence'],.80)
-        self.assertAlmostEqual(data['selection_score'],.64)
-        self.assertEqual(data['recognition_meta']['pipeline_version'],'3.3')
+        self.assertEqual(data['confidence'],.85)
+        self.assertAlmostEqual(data['selection_score'],.68)
+        self.assertEqual(data['recognition_meta']['pipeline_version'],'3.4')
 
     def test_unavailable_playback_link_does_not_hide_the_best_recognition(self):
         data=self.run_api([{'title':'Leading song','artist':'Original singer','confidence':.85,'source':'acrcloud_humming'}, {'title':'Other song','artist':'Another singer','confidence':.65,'source':'acrcloud_humming'}],verify=lambda c:c['title']=='Other song')
@@ -132,10 +135,10 @@ class RecognitionPipelineTests(TestCase):
             data=self.run_api([],statuses=['no_match'])
         self.assertEqual(data['reason'],'recognition_timeout')
 
-    def test_lyric_catalog_auth_failure_is_not_bad_singing(self):
+    def test_unused_lyric_catalog_does_not_override_audio_provider_status(self):
         data=self.run_api([],statuses=['no_match'],lyric_meta={
             'transcription_statuses':['ok'],'genius_statuses':['http_401']})
-        self.assertEqual(data['reason'],'provider_unavailable')
+        self.assertEqual(data['reason'],'no_match')
 
     def test_repeated_birthday_and_chorus_phrases_are_usable_lyrics(self):
         self.assertTrue(server.transcript_looks_useful('Happy birthday to you ' * 6))
